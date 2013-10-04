@@ -1,0 +1,7 @@
+scene {
+	activeCamera = 1
+	node 1 {
+		translate = 0, 0, -20
+		scale = 1, 1, 1
+	}
+}
