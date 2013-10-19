@@ -66,14 +66,34 @@ private:
      * Draws the scene each frame.
      */
     bool drawScene(Node* node);
+    
+    void setSelected(Node* node);
 
+    //see if the current touch coordinates intersect a given model in the scene
+    bool checkTouch(Node* node);
+    
+    //model factory functions
+    Node* createBoxNode(float width, float height, float depth);
+
+	//scene setup
     Scene* _scene;
     Node* _lightNode;
     Light* _light;
-    std::vector<Mesh*>* _catalog;
+    
+    //T4T objects for modeling
+    std::vector<Node*>* _catalog;
     std::vector<std::string>* _itemNames;
+    
+    //for placing objects
     Node* _selectedNode;
+    const BoundingBox* _selectedBox;
     Form* _itemSelectForm;
+    CheckBox* _snapToGridCheckbox;
+    Slider *_gridSpacingSlider, *_cameraZoomSlider;
+    Plane _groundPlane;
+    Vector3 _intersectPoint;
+    Node* _intersectModel;
+    float _intersectHeight;
     
     class TouchPoint
     {

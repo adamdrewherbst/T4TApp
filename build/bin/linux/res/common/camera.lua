@@ -16,9 +16,9 @@ _touch = Vector2.new()
 _delta = Vector2.new()
 _move = Vector2.new()
 _moveFlags = { false, false, false, false }
-_yaw = 0.5
-_pitch = 0.5
-_radius = 10.0
+_yaw = 0.3
+_pitch = 0.3
+_radius = 30.0
 _moveFast = false
 
 _eyeMatrix = Matrix.new()
@@ -181,39 +181,36 @@ function camera_touchEvent(evt, x, y, contactIndex)
         end
     elseif evt == Touch.TOUCH_MOVE then
     	if true then --contactIndex == 0 then
-    		print("touch move to ", x, y)
 	        _delta:set(-x + _touch:x(), -y + _touch:y())
 	        _touch:set(x, y)
-	        print('initial pitch = ', _pitch, 'yaw = ',_yaw, 'delta = ', _delta:x(), _delta:y())
 	        _pitch = _pitch - math.rad(_delta:y() * 0.5)
 	        _yaw = _yaw - math.rad(_delta:x() * 0.5)
-	        --_cameraNode:setRotation(Quaternion.identity())
-	        --_cameraNode:rotateY(_yaw)
-	        --_cameraNode:rotateX(_pitch)
-	        
-	        --T4TApp.getInstance():setCamera(_yaw, _pitch);
 		    
-		    -- Create lookAt matrix
-			_eye:set(_radius*math.cos(_yaw)*math.cos(_pitch), _radius*math.sin(_pitch), _radius*math.sin(_yaw)*math.cos(_pitch))
-			_target:set(0.0, 0.0, 0.0)
-			_up:set(0.0, 1.0, 0.0)
-			Matrix.createLookAt(_eye, _target, _up, _eyeMatrix)
-			_eyeMatrix:invert();
-			
-			-- Pull SRT components out of matrix
-			_eyeMatrix:decompose(_scale, _rotation, _translation)
-			--print("scale: ", _scale:x, ",", _scale:y, ",", _scale:z)
-			--print("pitch = ", _pitch, ', yaw = ', _yaw)
-			--print('eye at', _eye:x(), _eye:y(), _eye:z())
-			--print("rotation: ", _rotation:x(), ",", _rotation:y(), ",", _rotation:z(), ",", _rotation:w())
-			--print("translation: ", _translation:x(), ",", _translation:y(), ",", _translation:z())
-			--print("translation: ", _translation:x, ",", _translation:y, ",", _translation:z)
-			-- Set SRT on node
-			_cameraNode:setScale(_scale)
-			_cameraNode:setTranslation(_translation)
-			_cameraNode:setRotation(_rotation)
+		    camera_setPosition()
 	    end
     end
+end
+
+--call when _pitch, _yaw, or _radius has been changed, to set the camera position accordingly
+function camera_setPosition()
+	-- Create lookAt matrix
+	_eye:set(_radius*math.cos(_yaw)*math.cos(_pitch), _radius*math.sin(_pitch), _radius*math.sin(_yaw)*math.cos(_pitch))
+	_target:set(0.0, 0.0, 0.0)
+	_up:set(0.0, 1.0, 0.0)
+	Matrix.createLookAt(_eye, _target, _up, _eyeMatrix)
+	_eyeMatrix:invert();
+
+	-- Pull SRT components out of matrix
+	_eyeMatrix:decompose(_scale, _rotation, _translation)
+	-- Set SRT on node
+	_cameraNode:setScale(_scale)
+	_cameraNode:setTranslation(_translation)
+	_cameraNode:setRotation(_rotation)
+end
+
+function camera_setRadius(radius)
+	_radius = radius
+	camera_setPosition()
 end
 
 function camera_moveForward(by)

@@ -1,4 +1,8 @@
 #include "Grid.h"
+#include <cstdio>
+using std::cout;
+using std::cin;
+using std::endl;
 
 Mesh* createGridMesh(unsigned int lineCount)
 {
@@ -77,6 +81,8 @@ Mesh* createGridMesh(unsigned int lineCount)
     }
     mesh->setPrimitiveType(Mesh::LINES);
     mesh->setVertexData(&vertices[0], 0, pointCount);
+    unsigned int range = lineCount/2;
+    mesh->setBoundingBox(BoundingBox(Vector3(-1.0f*range, -1.0f, -1.0f*range), Vector3(1.0f*range, 0.0f, 1.0f*range)));
 
     return mesh;
 }
@@ -95,31 +101,39 @@ Model* createGridModel(unsigned int lineCount)
 
 Mesh* createBoxMesh(float width, float height, float depth)
 {
-    const unsigned int pointCount = 8;
+    const unsigned int pointCount = 24;
     const unsigned int verticesSize = pointCount * 6;
 
     std::vector<float> vertices;
+    const float dims[3] = {width, height, depth};
     vertices.resize(verticesSize);
 
     Vector4 color(1.0f, 0.0f, 0.0f, 1.0f);
-	unsigned int i, j, k, v = 0;
-    for (unsigned int n = 0; n < pointCount; ++n)
+	unsigned int n, v = 0, f, fixed, fixedVal, ind;
+    for (n = 0; n < pointCount; ++n)
     {
-    	i = n % 2;
-    	j = (n % 4)/2;
-    	k = n/4;
+    	f = n/4; //face index
+    	fixed = f/2;
+    	fixedVal = f % 2;
+    	ind = n % 4;
     	
-    	vertices[v++] = i*width;
-    	vertices[v++] = j*height;
-    	vertices[v++] = k*depth;
-    	vertices[v++] = color.x;
-    	vertices[v++] = color.y;
-    	vertices[v++] = color.z;
+    	vertices[v+fixed] = (2.0f*fixedVal - 1.0f) * dims[fixed]/2.0f;
+    	fixed = (fixed+1) % 3;
+    	vertices[v+fixed] = (2.0f*(ind % 2) - 1.0f) * dims[fixed]/2.0f;
+    	fixed = (fixed+1) % 3;
+    	vertices[v+fixed] = (2.0f*(ind / 2) - 1.0f) * dims[fixed]/2.0f;
+    	fixed = (fixed+1) % 3;
+    	vertices[v+3] = 0;
+    	vertices[v+4] = 0;
+    	vertices[v+5] = 0;
+    	vertices[v+3+fixed] = (fixedVal*2.0f - 1.0f);
+    	v += 6;
+    	//cout << "(" << vertices[v-6] << "," << vertices[v-5] << "," << vertices[v-4] << "): <" << vertices[v-3] << "," << vertices[v-2] << "," << vertices[v-1] << ">" << endl;
     }
     VertexFormat::Element elements[] =
     {
         VertexFormat::Element(VertexFormat::POSITION, 3),
-        VertexFormat::Element(VertexFormat::COLOR, 3)
+        VertexFormat::Element(VertexFormat::NORMAL, 3)
     };
     Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), pointCount, false);
     if (mesh == NULL)
@@ -129,46 +143,33 @@ Mesh* createBoxMesh(float width, float height, float depth)
     //mesh->setPrimitiveType(Mesh::LINES);
     mesh->setVertexData(&vertices[0], 0, pointCount);
     
-	short indices[3 * 12];
-	indices[0] = 0;
-	indices[1] = 2;
-	indices[2] = 1;
-	indices[3] = 1;
-	indices[4] = 2;
-	indices[5] = 3;
-	indices[6] = 4;
-	indices[7] = 5;
-	indices[8] = 6;
-	indices[9] = 5;
-	indices[10] = 7;
-	indices[11] = 6;
-	indices[12] = 0;
-	indices[13] = 1;
-	indices[14] = 4;
-	indices[15] = 1;
-	indices[16] = 5;
-	indices[17] = 4;
-	indices[18] = 2;
-	indices[19] = 6;
-	indices[20] = 3;
-	indices[21] = 3;
-	indices[22] = 6;
-	indices[23] = 7;
-	indices[24] = 0;
-	indices[25] = 4;
-	indices[26] = 6;
-	indices[27] = 0;
-	indices[28] = 6;
-	indices[29] = 2;
-	indices[30] = 1;
-	indices[31] = 7;
-	indices[32] = 5;
-	indices[33] = 1;
-	indices[34] = 3;
-	indices[35] = 7;
+    //build the faces
+	short indices[3 * 6 * 2];
+	for(n = 0; n < 6; n++)
+	{
+		if(n % 2 == 0) {
+			indices[n*6] = n*4 + 0;
+			indices[n*6+1] = n*4 + 2;
+			indices[n*6+2] = n*4 + 1;
+			indices[n*6+3] = n*4 + 1;
+			indices[n*6+4] = n*4 + 2;
+			indices[n*6+5] = n*4 + 3;
+		} else {
+			indices[n*6] = n*4 + 0;
+			indices[n*6+1] = n*4 + 1;
+			indices[n*6+2] = n*4 + 2;
+			indices[n*6+3] = n*4 + 2;
+			indices[n*6+4] = n*4 + 1;
+			indices[n*6+5] = n*4 + 3;
+		}
+	}
 	
 	MeshPart *part = mesh->addPart(Mesh::TRIANGLES, Mesh::INDEX16, 36);
 	part->setIndexData(indices, 0, 36);//*/
+	
+	//add bounding sphere to allow to work with culling materials
+	mesh->setBoundingSphere(BoundingSphere(Vector3(0.0f, 0.0f, 0.0f), sqrt((width*width + height*height + depth*depth)/8.0f)));
+	mesh->setBoundingBox(BoundingBox(Vector3(-width/2.0f, -height/2.0f, -depth/2.0f), Vector3(width/2.0f, height/2.0f, depth/2.0f)));
 
     return mesh;
 }
