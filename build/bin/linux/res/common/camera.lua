@@ -16,8 +16,8 @@ _touch = Vector2.new()
 _delta = Vector2.new()
 _move = Vector2.new()
 _moveFlags = { false, false, false, false }
-_yaw = 0.3
-_pitch = 0.3
+_yaw = 3.1415926535/2.0
+_pitch = 0.1
 _radius = 30.0
 _moveFast = false
 
@@ -30,7 +30,7 @@ _rotation = Quaternion.new()
 _scale = Vector3.new()
 
 function camera_setActive(flag)
-	print("Lua setting camera active")
+	--print("Lua setting camera active")
     _useScriptCamera = flag
 
     if _useScriptCamera then

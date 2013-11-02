@@ -99,14 +99,15 @@ Model* createGridModel(unsigned int lineCount)
     return model;
 }
 
-Mesh* createBoxMesh(float width, float height, float depth)
+Mesh* createBoxMesh(float width, float height, float depth, Node *node)
 {
     const unsigned int pointCount = 24;
     const unsigned int verticesSize = pointCount * 6;
 
     std::vector<float> vertices;
-    const float dims[3] = {width, height, depth};
     vertices.resize(verticesSize);
+    float *justVertices = new float[8*3];
+    const float dims[3] = {width, height, depth};
 
     Vector4 color(1.0f, 0.0f, 0.0f, 1.0f);
 	unsigned int n, v = 0, f, fixed, fixedVal, ind;
@@ -123,6 +124,7 @@ Mesh* createBoxMesh(float width, float height, float depth)
     	fixed = (fixed+1) % 3;
     	vertices[v+fixed] = (2.0f*(ind / 2) - 1.0f) * dims[fixed]/2.0f;
     	fixed = (fixed+1) % 3;
+    	if(n < 8) for(int i = 0; i < 3; i++) justVertices[n*3 + i] = vertices[v+i];
     	vertices[v+3] = 0;
     	vertices[v+4] = 0;
     	vertices[v+5] = 0;
@@ -170,19 +172,49 @@ Mesh* createBoxMesh(float width, float height, float depth)
 	//add bounding sphere to allow to work with culling materials
 	mesh->setBoundingSphere(BoundingSphere(Vector3(0.0f, 0.0f, 0.0f), sqrt((width*width + height*height + depth*depth)/8.0f)));
 	mesh->setBoundingBox(BoundingBox(Vector3(-width/2.0f, -height/2.0f, -depth/2.0f), Vector3(width/2.0f, height/2.0f, depth/2.0f)));
-
+	
+	if(node != NULL) {
+		setEdges(node, "box");
+		nodeData *data = (nodeData*)node->getUserPointer();
+		data->numVertices = 8;
+		data->vertices = justVertices;
+	}
     return mesh;
 }
 
-Model* createBoxModel(float width, float height, float depth)
+Model* createBoxModel(float width, float height, float depth, Node* node)
 {
-    Mesh* mesh = createBoxMesh(width, height, depth);
+    Mesh* mesh = createBoxMesh(width, height, depth, node);
     if (!mesh)
         return NULL;
 
     Model* model = Model::create(mesh);
     mesh->release();
     assert(model);
+    if(node != NULL) {
+		node->setModel(model);
+	}
     return model;
+}
+
+void setEdges(Node* node, const char* type)
+{
+	nodeData* data = new nodeData();
+	if(strcmp(type, "box") == 0) {
+		data->numEdges = 12;
+		int ind = 0;
+		cout << "resizing edges vector" << endl;
+		data->edges = (unsigned short*)malloc(2 * data->numEdges * sizeof(unsigned short));
+		cout << "resized" << endl;
+		for(int i = 0; i < 8; i++) { //for each vertex
+			for(int j = 1; j < 5 && i+j < 8; j *= 2) { //add 1, 2, or 4 to get the x, y, or z neighbor
+				if(i % (2*j) >= j) continue;
+				//cout << "adding edges from " << ind << ": " << i << "-" << (i+j) << endl;
+				data->edges[ind++] = i;
+				data->edges[ind++] = i+j;
+			}
+		}
+	}
+	node->setUserPointer(data);
 }
 

@@ -2,6 +2,7 @@
 #include "Grid.h"
 #include <cstdio>
 #include <cmath>
+#include <stdlib.h>
 
 #define PI 3.1415926535
 
@@ -63,16 +64,14 @@ void T4TApp::initialize()
     // populate catalog of items
     _catalog = new std::vector<Node*>();
     _itemNames = new std::vector<std::string>();
-    /*_catalog->push_back(createBoxNode(1, 1, 1));
-    _catalog->push_back(createBoxNode(1, 1, 2));
-    _catalog->push_back(createBoxNode(1, 0.5, 1));//*/
     _itemNames->push_back("Box");
     _itemNames->push_back("Sphere");
     _itemNames->push_back("Cone");
-//*/
+    _itemCount = new std::vector<int>();
+    _itemCount->resize(_itemNames->size());
+    for(int i = 0; i < _itemNames->size(); i++) (*_itemCount)[i] = 0;
 
 	//create the grid on which to place objects
-	
     Model* gridModel = createGridModel();
     assert(gridModel);
     gridModel->setMaterial("res/common/grid.material");
@@ -90,7 +89,7 @@ void T4TApp::initialize()
     //store the plane representing the grid, for calculating intersections
     _groundPlane = Plane(Vector3(0, 1, 0), 0);
 
-    /*gridModel = createBoxModel(1.0f, 2.0f, 3.0f);
+    gridModel = createBoxModel(1.0f, 2.0f, 3.0f);
     Mesh* gridMesh = gridModel->getMesh();
     assert(gridModel);
     Material* material = gridModel->setMaterial("res/common/sample.material#cube");
@@ -99,10 +98,10 @@ void T4TApp::initialize()
     material->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());
     node = _scene->addNode("bigbox");
     node->setModel(gridModel);
-    node->setTranslation(Vector3(0.0f, 1.5f, 0.0f));
+    node->translate(0.0f, 1.0f, 0.0f);
     gridModel->release();
 	PhysicsRigidBody::Parameters boxParams;
-	boxParams.mass = 10.0f;
+	boxParams.mass = 0.0f;
 	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &boxParams);
 	body = ((PhysicsRigidBody*)node->getCollisionObject());
 	body->setLinearVelocity(Vector3(0.0f, 0.0f, 0.0f));
@@ -110,7 +109,9 @@ void T4TApp::initialize()
     cout << "mybox primitive " << gridModel->getMesh()->getPrimitiveType() << endl;
     const BoundingSphere* sphere = &gridModel->getMesh()->getBoundingSphere();
     cout << "mybox sphere " << sphere->radius << " from (" << sphere->center.x << "," << sphere->center.y << "," << sphere->center.z << ")" << endl;
-
+	PhysicsRigidBody *body1 = body;
+	body1->setEnabled(false);
+	
     gridModel = createBoxModel(1.0f, 2.0f, 3.0f);
     gridMesh = gridModel->getMesh();
     assert(gridModel);
@@ -120,13 +121,33 @@ void T4TApp::initialize()
     material->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());
     node = _scene->addNode("bigbox2");
     node->setModel(gridModel);
-    node->setTranslation(Vector3(4.0f, 3.0f, 0.0f));
+    node->translate(1.0f, 1.0f, 0.0f);
+    //node->rotate(0.0f, 0.0f, sin(30.0f*PI/180), cos(30.0f*PI/180));
     gridModel->release();
+    boxParams.mass = 10.0f;
 	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &boxParams);
 	body = ((PhysicsRigidBody*)node->getCollisionObject());
 	body->setLinearVelocity(Vector3(-0.0f, 0.0f, 0.0f));
 	body->setRestitution(1.0f);//*/
-
+	PhysicsRigidBody *body2 = body;
+	body2->setEnabled(false);
+	
+	PhysicsHingeConstraint* constraint = getPhysicsController()->createHingeConstraint(
+		body1,
+		Quaternion(0.0f, 0.0f, 0.0f, 1.0f),
+		Vector3(0.5f, 1.0f, 0.0f),
+		body2,
+		Quaternion(0.0f, 0.0f, 0.0f, 1.0f),
+		Vector3(-0.5f, 1.0f, 0.0f)
+	);
+	constraint->setLimits(0.0f, PI, 1.0f);
+	
+	node->translate(0.5f, 1.5f, 0.0f);
+	node->rotate(0.0f, 0.0f, sin(45.0f*PI/180), cos(45.0f*PI/180));
+	getPhysicsController()->setGravity(Vector3(0.0f, -0.5f, 0.0f));//*/
+	body1->setEnabled(true); body2->setEnabled(true);
+	//body1->setEnabled(false); body2->setEnabled(false);
+	
     // Initialize box model
     Node* boxNode = _scene->findNode("box");
     _scene->removeNode(boxNode);
@@ -207,6 +228,32 @@ void T4TApp::initialize()
 	_cameraZoomSlider->setConsumeInputEvents(false);
 	_cameraZoomSlider->addListener(this, Control::Listener::CLICK);
 	_itemSelectForm->addControl(_cameraZoomSlider);
+	//pointer mode: select & move, rotate, constraint
+	_selectMode = RadioButton::create("selectMode", buttonStyle);
+	_selectMode->setGroupId("pointerMode");
+	_selectMode->addListener(this, Control::Listener::CLICK);
+	_selectMode->setText("Select Mode");
+	_selectMode->setAutoWidth(true);
+	_selectMode->setHeight(60);
+	_selectMode->setConsumeInputEvents(false);
+	_itemSelectForm->addControl(_selectMode);
+	_rotateMode = RadioButton::create("rotateMode", buttonStyle);
+	_rotateMode->setGroupId("pointerMode");
+	_rotateMode->addListener(this, Control::Listener::CLICK);
+	_rotateMode->setText("Rotate Mode");
+	_rotateMode->setAutoWidth(true);
+	_rotateMode->setHeight(60);
+	_rotateMode->setConsumeInputEvents(false);
+	_rotateMode->setSelected(true);
+	_itemSelectForm->addControl(_rotateMode);
+	_constraintMode = RadioButton::create("constraintMode", buttonStyle);
+	_constraintMode->setGroupId("pointerMode");
+	_constraintMode->addListener(this, Control::Listener::CLICK);
+	_constraintMode->setText("Constraint Mode");
+	_constraintMode->setAutoWidth(true);
+	_constraintMode->setHeight(60);
+	_constraintMode->setConsumeInputEvents(false);
+	_itemSelectForm->addControl(_constraintMode);
 
 	//give the form focus
     _itemSelectForm->setState(Control::FOCUS);
@@ -242,6 +289,7 @@ void T4TApp::update(float elapsedTime)
     //if(!paused) _scene->findNode("box")->rotateY(MATH_DEG_TO_RAD((float)elapsedTime / 1000.0f * 180.0f));
     _itemSelectForm->update(elapsedTime);
     getScriptController()->executeFunction<void>("camera_update", "f", elapsedTime);
+    //usleep(500000);
 }
 
 void T4TApp::render(float elapsedTime)
@@ -310,32 +358,123 @@ void T4TApp::keyEvent(Keyboard::KeyEvent evt, int key)
 void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
 {
 	_touchPoint.set(x, y);
+	bool rotate = false;
 	//cout << "touch event at " << x << ", " << y << endl;
     switch (evt)
     {
     case Touch::TOUCH_PRESS:
+		if(_selectMode->isSelected()) {
+		    Camera* camera = _scene->getActiveCamera();
+		    // Get a pick ray
+		    Ray ray;
+		    camera->pickRay(getViewport(), x, y, &ray);
+		    // Cast a ray into the physics world to test for hits
+		    PhysicsController::HitResult hitResult;
+		    if (getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) {
+		    	Node *node = hitResult.object->getNode();
+		    	if(node->getCollisionObject() != NULL) {
+					cout << "selected: " << node->getId() << endl;
+					//see if this object is constrained to any others
+					PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
+					for(int i = 0, size = body->_constraints->size(); i < size; i++) {
+						PhysicsConstraint* constraint = (*(body->_constraints))[i];
+						PhysicsRigidBody* other = constraint->_a == body ? constraint->_b : constraint->_a;
+						cout << "\tconstrained to " << other->getNode()->getId() << endl;
+					}
+				}
+			}
+		}
+		else if(_constraintMode->isSelected()) {
+			//see if the touch point intersects an edge
+			//_scene->visit(this, &T4TApp::checkTouchEdge);
+		    Camera* camera = _scene->getActiveCamera();
+
+		    // Get a pick ray
+		    Ray ray;
+		    camera->pickRay(getViewport(), x, y, &ray);
+
+		    // Cast a ray into the physics world to test for hits
+		    PhysicsController::HitResult hitResult;
+		    if (getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult))
+		    {
+		        // Get the node we touched
+		        Node* node = hitResult.object->getNode();
+		        // Get the exact point touched, in world space
+		        Vector3 p = hitResult.point;
+		        cout << "hit " << node->getId() << " at " << p.x << "," << p.y << "," << p.z << endl;
+		        //the vertex data is in a GL buffer, so to get it, we have to transform the model vertices
+		        nodeData *data = (nodeData*)node->getUserPointer();
+		        if(data != NULL) {
+				    Matrix world = node->getWorldMatrix();
+				    Vector3 *vertices = new Vector3[data->numVertices];
+				    for(int i = 0; i < data->numVertices; i++)
+				    	world.transformVector(data->vertices[i*3], data->vertices[i*3+1], data->vertices[i*3+2], 1, &vertices[i]);
+				    //get the closest edge to the contact point by using the vertex coords obtained above
+				    Vector3 v, w, projection;
+				    float t, distance, minDistance = 999999;
+				    int minEdge;
+				    for(int i = 0; i < data->numEdges; i++) {
+				    	v = vertices[data->edges[i*2]];
+				    	w = vertices[data->edges[i*2+1]];
+					    const float l2 = (v - w).lengthSquared();
+						const float t = (p - v).dot(w - v) / l2;
+						if (t < 0.0) distance = p.distance(v);       // Beyond the 'v' end of the segment
+						else if (t > 1.0) distance = p.distance(w);  // Beyond the 'w' end of the segment
+						else {
+							projection = v + ((w - v) * t);  // Projection falls on the segment
+							distance = p.distance(projection);
+						}
+						if(distance < minDistance) {
+							minDistance = distance;
+							minEdge = i;
+						}
+				    }
+				    cout << "closest edge at distance " << minDistance << ": (<" << vertices[data->edges[minEdge*2]].x << "," << vertices[data->edges[minEdge*2]].y << "," << vertices[data->edges[minEdge*2]].z << ">, <" << vertices[data->edges[minEdge*2+1]].x << "," << vertices[data->edges[minEdge*2+1]].y << "," << vertices[data->edges[minEdge*2+1]].z << ">)" << endl;
+				    
+				    if(_constraintNodes[0] == NULL) { //if this is the first edge, highlight it
+				    	_constraintNodes[0] = node;
+				    	_constraintEdges[0] = minEdge;
+				    } else { //otherwise, create the constraint
+				    	/*getPhysicsController()->createHingeConstraint(
+				    		(PhysicsRigidBody*)_constraintNodes[0]->getCollisionObject(),//*/
+				    	_constraintNodes[0] = NULL; //and reset for next time
+				    }
+				}
+		    }
+		}
+		else if(_rotateMode->isSelected()) {
+			rotate = true;
+			break;
+		}
 	    _debugFlag = false;
+	    break;
     case Touch::TOUCH_MOVE:
    	{
    		//if an object is currently selected, move it to the touch position (projected onto the ground plane)
-    	if(_selectedNode == NULL) break;
-    	Ray ray;
-    	_scene->getActiveCamera()->pickRay(getViewport(), x, y, &ray);
-    	float distance = ray.intersects(_groundPlane);
-    	if(distance == Ray::INTERSECTS_NONE) break;
-    	_intersectPoint = ray.getOrigin() + ray.getDirection()*distance;
-    	_intersectPoint.y = (_selectedBox->max.y - _selectedBox->min.y) / 2.0f;
-    	//snap object to grid if desired
-    	if(_snapToGridCheckbox->isChecked()) {
-    		float spacing = _gridSpacingSlider->getValue();
-    		_intersectPoint.x = round(_intersectPoint.x / spacing) * spacing;
-    		_intersectPoint.z = round(_intersectPoint.z / spacing) * spacing;
-    	}
-    	//if would intersect another object, place it on top of that object instead
-    	_intersectModel = NULL;
-    	_scene->visit(this, &T4TApp::checkTouch);
-    	_selectedNode->setTranslation(_intersectPoint);
-        break;
+    	if(_selectedNode != NULL) {
+			Ray ray;
+			_scene->getActiveCamera()->pickRay(getViewport(), x, y, &ray);
+			float distance = ray.intersects(_groundPlane);
+			if(distance == Ray::INTERSECTS_NONE) break;
+			_intersectPoint = ray.getOrigin() + ray.getDirection()*distance;
+			_intersectPoint.y = (_selectedBox->max.y - _selectedBox->min.y) / 2.0f;
+			//snap object to grid if desired
+			if(_snapToGridCheckbox->isChecked()) {
+				float spacing = _gridSpacingSlider->getValue();
+				_intersectPoint.x = round(_intersectPoint.x / spacing) * spacing;
+				_intersectPoint.z = round(_intersectPoint.z / spacing) * spacing;
+			}
+			//if would intersect another object, place it on top of that object instead
+			_intersectModel = NULL;
+			_scene->visit(this, &T4TApp::checkTouchModel);
+			_selectedNode->setTranslation(_intersectPoint);
+			PhysicsRigidBody* obj = _selectedNode->getCollisionObject()->asRigidBody();
+		    break;
+		}
+		else if(_rotateMode->isSelected()) {
+			rotate = true;
+			break;
+		}
     }
     case Touch::TOUCH_RELEASE:
     	if(_selectedNode != NULL) {
@@ -348,10 +487,11 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
     	enableScriptCamera(true);
         break;
     };
-    getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", evt, x, y, contactIndex);
+    if(rotate) getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", evt, x, y, contactIndex);
 }
 
-bool T4TApp::checkTouch(Node* node)
+//see if the current touch location intersects the bottom face of the given object
+bool T4TApp::checkTouchModel(Node* node)
 {
 	if(node == _selectedNode) return true;
 	Vector3 pos = node->getTranslation();
@@ -378,6 +518,17 @@ bool T4TApp::checkTouch(Node* node)
 	return true;
 }
 
+//find the closest edge on this model to the touch point in 3D space - if it is the closest so far, store edge and distance
+bool T4TApp::checkTouchEdge(Node* node)
+{
+	nodeData* data = (nodeData*)node->getUserPointer();
+	unsigned short* edges = data->edges;
+	for(int i = 0; i < data->numEdges; i++) {
+		//get starting point and direction vector of camera sight, and edge
+	}
+	return false;
+}
+
 void T4TApp::controlEvent(Control* control, EventType evt)
 {
 	cout << "CLICKED " << control->getId() << endl;
@@ -386,23 +537,27 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 	{
 		if((*_itemNames)[i].compare(control->getId()) == 0)
 		{
-			cout << "selected " << (*_itemNames)[i] << endl;
+			char shapeName[20], number[8];
+			strcpy(shapeName, (*_itemNames)[i].c_str());
+			cout << "selected " << shapeName << endl;
+			sprintf(number, "%d", ++(*_itemCount)[i]);
+			strcat(shapeName, number);
+			Node* node = _scene->addNode(shapeName);
 			Model* model = NULL;
 			switch(i) {
 				case 0: //box
-					model = createBoxModel(1, 1, 1);
+					model = createBoxModel(1, 1, 1, node);
 					break;
 				case 1: //sphere
-					model = createBoxModel(1, 1, 2);
+					model = createBoxModel(1, 1, 2, node);
 					break;
 				case 2: //cone
-					model = createBoxModel(1, 0.5, 1);
+					model = createBoxModel(1, 0.5, 1, node);
 					break;
 				default: break;
 			}
 			if(model == NULL) break;
-			Node* node = _scene->addNode("newNode");
-			node->setModel(model);
+			//node->setModel(model);
 			Material* material = model->setMaterial("res/common/sample.material#cube");
 			material->getParameter("u_ambientColor")->setValue(_scene->getAmbientColor());
 			material->getParameter("u_lightColor")->setValue(_light->getColor());
@@ -416,9 +571,8 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 			//body->setKinematic(true);
 			body->setRestitution(0.5f);
 			Vector3 pos = node->getTranslation();
-			cout << "new node is at " << pos.x << ", " << pos.y << ", " << pos.z << endl;
 			PhysicsCollisionObject* obj = node->getCollisionObject();
-			cout << " and has shape type " << obj->getShapeType() << endl;
+			cout << node->getId() << " is at " << pos.x << ", " << pos.y << ", " << pos.z << " and has shape type " << obj->getShapeType() << endl;
 			setSelected(node);
 			enableScriptCamera(false);
 		}
@@ -434,15 +588,18 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 
 void T4TApp::setSelected(Node* node)
 {
-	_selectedNode = node;
 	if(node != NULL)
 	{
+		if(node->getCollisionObject() == NULL) return; //shouldn't select a non-physical object (like the floor grid)
+		PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
+		body->setEnabled(false); //turn off physics on this body while dragging it around
 		_selectedBox = &(node->getModel()->getMesh()->getBoundingBox());
 	}
 	else
 	{
 		_selectedBox = NULL;
 	}
+	_selectedNode = node;
 }
 
 void T4TApp::enableScriptCamera(bool enable)

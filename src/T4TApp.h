@@ -70,7 +70,8 @@ private:
     void setSelected(Node* node);
 
     //see if the current touch coordinates intersect a given model in the scene
-    bool checkTouch(Node* node);
+    bool checkTouchModel(Node* node);
+    bool checkTouchEdge(Node* node);
     
     //model factory functions
     Node* createBoxNode(float width, float height, float depth);
@@ -83,17 +84,25 @@ private:
     //T4T objects for modeling
     std::vector<Node*>* _catalog;
     std::vector<std::string>* _itemNames;
+    std::vector<int>* _itemCount;
     
     //for placing objects
     Node* _selectedNode;
     const BoundingBox* _selectedBox;
     Form* _itemSelectForm;
-    CheckBox* _snapToGridCheckbox;
-    Slider *_gridSpacingSlider, *_cameraZoomSlider;
     Plane _groundPlane;
     Vector3 _intersectPoint;
     Node* _intersectModel;
     float _intersectHeight;
+    
+    //for creating physical constraints between objects
+    Node* _constraintNodes[2];
+    unsigned short _constraintEdges[2];
+    
+    //user interface
+    CheckBox* _snapToGridCheckbox;
+    Slider *_gridSpacingSlider, *_cameraZoomSlider;
+    RadioButton *_selectMode, *_rotateMode, *_constraintMode;
     
     class TouchPoint
     {

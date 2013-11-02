@@ -26,6 +26,15 @@ Mesh* createGridMesh(unsigned int lineCount = DEFAULT_LINE_COUNT);
 Model* createGridModel(unsigned int lineCount = DEFAULT_LINE_COUNT);
 
 Mesh* createBoxMesh(float width, float height, float depth);
-Model* createBoxModel(float width, float height, float depth);
+Model* createBoxModel(float width, float height, float depth, Node* node = NULL);
+
+void setEdges(Node* node, const char* type);
+
+//any data associated with a node - currently just the list of vertex index pairs forming the edges
+typedef struct {
+	unsigned short numVertices, numEdges;
+	float *vertices;
+	unsigned short *edges;
+} nodeData;
 
 #endif
