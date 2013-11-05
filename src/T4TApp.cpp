@@ -19,6 +19,7 @@ T4TApp::T4TApp()
     : _scene(NULL)
 {
 	__t4tInstance = this;
+	_physicsStopped = false;
 }
 
 T4TApp* T4TApp::getInstance() {
@@ -72,10 +73,9 @@ void T4TApp::initialize()
     for(int i = 0; i < _itemNames->size(); i++) (*_itemCount)[i] = 0;
 
 	//create the grid on which to place objects
-    Model* gridModel = createGridModel();
-    assert(gridModel);
-    gridModel->setMaterial("res/common/grid.material");
     Node* node = _scene->addNode("grid");
+    Model* gridModel = createGridModel();
+    gridModel->setMaterial("res/common/grid.material");
     node->setModel(gridModel);
     gridModel->release();//*/
 	PhysicsRigidBody::Parameters gridParams;
@@ -89,17 +89,16 @@ void T4TApp::initialize()
     //store the plane representing the grid, for calculating intersections
     _groundPlane = Plane(Vector3(0, 1, 0), 0);
 
-    gridModel = createBoxModel(1.0f, 2.0f, 3.0f);
-    Mesh* gridMesh = gridModel->getMesh();
+    node = _scene->addNode("bigbox");
+    gridModel = createBoxModel(1.0f, 2.0f, 3.0f, node);
     assert(gridModel);
+    Mesh* gridMesh = gridModel->getMesh();
     Material* material = gridModel->setMaterial("res/common/sample.material#cube");
     material->getParameter("u_ambientColor")->setValue(_scene->getAmbientColor());
     material->getParameter("u_lightColor")->setValue(_light->getColor());
     material->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());
-    node = _scene->addNode("bigbox");
-    node->setModel(gridModel);
-    node->translate(0.0f, 1.0f, 0.0f);
     gridModel->release();
+    node->translate(0.0f, 1.0f, 0.0f);
 	PhysicsRigidBody::Parameters boxParams;
 	boxParams.mass = 0.0f;
 	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &boxParams);
@@ -112,18 +111,18 @@ void T4TApp::initialize()
 	PhysicsRigidBody *body1 = body;
 	body1->setEnabled(false);
 	
-    gridModel = createBoxModel(1.0f, 2.0f, 3.0f);
-    gridMesh = gridModel->getMesh();
+    node = _scene->addNode("bigbox2");
+    gridModel = createBoxModel(1.0f, 2.0f, 3.0f, node);
     assert(gridModel);
+    gridMesh = gridModel->getMesh();
     material = gridModel->setMaterial("res/common/sample.material#cube");
     material->getParameter("u_ambientColor")->setValue(_scene->getAmbientColor());
     material->getParameter("u_lightColor")->setValue(_light->getColor());
     material->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());
-    node = _scene->addNode("bigbox2");
-    node->setModel(gridModel);
-    node->translate(1.0f, 1.0f, 0.0f);
     //node->rotate(0.0f, 0.0f, sin(30.0f*PI/180), cos(30.0f*PI/180));
     gridModel->release();
+    node->setModel(gridModel);
+    node->translate(1.0f, 1.0f, 0.0f);
     boxParams.mass = 10.0f;
 	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &boxParams);
 	body = ((PhysicsRigidBody*)node->getCollisionObject());
@@ -132,7 +131,7 @@ void T4TApp::initialize()
 	PhysicsRigidBody *body2 = body;
 	body2->setEnabled(false);
 	
-	PhysicsHingeConstraint* constraint = getPhysicsController()->createHingeConstraint(
+	/*PhysicsHingeConstraint* constraint = getPhysicsController()->createHingeConstraint(
 		body1,
 		Quaternion(0.0f, 0.0f, 0.0f, 1.0f),
 		Vector3(0.5f, 1.0f, 0.0f),
@@ -140,7 +139,7 @@ void T4TApp::initialize()
 		Quaternion(0.0f, 0.0f, 0.0f, 1.0f),
 		Vector3(-0.5f, 1.0f, 0.0f)
 	);
-	constraint->setLimits(0.0f, PI, 1.0f);
+	constraint->setLimits(0.0f, PI, 1.0f);//*/
 	
 	node->translate(0.5f, 1.5f, 0.0f);
 	node->rotate(0.0f, 0.0f, sin(45.0f*PI/180), cos(45.0f*PI/180));
@@ -254,6 +253,16 @@ void T4TApp::initialize()
 	_constraintMode->setHeight(60);
 	_constraintMode->setConsumeInputEvents(false);
 	_itemSelectForm->addControl(_constraintMode);
+	
+	//button to print out some predefined debug info
+	Button* debugButton = Button::create("DebugButton", buttonStyle);
+	debugButton->setText("Debug");
+	debugButton->setAutoWidth(true);
+	debugButton->setHeight(60);
+	debugButton->setConsumeInputEvents(false);
+	debugButton->addListener(this, Control::Listener::CLICK);
+	_itemSelectForm->addControl(debugButton);
+	debugButton->release();
 
 	//give the form focus
     _itemSelectForm->setState(Control::FOCUS);
@@ -283,12 +292,20 @@ void T4TApp::finalize()
     SAFE_RELEASE(_itemSelectForm);
 }
 
+int updateCount = 0;
 void T4TApp::update(float elapsedTime)
 {
     // Rotate model
     //if(!paused) _scene->findNode("box")->rotateY(MATH_DEG_TO_RAD((float)elapsedTime / 1000.0f * 180.0f));
     _itemSelectForm->update(elapsedTime);
     getScriptController()->executeFunction<void>("camera_update", "f", elapsedTime);
+    if(_state == Game::RUNNING) {
+    	//cout << "Still running... " << updateCount++ << endl;
+    }else if(!_physicsStopped) {
+    	_physicsStopped = true;
+    	cout << "Physics stopped" << endl;
+    }
+    //cout << "update " << updateCount++ << endl;
     //usleep(500000);
 }
 
@@ -380,6 +397,24 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 						PhysicsConstraint* constraint = (*(body->_constraints))[i];
 						PhysicsRigidBody* other = constraint->_a == body ? constraint->_b : constraint->_a;
 						cout << "\tconstrained to " << other->getNode()->getId() << endl;
+						btHingeConstraint *_constraint = (btHingeConstraint*) constraint->_constraint;
+						btTransform transform = constraint->_a == body ? _constraint->getFrameOffsetA() : _constraint->getFrameOffsetB();
+						//determine the axis of rotation in world coords
+						btQuaternion rotation = transform.getRotation();
+						btScalar angle = rotation.getAngle();
+						btVector3 axis = rotation.getAxis(), origin = transform.getOrigin();
+						btTransform rot = btTransform(rotation);
+						axis = rot * btVector3(0, 0, 1);
+						//determine the compensatory translation to maintain the hinge alignment
+						float ang = 45.0f*PI/180;
+						btTransform t1 = btTransform(btQuaternion(axis, ang));
+						btVector3 test = t1 * origin - origin;
+						cout << "\thinge = " << angle << " about " << axis.x() << "," << axis.y() << "," << axis.z()
+							<< " with origin " << origin.x() << "," << origin.y() << "," << origin.z() << endl;
+						//as a test, rotate the object about the hinge by 45 degrees
+						node->rotate(Vector3(axis.x(), axis.y(), axis.z()), ang);
+						node->translate(-test.x(), -test.y(), -test.z());
+						body->setEnabled(false); body->setEnabled(true);
 					}
 				}
 			}
@@ -405,6 +440,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 		        //the vertex data is in a GL buffer, so to get it, we have to transform the model vertices
 		        nodeData *data = (nodeData*)node->getUserPointer();
 		        if(data != NULL) {
+		        	cout << "finding closest edge" << endl;
 				    Matrix world = node->getWorldMatrix();
 				    Vector3 *vertices = new Vector3[data->numVertices];
 				    for(int i = 0; i < data->numVertices; i++)
@@ -414,6 +450,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 				    float t, distance, minDistance = 999999;
 				    int minEdge;
 				    for(int i = 0; i < data->numEdges; i++) {
+				    	//cout << "testing " << i << ": " << data->edges[i*2] << "-" << data->edges[i*2+1] << endl;
 				    	v = vertices[data->edges[i*2]];
 				    	w = vertices[data->edges[i*2+1]];
 					    const float l2 = (v - w).lengthSquared();
@@ -435,8 +472,15 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 				    	_constraintNodes[0] = node;
 				    	_constraintEdges[0] = minEdge;
 				    } else { //otherwise, create the constraint
+				    	_constraintNodes[1] = node;
+				    	//rotate the second node so that the edges to be joined are aligned with each other
+				    	
+				    	//create the constraint
 				    	/*getPhysicsController()->createHingeConstraint(
-				    		(PhysicsRigidBody*)_constraintNodes[0]->getCollisionObject(),//*/
+				    		(PhysicsRigidBody*)_constraintNodes[0]->getCollisionObject(),
+				    		
+				    		(PhysicsRigidBody*)_constraintNodes[1]->getCollisionObject(),
+				    	//*/
 				    	_constraintNodes[0] = NULL; //and reset for next time
 				    }
 				}
@@ -477,14 +521,11 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 		}
     }
     case Touch::TOUCH_RELEASE:
-    	if(_selectedNode != NULL) {
-    		PhysicsRigidBody* obj = _selectedNode->getCollisionObject()->asRigidBody();
-    		obj->setEnabled(true);
-    		//obj->setKinematic(false);
-    	}
     	_debugFlag = true;
     	setSelected(NULL);
     	enableScriptCamera(true);
+    	_physicsStopped = false;
+    	updateCount = 0;
         break;
     };
     if(rotate) getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", evt, x, y, contactIndex);
@@ -574,6 +615,7 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 			PhysicsCollisionObject* obj = node->getCollisionObject();
 			cout << node->getId() << " is at " << pos.x << ", " << pos.y << ", " << pos.z << " and has shape type " << obj->getShapeType() << endl;
 			setSelected(node);
+			_lastNode = node;
 			enableScriptCamera(false);
 		}
 	}
@@ -584,10 +626,17 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 	if(control == _cameraZoomSlider) {
 	    getScriptController()->executeFunction<void>("camera_setRadius", "f", _cameraZoomSlider->getValue());
 	}
+	if(strcmp(control->getId(), "DebugButton") == 0) {
+		if(_lastNode) {
+			PhysicsRigidBody *body = _lastNode->getCollisionObject()->asRigidBody();
+			cout << "last node " << _lastNode->getId() << " is " << (body->isEnabled() ? "" : "NOT") << " enabled" << endl;
+		}
+	}
 }
 
 void T4TApp::setSelected(Node* node)
 {
+	cout << "selecting " << (node == NULL ? "NULL" : node->getId()) << endl;
 	if(node != NULL)
 	{
 		if(node->getCollisionObject() == NULL) return; //shouldn't select a non-physical object (like the floor grid)
@@ -597,6 +646,10 @@ void T4TApp::setSelected(Node* node)
 	}
 	else
 	{
+		if(_selectedNode) {
+			PhysicsRigidBody* body = _selectedNode->getCollisionObject()->asRigidBody();
+			body->setEnabled(true); //turn off physics on this body while dragging it around
+		}
 		_selectedBox = NULL;
 	}
 	_selectedNode = node;

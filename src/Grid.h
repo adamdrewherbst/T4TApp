@@ -35,6 +35,7 @@ typedef struct {
 	unsigned short numVertices, numEdges;
 	float *vertices;
 	unsigned short *edges;
+	
 } nodeData;
 
 #endif

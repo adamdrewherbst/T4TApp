@@ -173,7 +173,7 @@ Mesh* createBoxMesh(float width, float height, float depth, Node *node)
 	mesh->setBoundingSphere(BoundingSphere(Vector3(0.0f, 0.0f, 0.0f), sqrt((width*width + height*height + depth*depth)/8.0f)));
 	mesh->setBoundingBox(BoundingBox(Vector3(-width/2.0f, -height/2.0f, -depth/2.0f), Vector3(width/2.0f, height/2.0f, depth/2.0f)));
 	
-	if(node != NULL) {
+	if(node != NULL) { //store the vertex coords and edge indices to allow non-OpenGL calculations (eg. closest edge to touch)
 		setEdges(node, "box");
 		nodeData *data = (nodeData*)node->getUserPointer();
 		data->numVertices = 8;

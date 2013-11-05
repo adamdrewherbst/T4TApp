@@ -87,7 +87,7 @@ private:
     std::vector<int>* _itemCount;
     
     //for placing objects
-    Node* _selectedNode;
+    Node *_selectedNode, *_lastNode;
     const BoundingBox* _selectedBox;
     Form* _itemSelectForm;
     Plane _groundPlane;
@@ -116,6 +116,9 @@ private:
     Vector2 _mousePoint, _touchPoint;
     std::string _mouseString;
     Font* _font;
+    
+    //debugging flags
+    bool _physicsStopped;
 	
 };
 
