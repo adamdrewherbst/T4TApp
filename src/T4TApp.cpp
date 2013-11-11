@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cmath>
 #include <stdlib.h>
+#include <sstream>
 
 #define PI 3.1415926535
 
@@ -105,6 +106,7 @@ void T4TApp::initialize()
 	body = ((PhysicsRigidBody*)node->getCollisionObject());
 	body->setLinearVelocity(Vector3(0.0f, 0.0f, 0.0f));
 	body->setRestitution(1.0f);
+	body->_body->setSleepingThresholds(0.1f, 0.1f);
     cout << "mybox primitive " << gridModel->getMesh()->getPrimitiveType() << endl;
     const BoundingSphere* sphere = &gridModel->getMesh()->getBoundingSphere();
     cout << "mybox sphere " << sphere->radius << " from (" << sphere->center.x << "," << sphere->center.y << "," << sphere->center.z << ")" << endl;
@@ -127,11 +129,12 @@ void T4TApp::initialize()
 	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &boxParams);
 	body = ((PhysicsRigidBody*)node->getCollisionObject());
 	body->setLinearVelocity(Vector3(-0.0f, 0.0f, 0.0f));
-	body->setRestitution(1.0f);//*/
+	body->setRestitution(1.0f);
+	body->_body->setSleepingThresholds(0.1f, 0.1f);
 	PhysicsRigidBody *body2 = body;
 	body2->setEnabled(false);
 	
-	/*PhysicsHingeConstraint* constraint = getPhysicsController()->createHingeConstraint(
+	PhysicsHingeConstraint* constraint = getPhysicsController()->createHingeConstraint(
 		body1,
 		Quaternion(0.0f, 0.0f, 0.0f, 1.0f),
 		Vector3(0.5f, 1.0f, 0.0f),
@@ -139,28 +142,15 @@ void T4TApp::initialize()
 		Quaternion(0.0f, 0.0f, 0.0f, 1.0f),
 		Vector3(-0.5f, 1.0f, 0.0f)
 	);
-	constraint->setLimits(0.0f, PI, 1.0f);//*/
+	constraint->setLimits(0.0f, PI, 1.0f);
 	
 	node->translate(0.5f, 1.5f, 0.0f);
 	node->rotate(0.0f, 0.0f, sin(45.0f*PI/180), cos(45.0f*PI/180));
-	getPhysicsController()->setGravity(Vector3(0.0f, -0.5f, 0.0f));//*/
-	body1->setEnabled(true); body2->setEnabled(true);
-	//body1->setEnabled(false); body2->setEnabled(false);
+	body1->setEnabled(true); body2->setEnabled(true);//*/
 	
     // Initialize box model
     Node* boxNode = _scene->findNode("box");
     _scene->removeNode(boxNode);
-    /*Model* boxModel = boxNode->getModel(); //createBoxModel(0.5f, 0.5f, 0.5f);
-    Mesh* boxMesh = boxModel->getMesh();
-    Material* boxMaterial = boxModel->setMaterial("res/common/box.material");
-    //boxNode->setModel(boxModel);
-    //_catalog->push_back(boxNode->getModel()->getMesh());
-    boxMaterial->getParameter("u_ambientColor")->setValue(_scene->getAmbientColor());
-    boxMaterial->getParameter("u_lightColor")->setValue(_light->getColor());
-    boxMaterial->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());
-    cout << "hisbox primitive " << boxModel->getMesh()->getPrimitiveType() << endl;
-    sphere = &boxModel->getMesh()->getBoundingSphere();
-    cout << "hisbox sphere " << sphere->radius << " from (" << sphere->center.x << "," << sphere->center.y << "," << sphere->center.z << ")" << endl;//*/
     
     //create the form for selecting catalog items
     Theme* theme = Theme::create("res/common/default.theme");
@@ -253,7 +243,16 @@ void T4TApp::initialize()
 	_constraintMode->setHeight(60);
 	_constraintMode->setConsumeInputEvents(false);
 	_itemSelectForm->addControl(_constraintMode);
-	
+	//checkbox for whether to just print object info when clicking on it
+	_debugCheckbox = CheckBox::create("snapGrid", buttonStyle);
+	_debugCheckbox->setText("Debug-only");
+	_debugCheckbox->setAutoWidth(true);
+	_debugCheckbox->setHeight(60);
+	_debugCheckbox->setConsumeInputEvents(false);
+	_debugCheckbox->addListener(this, Control::Listener::CLICK);
+	_debugCheckbox->setChecked(false);
+	_itemSelectForm->addControl(_debugCheckbox);
+
 	//button to print out some predefined debug info
 	Button* debugButton = Button::create("DebugButton", buttonStyle);
 	debugButton->setText("Debug");
@@ -305,6 +304,11 @@ void T4TApp::update(float elapsedTime)
     	_physicsStopped = true;
     	cout << "Physics stopped" << endl;
     }
+    if(_lastBody) {
+    	int activation = _lastBody->getActivation();
+    	//cout << "updating last body: " << activation << endl;
+    	if(activation == 2) _lastBody = NULL;
+    }
     //cout << "update " << updateCount++ << endl;
     //usleep(500000);
 }
@@ -340,6 +344,12 @@ void T4TApp::render(float elapsedTime)
     _font->finish();
 
     _itemSelectForm->draw();
+
+    if(_lastBody) {
+    	int activation = _lastBody->getActivation();
+    	//cout << "rendering last body: " << activation << endl;
+    	if(activation == 2) _lastBody = NULL;
+    }
 }
 
 bool T4TApp::drawScene(Node* node)
@@ -393,7 +403,13 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 					cout << "selected: " << node->getId() << endl;
 					//see if this object is constrained to any others
 					PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
-					for(int i = 0, size = body->_constraints->size(); i < size; i++) {
+					cout << "\tenabled: " << body->isEnabled() << endl;
+					cout << "\tkinematic: " << body->isKinematic() << endl;
+					cout << "\tstatic: " << body->isStatic() << endl;
+			    	if(_debugCheckbox->isChecked()) {
+						cout << "\tactivation = " << body->getActivation() << endl;
+			    	}
+					else if(body->_constraints != NULL) for(int i = 0, size = body->_constraints->size(); i < size; i++) {
 						PhysicsConstraint* constraint = (*(body->_constraints))[i];
 						PhysicsRigidBody* other = constraint->_a == body ? constraint->_b : constraint->_a;
 						cout << "\tconstrained to " << other->getNode()->getId() << endl;
@@ -412,9 +428,23 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 						cout << "\thinge = " << angle << " about " << axis.x() << "," << axis.y() << "," << axis.z()
 							<< " with origin " << origin.x() << "," << origin.y() << "," << origin.z() << endl;
 						//as a test, rotate the object about the hinge by 45 degrees
+						cout << "\tbefore: activation = " << body->getActivation() << endl;
+						body->setEnabled(false);
 						node->rotate(Vector3(axis.x(), axis.y(), axis.z()), ang);
 						node->translate(-test.x(), -test.y(), -test.z());
-						body->setEnabled(false); body->setEnabled(true);
+						body->setActivation(ACTIVE_TAG);
+						body->setEnabled(true);
+						cout << "\tafter: activation = " << body->getActivation() << endl;
+						_lastBody = body;
+					}
+					else {
+						cout << "\tbefore: activation = " << body->getActivation() << endl;
+						body->setEnabled(false);
+						node->translate(0.0f, 1.0f, 0.0f);
+						body->setActivation(ACTIVE_TAG);
+						body->setEnabled(true);
+						cout << "\tafter: activation = " << body->getActivation() << endl;
+						_lastBody = body;
 					}
 				}
 			}
@@ -473,14 +503,71 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 				    	_constraintEdges[0] = minEdge;
 				    } else { //otherwise, create the constraint
 				    	_constraintNodes[1] = node;
+				    	_constraintEdges[1] = minEdge;
 				    	//rotate the second node so that the edges to be joined are aligned with each other
+				    	//-first, get the xy-plane orientations of the two line segments
+				    	nodeData *data2 = (nodeData*)_constraintNodes[0]->getUserPointer();
+				    	Vector3 vert[2][2];
+				    	Vector3 edgeMid[2], bodyCenter[2];
+				    	for(int i = 0; i < 2; i++) {
+							int v = data2->edges[_constraintEdges[0]*2+i];
+							_constraintNodes[0]->getWorldMatrix().transformVector(data2->vertices[v*3], data2->vertices[v*3+1], data2->vertices[v*3+2], 1, &vert[0][i]);
+				    		vert[1][i] = vertices[data->edges[minEdge*2 + i]];
+				    	}
+				    	float ang[2];
+				    	for(int i = 0; i < 2; i++) {
+				    		ang[i] = atan2(vert[i][1].z - vert[i][0].z, vert[i][1].x - vert[i][0].x);
+				    		edgeMid[i] = (vert[i][0] + vert[i][1]) / 2.0f;
+				    	}
+				    	cout << "angles: " << _constraintNodes[0]->getId() << " at " << ang[0] << ", " << _constraintNodes[1]->getId() << " at " << ang[1] << endl;
+				    	cout << "start edges: " << printVector(edgeMid[0]) << ", " << printVector(edgeMid[1]) << endl;
+				    	
+				    	//rotate the 2nd body around the y-axis such that the hinge edges are xz-aligned, and update its edge coords
+				    	_constraintNodes[1]->rotate(Vector3(0.0f, 1.0f, 0.0f), ang[0] - ang[1]);
+				    	for(int i = 0; i < 2; i++) {
+							int v = data->edges[_constraintEdges[1]*2+i];
+							_constraintNodes[1]->getWorldMatrix().transformVector(data->vertices[v*3], data->vertices[v*3+1], data->vertices[v*3+2], 1, &vert[1][i]);
+						}
+						edgeMid[1] = (vert[1][0] + vert[1][1]) / 2.0f;
+				    	cout << "rotated edges: " << printVector(edgeMid[0]) << ", " << printVector(edgeMid[1]) << endl;
+				    	
+				    	//make sure the body's centers are on opposite sides of the hinge edge - if not, rotate the 2nd body 180 degrees
+				    	Vector3 edgeDir = vert[0][1] - vert[0][0], diff, cross;
+				    	edgeDir.y = 0;
+				    	short sign[2];
+				    	for(int i = 0; i < 2; i++) {
+				    		bodyCenter[i] = _constraintNodes[i]->getTranslation();
+				    		edgeMid[i] = (vert[i][0] + vert[i][1]) / 2.0f;
+				    		diff = bodyCenter[i] - edgeMid[i];
+				    		diff.y = 0;
+				    		Vector3::cross(edgeDir, diff, &cross);
+				    		sign[i] = cross.y > 0 ? 1 : -1;
+				    	}
+				    	if(sign[0] == sign[1]) { //body centers are on same side of edge - rotate the 2nd body 180 degrees around y-axis
+				    		_constraintNodes[1]->rotate(Vector3(0.0f, 1.0f, 0.0f), PI);
+				    	}
+				    	
+				    	//update the edge coords on the 2nd body, then translate the 2nd body to properly align the edges
+				    	for(int i = 0; i < 2; i++) {
+							int v = data->edges[_constraintEdges[1]*2+i];
+							_constraintNodes[1]->getWorldMatrix().transformVector(data->vertices[v*3], data->vertices[v*3+1], data->vertices[v*3+2], 1, &vert[1][i]);
+						}
+				    	edgeMid[1] = (vert[1][0] + vert[1][1]) / 2.0f;
+				    	bodyCenter[1] = _constraintNodes[1]->getTranslation();
+				    	cout << "flipped edges: " << printVector(edgeMid[0]) << ", " << printVector(edgeMid[1]) << endl;
+				    	_constraintNodes[1]->translate(edgeMid[0] - edgeMid[1]);
 				    	
 				    	//create the constraint
-				    	/*getPhysicsController()->createHingeConstraint(
+				    	PhysicsRigidBody *body = _constraintNodes[1]->getCollisionObject()->asRigidBody();
+				    	body->setEnabled(false); body->setEnabled(true);
+				    	getPhysicsController()->createHingeConstraint(
 				    		(PhysicsRigidBody*)_constraintNodes[0]->getCollisionObject(),
-				    		
+							Quaternion(0.0f, 0.0f, 0.0f, 1.0f),
+							edgeMid[0] - bodyCenter[0],
 				    		(PhysicsRigidBody*)_constraintNodes[1]->getCollisionObject(),
-				    	//*/
+							Quaternion(0.0f, 0.0f, 0.0f, 1.0f),
+							edgeMid[1] - bodyCenter[1]
+				    	);//*/
 				    	_constraintNodes[0] = NULL; //and reset for next time
 				    }
 				}
@@ -613,6 +700,7 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 			body->setRestitution(0.5f);
 			Vector3 pos = node->getTranslation();
 			PhysicsCollisionObject* obj = node->getCollisionObject();
+			obj->asRigidBody()->_body->setSleepingThresholds(0.1f, 0.1f);
 			cout << node->getId() << " is at " << pos.x << ", " << pos.y << ", " << pos.z << " and has shape type " << obj->getShapeType() << endl;
 			setSelected(node);
 			_lastNode = node;
@@ -658,5 +746,11 @@ void T4TApp::setSelected(Node* node)
 void T4TApp::enableScriptCamera(bool enable)
 {
 	getScriptController()->executeFunction<void>("camera_setActive", "b", enable);
+}
+
+const std::string T4TApp::printVector(Vector3& v) {
+	std::ostringstream os;
+	os << "<" << v.x << "," << v.y << "," << v.z << ">";
+	return os.str();
 }
 

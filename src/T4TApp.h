@@ -2,6 +2,7 @@
 #define TEMPLATEGAME_H_
 
 #include "gameplay.h"
+#include <cstring>
 
 using namespace gameplay;
 
@@ -73,6 +74,9 @@ private:
     bool checkTouchModel(Node* node);
     bool checkTouchEdge(Node* node);
     
+    //misc functions
+    const std::string printVector(Vector3& v);
+    
     //model factory functions
     Node* createBoxNode(float width, float height, float depth);
 
@@ -100,7 +104,7 @@ private:
     unsigned short _constraintEdges[2];
     
     //user interface
-    CheckBox* _snapToGridCheckbox;
+    CheckBox *_snapToGridCheckbox, *_debugCheckbox;
     Slider *_gridSpacingSlider, *_cameraZoomSlider;
     RadioButton *_selectMode, *_rotateMode, *_constraintMode;
     
@@ -117,8 +121,9 @@ private:
     std::string _mouseString;
     Font* _font;
     
-    //debugging flags
+    //debugging variables
     bool _physicsStopped;
+    PhysicsRigidBody *_lastBody;
 	
 };
 
