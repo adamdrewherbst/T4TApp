@@ -504,9 +504,112 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 				    } else { //otherwise, create the constraint
 				    	_constraintNodes[1] = node;
 				    	_constraintEdges[1] = minEdge;
+
+				    	//node/edge data
+				    	nodeData *dataArr[2];
+				    	dataArr[0] = (nodeData*)_constraintNodes[0]->getUserPointer();
+				    	dataArr[1] = data;
+				    	Vector3 vert[2][2], edgeDir[2], edgeMid[2], bodyCenter[2];
+				    	//for calculations
+				    	Vector3 cross, rotAxis;
+				    	float rotAngle;
+				    	
+				    	//find the rotation and translation from each body's local z-axis to the hinge edge axis
+				    	//mainly to be used when creating the constraint
+				    	Quaternion localRot[2];
+				    	Vector3 localTrans[2], localEdge[2], localEdgeDir[2], localZ = Vector3(0.0f, 0.0f, 1.0f);
+				    	for(int i = 0; i < 2; i++) {
+				    		for(int j = 0; j < 2; j++) {
+				    			int v = dataArr[i]->edges[_constraintEdges[i]*2 + j];
+				    			localEdge[j] = Vector3(dataArr[i]->vertices[v*3], dataArr[i]->vertices[v*3+1], dataArr[i]->vertices[v*3+2]);
+				    		}
+				    		cout << "edge on " << _constraintNodes[i]->getId() << ": (" << printVector(localEdge[0]) << ", " << printVector(localEdge[1]) << ")" << endl;
+				    		localTrans[i] = (localEdge[0] + localEdge[1]) / 2.0f;
+				    		localEdgeDir[i] = localEdge[1] - localEdge[0];
+				    		Vector3::cross(localZ, localEdgeDir[i], &cross);
+				    		localRot[i] = Quaternion(cross.x, cross.y, cross.z,
+				    			sqrt(localEdgeDir[i].lengthSquared()) + Vector3::dot(localZ, localEdgeDir[i]));
+				    		localRot[i].normalize();
+				    		
+				    		rotAngle = localRot[i].toAxisAngle(&rotAxis);
+				    		cout << "rotation by " << rotAngle << " about " << printVector(rotAxis) << endl;
+				    		cout << "translation by " << printVector(localTrans[i]) << endl;
+				    	}
+
+				    	//transform the edges' vertices to world space
+				    	for(int i = 0; i < 2; i++) {
+							int v = dataArr[0]->edges[_constraintEdges[0]*2+i];
+							_constraintNodes[0]->getWorldMatrix().transformVector(dataArr[0]->vertices[v*3], dataArr[0]->vertices[v*3+1], dataArr[0]->vertices[v*3+2], 1, &vert[0][i]);
+				    		vert[1][i] = vertices[data->edges[minEdge*2 + i]];
+				    	}
+				    	for(int i = 0; i < 2; i++) edgeDir[i] = vert[i][1] - vert[i][0];
+
+				    	//find the rotation quaternion between the 2 edges to be joined
+				    	Vector3::cross(edgeDir[1], edgeDir[0], &cross);
+				    	Quaternion rot(cross.x, cross.y, cross.z,
+				    		sqrt(edgeDir[0].lengthSquared() * edgeDir[1].lengthSquared()) + Vector3::dot(edgeDir[0], edgeDir[1]));
+				    	rot.normalize();
+				    	
+				    	rotAngle = rot.toAxisAngle(&rotAxis);
+				    	cout << "need to rotate " << _constraintNodes[1]->getId() << " by " << rotAngle << " about " << printVector(rotAxis) << endl;
+				    	
+				    	//perform the rotation
+				    	Quaternion curRot = _constraintNodes[1]->getRotation();
+				    	_constraintNodes[1]->setRotation(rot);
+				    	_constraintNodes[1]->rotate(curRot);
+				    	
+				    	//recalculate the edge coords
+				    	for(int i = 0; i < 2; i++) {
+				    		int v = dataArr[1]->edges[_constraintEdges[1]*2+i];
+				    		_constraintNodes[1]->getWorldMatrix().transformVector(dataArr[1]->vertices[v*3], dataArr[1]->vertices[v*3+1], dataArr[1]->vertices[v*3+2], 1, &vert[1][i]);
+				    	}
+				    	for(int i = 0; i < 2; i++) {
+				    		edgeMid[i] = (vert[i][0] + vert[i][1]) / 2.0f;
+				    		edgeDir[i] = vert[i][1] - vert[i][0];
+				    		bodyCenter[i] = _constraintNodes[i]->getTranslation();
+				    	}
+				    	
+				    	//rotate the 2nd body about the hinge axis to be opposite the 1st body
+				    	Vector3 bodyToEdge[2], bodyToEdgePerp[2];
+				    	for(int i = 0; i < 2; i++) {
+				    		bodyToEdge[i] = edgeMid[i] - bodyCenter[i];
+				    		bodyToEdgePerp[i] = bodyToEdge[i] - (edgeDir[i] * (Vector3::dot(bodyToEdge[i], edgeDir[i]) / edgeDir[i].lengthSquared()));
+				    	}
+				    	Vector3::cross(bodyToEdgePerp[1], bodyToEdgePerp[0] * -1.0f, &cross);
+				    	rot.set(cross.x, cross.y, cross.z,
+				    		sqrt(bodyToEdgePerp[0].lengthSquared() * bodyToEdgePerp[1].lengthSquared()) + Vector3::dot(bodyToEdgePerp[0], bodyToEdgePerp[1]));
+				    	rot.normalize();
+				    	rotAngle = rot.toAxisAngle(&rotAxis);
+				    	_constraintNodes[1]->rotate(localEdgeDir[1], rotAngle);
+				    	
+				    	//recalculate the edge coords
+				    	for(int i = 0; i < 2; i++) {
+				    		int v = dataArr[1]->edges[_constraintEdges[1]*2+i];
+				    		_constraintNodes[1]->getWorldMatrix().transformVector(dataArr[1]->vertices[v*3], dataArr[1]->vertices[v*3+1], dataArr[1]->vertices[v*3+2], 1, &vert[1][i]);
+				    	}
+				    	edgeMid[1] = (vert[1][0] + vert[1][1]) / 2.0f;
+
+				    	//translate the 2nd body so their edge midpoints touch
+				    	_constraintNodes[1]->translate(edgeMid[0] - edgeMid[1]);
+				    	
+				    	//create the hinge constraint
+				    	getPhysicsController()->createHingeConstraint(
+				    		_constraintNodes[0]->getCollisionObject()->asRigidBody(),
+				    		localRot[0],
+				    		localTrans[0],
+				    		_constraintNodes[1]->getCollisionObject()->asRigidBody(),
+				    		localRot[1],
+				    		localTrans[1]
+				    	);
+				    	
+				    	//update the collision object for the 2nd body
+				    	PhysicsRigidBody *body = _constraintNodes[1]->getCollisionObject()->asRigidBody();
+				    	body->setEnabled(false); body->setEnabled(true); body->setActivation(ACTIVE_TAG);
+				    	
+				    	
 				    	//rotate the second node so that the edges to be joined are aligned with each other
 				    	//-first, get the xy-plane orientations of the two line segments
-				    	nodeData *data2 = (nodeData*)_constraintNodes[0]->getUserPointer();
+/*				    	nodeData *data2 = (nodeData*)_constraintNodes[0]->getUserPointer();
 				    	Vector3 vert[2][2];
 				    	Vector3 edgeMid[2], bodyCenter[2];
 				    	for(int i = 0; i < 2; i++) {

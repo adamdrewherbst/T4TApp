@@ -1,0 +1,59 @@
+Initial interview:
+	I am making a...
+		Vehicle
+		Rube Goldberg machine
+		Freehand contraption
+
+General procedure:
+	Vehicle:
+		-place chassis
+		-attach wheels
+		-optionally add other objects including any desired joints
+		-pick course to test on
+	Rube Goldberg machine:
+		-attach and size simple machines to create framework
+		-fill in details using T4T items from catalog
+
+Create Screen:
+	Buttons on left:
+		Choose Object:
+			-opens scrollable catalog of object thumbnails
+			-types of objects:
+				Tubes
+				Boxes
+				Balls
+				Wheels
+				Miscellaneous
+			-when making a vehicle, the first object you choose must be the vehicle chassis and will be oriented along the z-axis
+				later you can add other objects to be included in the chassis, but this allows wheel attachment
+		Connect Objects:
+			-pick the 2 objects
+			-types of constraints:
+				Rigid - no relative DOF
+					reads "Combine into 1 object"
+				Hinge - 1 relative DOF (angle)
+					reads "Hinge"
+					-must pick edge on each object to serve as hinge axis
+					-will connect the midpoints of the 2 edges together,
+						rotate & translate object 2 so as to align the edges,
+						and place the object centers opposite each other across that edge
+				Ball/Socket - 3 relative DOF (angles)
+					reads "Ball & Socket"
+					brainstorm here - possibilities include:
+						-choose from a catalog of ball-and-socket joint styles, then select from a subset of T4T items to
+							fill in the ball, the socket, and each rod
+						-choose a vertex on each object to connect - the ball and socket will be implicit
+			-Wheels:
+				-can only be selected once there is a body to attach them to
+				-view will temporarily change to side view, letting user pick point in yz-plane, then axle will be placed there parallel to x-axis
+				-then switch to front/rear view and allow user to slide wheels in/out along axle if desired
+
+Test:
+	Vehicle: choose a testing surface
+		-constant ramp
+		-loop-the-loop
+		-draw your own curve freehand
+		-freefall
+
+Sample projects:
+	
