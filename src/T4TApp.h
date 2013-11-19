@@ -69,6 +69,7 @@ private:
     bool drawScene(Node* node);
     
     void setSelected(Node* node);
+    void setMode(const char *mode);
 
     //see if the current touch coordinates intersect a given model in the scene
     bool checkTouchModel(Node* node);
@@ -79,6 +80,10 @@ private:
     
     //model factory functions
     Node* createBoxNode(float width, float height, float depth);
+    
+    //UI factory functions
+    Form* addMenu(Form *parent, const char *name);
+    template <class ButtonType> ButtonType* addButton(Form *menu, const char *name, const char *text = NULL);
 
 	//scene setup
     Scene* _scene;
@@ -93,7 +98,6 @@ private:
     //for placing objects
     Node *_selectedNode, *_lastNode;
     const BoundingBox* _selectedBox;
-    Form* _itemSelectForm;
     Plane _groundPlane;
     Vector3 _intersectPoint;
     Node* _intersectModel;
@@ -103,10 +107,18 @@ private:
     Node* _constraintNodes[2];
     unsigned short _constraintEdges[2];
     
+    //current state
+    std::string _mode;
+    
     //user interface
-    CheckBox *_snapToGridCheckbox, *_debugCheckbox;
-    Slider *_gridSpacingSlider, *_cameraZoomSlider;
-    RadioButton *_selectMode, *_rotateMode, *_constraintMode;
+    Form *_mainMenu, *_sideMenu, *_itemContainer, *_modeContainer; //main menu
+    std::vector<Form*> *_submenus; //submenus
+    Button *_itemButton, *_modeButton; //submenu handles
+    CheckBox *_gridCheckbox, *_debugCheckbox;
+    Slider *_gridSlider, *_zoomSlider;
+    std::vector<std::string> *_modeNames;
+    std::vector<RadioButton*> *_modeButtons;
+    Theme::Style *_formStyle, *_buttonStyle, *_titleStyle;
     
     class TouchPoint
     {
