@@ -5,8 +5,6 @@
 #include <stdlib.h>
 #include <sstream>
 
-#define PI 3.1415926535
-
 using std::cout;
 using std::cin;
 using std::endl;
@@ -66,8 +64,8 @@ void T4TApp::initialize()
     // populate catalog of items
     _catalog = new std::vector<Node*>();
     _itemNames = new std::vector<std::string>();
+    _itemNames->push_back("Cylinder");
     _itemNames->push_back("Box");
-    _itemNames->push_back("Sphere");
     _itemNames->push_back("Cone");
     _itemCount = new std::vector<int>();
     _itemCount->resize(_itemNames->size());
@@ -96,65 +94,32 @@ void T4TApp::initialize()
     //store the plane representing the grid, for calculating intersections
     _groundPlane = Plane(Vector3(0, 1, 0), 0);
 
-    node = _scene->addNode("bigbox");
-    gridModel = createBoxModel(1.0f, 2.0f, 3.0f, node);
-    assert(gridModel);
-    Mesh* gridMesh = gridModel->getMesh();
-    Material* material = gridModel->setMaterial("res/common/sample.material#cube");
-    material->getParameter("u_ambientColor")->setValue(_scene->getAmbientColor());
-    material->getParameter("u_lightColor")->setValue(_light->getColor());
-    material->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());
-    gridModel->release();
-    node->translate(0.0f, 1.0f, 0.0f);
-	PhysicsRigidBody::Parameters boxParams;
-	boxParams.mass = 0.0f;
-	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &boxParams);
-	body = ((PhysicsRigidBody*)node->getCollisionObject());
-	body->setLinearVelocity(Vector3(0.0f, 0.0f, 0.0f));
-	body->setRestitution(1.0f);
-	body->_body->setSleepingThresholds(0.1f, 0.1f);
-    cout << "mybox primitive " << gridModel->getMesh()->getPrimitiveType() << endl;
-    const BoundingSphere* sphere = &gridModel->getMesh()->getBoundingSphere();
-    cout << "mybox sphere " << sphere->radius << " from (" << sphere->center.x << "," << sphere->center.y << "," << sphere->center.z << ")" << endl;
-	PhysicsRigidBody *body1 = body;
-	body1->setEnabled(false);
-	
-    node = _scene->addNode("bigbox2");
-    gridModel = createBoxModel(1.0f, 2.0f, 3.0f, node);
-    assert(gridModel);
-    gridMesh = gridModel->getMesh();
-    material = gridModel->setMaterial("res/common/sample.material#cube");
-    material->getParameter("u_ambientColor")->setValue(_scene->getAmbientColor());
-    material->getParameter("u_lightColor")->setValue(_light->getColor());
-    material->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());
-    //node->rotate(0.0f, 0.0f, sin(30.0f*PI/180), cos(30.0f*PI/180));
-    gridModel->release();
-    node->setModel(gridModel);
-    node->translate(1.0f, 1.0f, 0.0f);
-    boxParams.mass = 10.0f;
-	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &boxParams);
-	body = ((PhysicsRigidBody*)node->getCollisionObject());
-	body->setLinearVelocity(Vector3(-0.0f, 0.0f, 0.0f));
-	body->setRestitution(1.0f);
-	body->_body->setSleepingThresholds(0.1f, 0.1f);
-	PhysicsRigidBody *body2 = body;
-	body2->setEnabled(false);
+	//as a test, add two boxes with a hinge constraint between them
+    node = addCatalogItem(1);
+    node->setTranslation(0.0, 0.5, 0.0);
+    PhysicsRigidBody *body1 = node->getCollisionObject()->asRigidBody();
+    body1->setEnabled(false);
+    
+    node = addCatalogItem(1);
+    node->setTranslation(1.0, 0.5, 0.0);
+   	PhysicsRigidBody *body2 = node->getCollisionObject()->asRigidBody();
+   	body2->setEnabled(false);
 	
 	PhysicsHingeConstraint* constraint = getPhysicsController()->createHingeConstraint(
 		body1,
 		Quaternion(0.0f, 0.0f, 0.0f, 1.0f),
-		Vector3(0.5f, 1.0f, 0.0f),
+		Vector3(0.5f, 0.5f, 0.0f),
 		body2,
 		Quaternion(0.0f, 0.0f, 0.0f, 1.0f),
-		Vector3(-0.5f, 1.0f, 0.0f)
+		Vector3(-0.5f, 0.5f, 0.0f)
 	);
 	constraint->setLimits(0.0f, PI, 1.0f);
 	
-	node->translate(0.5f, 1.5f, 0.0f);
-	node->rotate(0.0f, 0.0f, sin(45.0f*PI/180), cos(45.0f*PI/180));
+	node->translate(0.0f, 1.0f, 0.0f);
+	node->rotate(0.0f, 0.0f, sin(45.0f*PI/180), cos(45.0f*PI/180));//*/
 	body1->setEnabled(true); body2->setEnabled(true);//*/
 	
-    // Initialize box model
+    //get rid of the box built into the scene
     Node* boxNode = _scene->findNode("box");
     _scene->removeNode(boxNode);
     
@@ -164,6 +129,8 @@ void T4TApp::initialize()
     _buttonStyle = theme->getStyle("buttonStyle");
     _titleStyle = theme->getStyle("title");
 
+	/*********************** GUI SETUP ***********************/
+	
 	//root menu node for finding controls by ID
 	_mainMenu = Form::create("mainMenu", _formStyle, Layout::LAYOUT_ABSOLUTE);
 	_submenus = new std::vector<Form*>();
@@ -188,47 +155,74 @@ void T4TApp::initialize()
 		RadioButton* modeButton = addButton <RadioButton> (_modeContainer, (*_modeNames)[i].c_str());
 		modeButton->setGroupId("interactionMode");
 		modeButton->setSelected(false);
+		//each mode (Rotate/Select/Constraint) has an associated option panel that only displays when that mode is selected
+		Form *options = addPanel(_sideMenu, (std::string("options_") + (*_modeNames)[i]).c_str());
+		switch(i) {
+			case 0: //Rotate
+				break;
+			case 1: //Select
+				//snap-to-grid checkbox
+				_gridCheckbox = addControl <CheckBox> (options, "snapGrid", _buttonStyle, "Snap to grid");
+				_gridCheckbox->setChecked(false);
+				//slider to set grid spacing
+				_gridSlider = addControl <Slider> (options, "gridSpacing", _buttonStyle, "Grid spacing");
+				_gridSlider->setMin(0.1f);
+				_gridSlider->setMax(2.0f);
+				_gridSlider->setStep(0.1f);
+				_gridSlider->setValue(1.0f);
+				_gridSlider->setValueTextVisible(true);
+				_gridSlider->setValueTextPrecision(1);
+				_gridSlider->setEnabled(false);//*/
+				break;
+			case 2: //Constraint
+				break;
+			default: break;
+		}
+		options->setHeight(250.0f);
+		options->setVisible(true);
+		_modeOptions[(*_modeNames)[i]] = options;
 	}
+	
 	setMode("Rotate");
 
 	//checkbox for whether to snap to grid when placing/moving
-	/*_snapToGridCheckbox = CheckBox::create("snapGrid", buttonStyle);
-	_snapToGridCheckbox->setText("Snap to grid");
-	_snapToGridCheckbox->setAutoWidth(true);
-	_snapToGridCheckbox->setHeight(60);
-	_snapToGridCheckbox->setConsumeInputEvents(false);
-	_snapToGridCheckbox->addListener(this, Control::Listener::CLICK);
-	_snapToGridCheckbox->setChecked(false);
-	_sideMenu->addControl(_snapToGridCheckbox);
+	/*_gridCheckbox = CheckBox::create("snapGrid", buttonStyle);
+	_gridCheckbox->setText("Snap to grid");
+	_gridCheckbox->setAutoWidth(true);
+	_gridCheckbox->setHeight(60);
+	_gridCheckbox->setConsumeInputEvents(false);
+	_gridCheckbox->addListener(this, Control::Listener::CLICK);
+	_gridCheckbox->setChecked(false);
+	_sideMenu->addControl(_gridCheckbox);
 	//slider to set grid spacing when snap-to-grid is on
-	_gridSpacingSlider = Slider::create("gridSpacing", buttonStyle);
-	_gridSpacingSlider->setMin(0.1f);
-	_gridSpacingSlider->setMax(2.0f);
-	_gridSpacingSlider->setStep(0.1f);
-	_gridSpacingSlider->setValue(1.0f);
-	_gridSpacingSlider->setValueTextVisible(true);
-	_gridSpacingSlider->setValueTextPrecision(1);
-	_gridSpacingSlider->setText("Grid spacing");
-	_gridSpacingSlider->setAutoWidth(true);
-	_gridSpacingSlider->setHeight(60);
-	_gridSpacingSlider->setConsumeInputEvents(false);
-	_gridSpacingSlider->addListener(this, Control::Listener::CLICK);
-	_gridSpacingSlider->setEnabled(false);
-	_sideMenu->addControl(_gridSpacingSlider);
+	_gridSlider = Slider::create("gridSpacing", buttonStyle);
+	_gridSlider->setMin(0.1f);
+	_gridSlider->setMax(2.0f);
+	_gridSlider->setStep(0.1f);
+	_gridSlider->setValue(1.0f);
+	_gridSlider->setValueTextVisible(true);
+	_gridSlider->setValueTextPrecision(1);
+	_gridSlider->setText("Grid spacing");
+	_gridSlider->setAutoWidth(true);
+	_gridSlider->setHeight(60);
+	_gridSlider->setConsumeInputEvents(false);
+	_gridSlider->addListener(this, Control::Listener::CLICK);
+	_gridSlider->setEnabled(false);
+	_sideMenu->addControl(_gridSlider);
 	//camera zoom slider
-	_cameraZoomSlider = Slider::create("gridSpacing", buttonStyle);
-	_cameraZoomSlider->setMin(1.0f);
-	_cameraZoomSlider->setMax(100.0f);
-	_cameraZoomSlider->setStep(1.0f);
-	_cameraZoomSlider->setValue(10.0f);
-	_cameraZoomSlider->setValueTextVisible(true);
-	_cameraZoomSlider->setValueTextPrecision(1);
-	_cameraZoomSlider->setText("Zoom");
-	_cameraZoomSlider->setAutoWidth(true);
-	_cameraZoomSlider->setHeight(60);
-	_cameraZoomSlider->setConsumeInputEvents(false);
-	_cameraZoomSlider->addListener(this, Control::Listener::CLICK);
-	_sideMenu->addControl(_cameraZoomSlider);
+	_zoomSlider = Slider::create("gridSpacing", buttonStyle);
+	_zoomSlider->setMin(1.0f);
+	_zoomSlider->setMax(100.0f);
+	_zoomSlider->setStep(1.0f);
+	_zoomSlider->setValue(10.0f);
+	_zoomSlider->setValueTextVisible(true);
+	_zoomSlider->setValueTextPrecision(1);
+	_zoomSlider->setText("Zoom");
+	_zoomSlider->setAutoWidth(true);
+	_zoomSlider->setHeight(60);
+	_zoomSlider->setConsumeInputEvents(false);
+	_zoomSlider->addListener(this, Control::Listener::CLICK);
+	_sideMenu->addControl(_zoomSlider);
 	//checkbox for whether to just print object info when clicking on it
 	_debugCheckbox = CheckBox::create("snapGrid", buttonStyle);
 	_debugCheckbox->setText("Debug-only");
@@ -266,10 +260,22 @@ template <class ButtonType> ButtonType* T4TApp::addButton(Form *menu, const char
 		return button;
 }
 
+template <class ControlType> ControlType* T4TApp::addControl(Form *parent, const char *id, Theme::Style *style, const char *text)
+{
+		ControlType* control = ControlType::create(id, style);
+		if(text == NULL) control->setText(id);
+		else control->setText(text);
+		control->setHeight(50);
+		control->setWidth(150);
+		control->setConsumeInputEvents(false);
+		control->addListener(this, Control::Listener::CLICK);
+		parent->addControl(control);
+		return control;
+}
+
 Form* T4TApp::addMenu(Form *parent, const char *name)
 {
-    Form *container;
-   	container = Form::create(name, _formStyle, Layout::LAYOUT_VERTICAL);
+    Form *container = Form::create(name, _formStyle, Layout::LAYOUT_VERTICAL);
     if(parent == NULL) {
     	container->setAutoHeight(true);
     }
@@ -281,6 +287,18 @@ Form* T4TApp::addMenu(Form *parent, const char *name)
     container->setWidth(200.0f);
     container->setScroll(Container::SCROLL_VERTICAL);
     container->setConsumeInputEvents(true);
+    _mainMenu->addControl(container);
+    return container;
+}
+
+Form* T4TApp::addPanel(Form *parent, const char *name)
+{
+	Form *container = Form::create(name, _formStyle, Layout::LAYOUT_VERTICAL);
+	container->setHeight(250);
+	container->setWidth(175);
+	container->setScroll(Container::SCROLL_NONE);
+    container->setConsumeInputEvents(true);
+    parent->addControl(container);
     _mainMenu->addControl(container);
     return container;
 }
@@ -458,6 +476,18 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 					else {
 						cout << "\tbefore: activation = " << body->getActivation() << endl;
 						setSelected(node);
+						//treat it as if the user clicked on the point on the grid directly below this object's center
+						_dragOffset.set(0.0f, 0.0f);
+						Vector3 center = node->getTranslation(), hitPoint = hitResult.point;
+						Vector2 centerPix, hitPix;
+						center.y = 0;
+						Matrix viewProj = _scene->getActiveCamera()->getViewProjectionMatrix();
+						_scene->getActiveCamera()->project(getViewport(), hitPoint, &hitPix);
+						cout << "hit at " << printVector(hitPoint) << " => " << printVector2(hitPix) << endl;
+						_scene->getActiveCamera()->project(getViewport(), center, &centerPix);
+						_dragOffset.set(centerPix.x - x, centerPix.y - y);
+						cout << "dragging " << node->getId() << " with offset " << printVector2(_dragOffset) << endl;
+						body->setEnabled(false);
 						_lastBody = body;
 					}
 				}
@@ -635,22 +665,23 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
    		//if an object is currently selected, move it to the touch position (projected onto the ground plane)
     	if(_selectedNode != NULL) {
 			Ray ray;
-			_scene->getActiveCamera()->pickRay(getViewport(), x, y, &ray);
+			_scene->getActiveCamera()->pickRay(getViewport(), x + _dragOffset.x, y + _dragOffset.y, &ray);
 			float distance = ray.intersects(_groundPlane);
 			if(distance == Ray::INTERSECTS_NONE) break;
 			_intersectPoint = ray.getOrigin() + ray.getDirection()*distance;
 			_intersectPoint.y = (_selectedBox->max.y - _selectedBox->min.y) / 2.0f;
 			//snap object to grid if desired
-			/*if(_snapToGridCheckbox->isChecked()) {
-				float spacing = _gridSpacingSlider->getValue();
+			if(_gridCheckbox->isChecked()) {
+				float spacing = _gridSlider->getValue();
 				_intersectPoint.x = round(_intersectPoint.x / spacing) * spacing;
 				_intersectPoint.z = round(_intersectPoint.z / spacing) * spacing;
-			}*/
+			}
 			//if would intersect another object, place it on top of that object instead
 			_intersectModel = NULL;
 			_scene->visit(this, &T4TApp::checkTouchModel);
 			_selectedNode->setTranslation(_intersectPoint);
-			PhysicsRigidBody* obj = _selectedNode->getCollisionObject()->asRigidBody();
+			PhysicsRigidBody* body = _selectedNode->getCollisionObject()->asRigidBody();
+			body->setEnabled(true); body->setEnabled(false);
 		    break;
 		}
 		else if(_mode.compare("Rotate") == 0) {
@@ -660,6 +691,11 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
     }
     case Touch::TOUCH_RELEASE:
     	_debugFlag = true;
+    	if(_selectedNode != NULL) {
+    		PhysicsRigidBody *body = _selectedNode->getCollisionObject()->asRigidBody();
+    		body->setEnabled(true);
+			body->setActivation(ACTIVE_TAG);
+    	}
     	setSelected(NULL);
     	enableScriptCamera(true);
     	_physicsStopped = false;
@@ -732,54 +768,19 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 			cout << "No control with ID " << subName << endl;
 		}
 	}
-	else if(_modeContainer->getControl(controlID) == control) { //if selected a mode, update the mode flag
-		_mode = controlID;
+	//if selected a mode, update the mode flag
+	else if(_modeContainer->getControl(controlID) == control) {
+		setMode(controlID);
 		_modeContainer->setVisible(false);
 	}
+	//user clicked on an item in the catalog
 	else if(_itemContainer->getControl(controlID) == control) {
 		Node *node = NULL;
 		for(size_t i = 0; i < catalogSize && node == NULL; i++)
 		{
 			if((*_itemNames)[i].compare(controlID) == 0)
 			{
-				char shapeName[20], number[8];
-				strcpy(shapeName, (*_itemNames)[i].c_str());
-				cout << "selected " << shapeName << endl;
-				sprintf(number, "%d", ++(*_itemCount)[i]);
-				strcat(shapeName, number);
-				node = _scene->addNode(shapeName);
-				Model* model = NULL;
-				switch(i) {
-					case 0: //box
-						model = createBoxModel(1, 1, 1, node);
-						break;
-					case 1: //sphere
-						model = createBoxModel(1, 1, 2, node);
-						break;
-					case 2: //cone
-						model = createBoxModel(1, 0.5, 1, node);
-						break;
-					default: break;
-				}
-				if(model == NULL) break;
-				//node->setModel(model);
-				Material* material = model->setMaterial("res/common/sample.material#cube");
-				material->getParameter("u_ambientColor")->setValue(_scene->getAmbientColor());
-				material->getParameter("u_lightColor")->setValue(_light->getColor());
-				material->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());
-				model->release();
-				PhysicsRigidBody::Parameters params;
-				params.mass = 10.0f;
-				node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &params);
-				PhysicsRigidBody* body = (PhysicsRigidBody*) node->getCollisionObject();
-				body->setEnabled(false);
-				//body->setKinematic(true);
-				body->setRestitution(0.5f);
-				Vector3 pos = node->getTranslation();
-				PhysicsCollisionObject* obj = node->getCollisionObject();
-				obj->asRigidBody()->_body->setSleepingThresholds(0.1f, 0.1f);
-				cout << node->getId() << " is at " << pos.x << ", " << pos.y << ", " << pos.z << " and has shape type " << obj->getShapeType() << endl;
-				setSelected(node);
+				node = addCatalogItem(i);
 				setMode("Select");
 				_lastNode = node;
 				enableScriptCamera(false);
@@ -789,19 +790,80 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 			_itemContainer->setVisible(false);
 		}
 	}
-	/*else if(control == _snapToGridCheckbox) {
-		//cout << "checkbox is now " << (_snapToGridCheckbox->isChecked() ? "" : "NOT ") << "checked" << endl;
-		_gridSpacingSlider->setEnabled(_snapToGridCheckbox->isChecked());
+	else if(control == _gridCheckbox) {
+		//cout << "checkbox is now " << (_gridCheckbox->isChecked() ? "" : "NOT ") << "checked" << endl;
+		_gridSlider->setEnabled(_gridCheckbox->isChecked());
 	}
-	else if(control == _cameraZoomSlider) {
-	    getScriptController()->executeFunction<void>("camera_setRadius", "f", _cameraZoomSlider->getValue());
+	else if(control == _zoomSlider) {
+	    getScriptController()->executeFunction<void>("camera_setRadius", "f", _zoomSlider->getValue());
 	}
 	else if(strcmp(control->getId(), "DebugButton") == 0) {
 		if(_lastNode) {
 			PhysicsRigidBody *body = _lastNode->getCollisionObject()->asRigidBody();
 			cout << "last node " << _lastNode->getId() << " is " << (body->isEnabled() ? "" : "NOT") << " enabled" << endl;
 		}
-	}*/
+	}
+}
+
+Node* T4TApp::addCatalogItem(int catalogInd)
+{
+	//create the object ID using the next available index for this shape
+	std::stringstream ss;
+	ss << (*_itemNames)[catalogInd] << ++(*_itemCount)[catalogInd];
+	std::string shapeName = ss.str();
+	cout << "selected " << shapeName << endl;
+	
+	//create the object
+	Node *node = _scene->addNode(shapeName.c_str());
+	Model* model = NULL;
+	switch(catalogInd) {
+		case 0: //box
+			model = createCylinderModel(0.5f, 1.5f, 10, node);
+			break;
+		case 1: //sphere
+			model = createBoxModel(1, 1, 2, node);
+			break;
+		case 2: //cone
+			model = createConeModel(0.5f, 1.0f, 10, node);
+			break;
+		default: break;
+	}
+	if(model == NULL) return NULL;
+	Material* material = model->setMaterial("res/common/sample.material#cube");
+	material->getParameter("u_ambientColor")->setValue(_scene->getAmbientColor());
+	material->getParameter("u_lightColor")->setValue(_light->getColor());
+	material->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());
+	model->release();
+	
+	//create the physics collision object
+	PhysicsRigidBody::Parameters params;
+	params.mass = 10.0f;
+	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &params);
+	PhysicsRigidBody* body = (PhysicsRigidBody*) node->getCollisionObject();
+	body->setEnabled(false);
+	body->setRestitution(0.5f);
+	Vector3 pos = node->getTranslation();
+	PhysicsCollisionObject* obj = node->getCollisionObject();
+	obj->asRigidBody()->_body->setSleepingThresholds(0.1f, 0.1f);
+	cout << node->getId() << " is at " << pos.x << ", " << pos.y << ", " << pos.z << " and has shape type " << obj->getShapeType() << endl;
+	
+	//place the new object
+	Node *curSel = _selectedNode;
+	setSelected(node);
+	placeSelected(0.0f, 0.0f);
+	setSelected(curSel);
+	
+	return node;
+}
+
+//place the selected object at the given xz-coords and set its y-coord so it is on top of any objects it would otherwise intersect
+void T4TApp::placeSelected(float x, float z)
+{
+	float minY = _selectedNode->getModel()->getMesh()->getBoundingBox().min.y;
+	_selectedNode->setTranslation(x, -minY, z); //put the bounding box bottom on the ground
+	_intersectPoint.set(x, -minY, z);
+	_scene->visit(this, &T4TApp::checkTouchModel); //will change _intersectPoint.y to be above any intersecting models
+	_selectedNode->setTranslation(_intersectPoint);
 }
 
 void T4TApp::setSelected(Node* node)
@@ -827,6 +889,7 @@ void T4TApp::setSelected(Node* node)
 
 void T4TApp::setMode(const char *mode)
 {
+	//make sure the radio button corresponding to this mode is selected
 	RadioButton *oldButton, *newButton;
 	oldButton = (RadioButton*)(_modeContainer->getControl(_mode.c_str()));
 	if(oldButton != NULL) oldButton->setSelected(false);
@@ -835,8 +898,21 @@ void T4TApp::setMode(const char *mode)
 		cout << "No button for mode " << mode << " - aborting" << endl;
 		return;
 	}
-	_mode = mode;
 	newButton->setSelected(true);
+	//add the options panel corresponding to this mode if any
+	cout << "looking for " << (std::string("options_") + mode).c_str() << endl;
+	Control *oldOptions = _modeOptions[_mode], //_mainMenu->getControl((std::string("options_") + _mode).c_str()),
+		*newOptions = _modeOptions[mode]; //_mainMenu->getControl((std::string("options_") + mode).c_str());
+	if(oldOptions) {
+		cout << "setting old " << oldOptions->getId() << " invisible" << endl;
+		_sideMenu->removeControl(oldOptions);
+	}
+	if(newOptions) {
+		cout << "setting new " << newOptions->getId() << " visible" << endl;
+		cout << "\t(has " << ((Form*)newOptions)->getControls().size() << " controls inside)" << endl;
+		_sideMenu->addControl(newOptions);
+	}
+	_mode = mode;
 }
 
 void T4TApp::enableScriptCamera(bool enable)
@@ -847,6 +923,12 @@ void T4TApp::enableScriptCamera(bool enable)
 const std::string T4TApp::printVector(Vector3& v) {
 	std::ostringstream os;
 	os << "<" << v.x << "," << v.y << "," << v.z << ">";
+	return os.str();
+}
+
+const std::string T4TApp::printVector2(Vector2& v) {
+	std::ostringstream os;
+	os << "<" << v.x << "," << v.y << ">";
 	return os.str();
 }
 

@@ -68,7 +68,9 @@ private:
      */
     bool drawScene(Node* node);
     
+    Node* addCatalogItem(int catalogInd);
     void setSelected(Node* node);
+    void placeSelected(float x, float y);
     void setMode(const char *mode);
 
     //see if the current touch coordinates intersect a given model in the scene
@@ -77,13 +79,16 @@ private:
     
     //misc functions
     const std::string printVector(Vector3& v);
+    const std::string printVector2(Vector2& v);
     
     //model factory functions
     Node* createBoxNode(float width, float height, float depth);
     
     //UI factory functions
     Form* addMenu(Form *parent, const char *name);
+    Form* addPanel(Form *parent, const char *name);
     template <class ButtonType> ButtonType* addButton(Form *menu, const char *name, const char *text = NULL);
+    template <class ControlType> ControlType* addControl(Form *parent, const char *name, Theme::Style *style, const char *text = NULL);
 
 	//scene setup
     Scene* _scene;
@@ -96,12 +101,11 @@ private:
     std::vector<int>* _itemCount;
     
     //for placing objects
-    Node *_selectedNode, *_lastNode;
+    Node *_selectedNode, *_lastNode, *_intersectModel;
     const BoundingBox* _selectedBox;
     Plane _groundPlane;
     Vector3 _intersectPoint;
-    Node* _intersectModel;
-    float _intersectHeight;
+    Vector2 _dragOffset;
     
     //for creating physical constraints between objects
     Node* _constraintNodes[2];
@@ -113,6 +117,7 @@ private:
     //user interface
     Form *_mainMenu, *_sideMenu, *_itemContainer, *_modeContainer; //main menu
     std::vector<Form*> *_submenus; //submenus
+    std::map<std::string, Form*> _modeOptions;
     Button *_itemButton, *_modeButton; //submenu handles
     CheckBox *_gridCheckbox, *_debugCheckbox;
     Slider *_gridSlider, *_zoomSlider;

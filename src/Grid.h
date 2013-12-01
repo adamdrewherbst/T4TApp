@@ -2,6 +2,8 @@
 #define GRID_H_
 
 #include "gameplay.h"
+#include <cstdarg>
+#define PI 3.1415926535
 
 using namespace gameplay;
 
@@ -25,10 +27,20 @@ Mesh* createGridMesh(unsigned int lineCount = DEFAULT_LINE_COUNT);
  */
 Model* createGridModel(unsigned int lineCount = DEFAULT_LINE_COUNT);
 
-Mesh* createBoxMesh(float width, float height, float depth);
+//box
+Mesh* createBoxMesh(float width, float height, float depth, Node* node = NULL);
 Model* createBoxModel(float width, float height, float depth, Node* node = NULL);
+//cylinder
+Mesh* createCylinderMesh(float radius, float height, int segments = -1, Node* node = NULL);
+Model* createCylinderModel(float radius, float height, int segments = -1, Node* node = NULL);
+//cone
+Mesh* createConeMesh(float radius, float height, int segments = -1, Node* node = NULL);
+Model* createConeModel(float radius, float height, int segments = -1, Node* node = NULL);
+//sphere
+Mesh* createSphereMesh(float radius, float height, int segments = -1, Node* node = NULL);
+Model* createSphereModel(float radius, float height, int segments = -1, Node* node = NULL);
 
-void setEdges(Node* node, const char* type);
+void setEdges(Node* node, const char* type, ...);
 
 //any data associated with a node - currently just the list of vertex index pairs forming the edges
 typedef struct {

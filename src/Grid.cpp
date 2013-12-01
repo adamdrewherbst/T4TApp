@@ -197,7 +197,268 @@ Model* createBoxModel(float width, float height, float depth, Node* node)
     return model;
 }
 
-void setEdges(Node* node, const char* type)
+Mesh* createCylinderMesh(float radius, float height, int segments, Node *node)
+{
+	if(segments < 0) segments = 100;
+	//4 vertices for each tall side sliver, <segments> vertices for each end-cap, plus 1 point in the center of each end-cap for triangulation
+    const unsigned int pointCount = segments * 4 + segments * 2 + 2;
+    const unsigned int verticesSize = pointCount * 6;
+
+    std::vector<float> vertices;
+    vertices.resize(verticesSize);
+    float *justVertices = new float[segments*2 * 3];
+
+    Vector4 color(1.0f, 0.0f, 0.0f, 1.0f);
+	int i, n, ind, v = 0;
+	float angle, dAngle = 2*PI/segments;
+	//first make vertical faces
+    for (n = 0; n < segments; ++n)
+    {
+    	angle = n * 2*PI / segments;
+    	for(ind = 0; ind < 4; ind++) {
+    		//vertex coords
+    		vertices[v++] = cos(angle + (ind/2)*dAngle) * radius;
+    		vertices[v++] = (2 * (ind%2) - 1) * height/2;
+    		vertices[v++] = sin(angle + (ind/2)*dAngle) * radius;
+    		//normal components
+    		vertices[v++] = cos(angle + dAngle/2);
+    		vertices[v++] = 0;
+    		vertices[v++] = sin(angle + dAngle/2);
+    		if(ind < 2) for(i = 0; i < 3; i++) justVertices[(n*2 + ind) * 3 + i] = vertices[v-6 + i];
+    	}
+    }
+    //then end-caps
+    for(i = 0; i < 2; i++) {
+	    for(n = 0; n < segments; n++) {
+			angle = n * 2*PI / segments;
+			//vertex
+	    	vertices[v++] = cos(angle) * radius;
+	    	vertices[v++] = (2 * (i%2) - 1) * height/2;
+	    	vertices[v++] = sin(angle) * radius;
+	    	//normal
+	    	vertices[v++] = 0;
+	    	vertices[v++] = 2 * (i%2) - 1;
+	    	vertices[v++] = 0;
+	    }
+	}
+	//then end-point centers
+	for(i = 0; i < 2; i++) {
+		//vertex
+		vertices[v++] = 0;
+		vertices[v++] = (2 * (i%2) - 1) * height/2;
+		vertices[v++] = 0;
+		//normal
+		vertices[v++] = 0;
+		vertices[v++] = 2 * (i%2) - 1;
+		vertices[v++] = 0;
+	}
+	
+	for(n = 0; n < pointCount; n++) {
+		cout << "vertex " << n << ": ";
+		for(i = 0; i < 3; i++) {
+			cout << vertices[n*3 + i] << ",";
+		}
+		cout << endl;
+	}
+	
+    VertexFormat::Element elements[] =
+    {
+        VertexFormat::Element(VertexFormat::POSITION, 3),
+        VertexFormat::Element(VertexFormat::NORMAL, 3)
+    };
+    Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), pointCount, false);
+    if (mesh == NULL)
+    {
+        return NULL;
+    }
+    //mesh->setPrimitiveType(Mesh::LINES);
+    mesh->setVertexData(&vertices[0], 0, pointCount);
+    
+    //build the faces
+	short *indices = new short[3 * segments*4];
+	int f = 0;
+	for(n = 0; n < segments; n++)
+	{
+		//vertical side
+		indices[f++] = n*4;
+		indices[f++] = n*4 + 1;
+		indices[f++] = n*4 + 2;
+		indices[f++] = n*4 + 2;
+		indices[f++] = n*4 + 1;
+		indices[f++] = n*4 + 3;
+		//bottom wedge
+		indices[f++] = segments*4 + n;
+		indices[f++] = segments*4 + (n+1)%segments;
+		indices[f++] = segments*6;
+		//top wedge
+		indices[f++] = segments*5 + n;
+		indices[f++] = segments*6 + 1;
+		indices[f++] = segments*5 + (n+1)%segments;
+	}
+	
+	MeshPart *part = mesh->addPart(Mesh::TRIANGLES, Mesh::INDEX16, 12*segments);
+	part->setIndexData(indices, 0, 12*segments);//*/
+	
+	//add bounding sphere to allow to work with culling materials
+	mesh->setBoundingSphere(BoundingSphere(Vector3(0.0f, 0.0f, 0.0f), sqrt(radius*radius + height*height/4.0f)));
+	mesh->setBoundingBox(BoundingBox(Vector3(-radius, -height/2.0f, -radius), Vector3(radius, height/2.0f, radius)));
+	
+	if(node != NULL) { //store the vertex coords and edge indices to allow non-OpenGL calculations (eg. closest edge to touch)
+		setEdges(node, "cylinder", segments);
+		nodeData *data = (nodeData*)node->getUserPointer();
+		data->numVertices = segments*2;
+		data->vertices = justVertices;
+	}
+    return mesh;
+}
+
+Model* createCylinderModel(float radius, float height, int segments, Node* node)
+{
+    Mesh* mesh = createCylinderMesh(radius, height, segments, node);
+    if (!mesh)
+        return NULL;
+
+    Model* model = Model::create(mesh);
+    mesh->release();
+    assert(model);
+    if(node != NULL) {
+		node->setModel(model);
+	}
+    return model;
+}
+
+Mesh* createConeMesh(float radius, float height, int segments, Node *node)
+{
+	if(segments < 0) segments = 50;
+	//each vertex on the base is used in 3 faces (base, and 2 slanting sides), plus we need the base center for triangulation, and the apex for each slanting face
+    const unsigned int pointCount = segments * 4 + 1;
+    const unsigned int verticesSize = pointCount * 6;
+
+    std::vector<float> vertices;
+    vertices.resize(verticesSize);
+    float *justVertices = new float[3 * (segments + 1)];
+
+    Vector4 color(1.0f, 0.0f, 0.0f, 1.0f);
+	int i, n, ind, v = 0;
+	float angle, dAngle = 2*PI/segments, inclineAngle = atan2(radius, height);
+	//first make slanting sides
+    for (n = 0; n < segments; ++n)
+    {
+    	angle = n * dAngle;
+    	//2 vertices on base
+    	for(ind = 0; ind < 2; ind++) {
+    		//vertex coords
+    		vertices[v++] = cos(angle + ind*dAngle) * radius;
+    		vertices[v++] = -height/2;
+    		vertices[v++] = sin(angle + ind*dAngle) * radius;
+    		//normal components
+    		vertices[v++] = cos(angle + dAngle/2) * cos(inclineAngle);
+    		vertices[v++] = sin(inclineAngle);
+    		vertices[v++] = sin(angle + dAngle/2) * cos(inclineAngle);
+    		for(i = 0; i < 3; i++) justVertices[n*3 + i] = vertices[v-6 + i];
+    	}
+    	//apex
+		//vertex coords
+		vertices[v++] = 0;
+		vertices[v++] = height/2;
+		vertices[v++] = 0;
+		//normal components
+		vertices[v++] = cos(angle + dAngle/2) * cos(inclineAngle);
+		vertices[v++] = sin(inclineAngle);
+		vertices[v++] = sin(angle + dAngle/2) * cos(inclineAngle);
+    }
+    for(i = 0; i < 3; i++) justVertices[segments*3 + i] = vertices[2*6 + i];
+    
+    //then base
+    for(n = 0; n < segments; n++) {
+		angle = n * dAngle;
+		//vertex
+    	vertices[v++] = cos(angle) * radius;
+    	vertices[v++] = -height/2;
+    	vertices[v++] = sin(angle) * radius;
+    	//normal
+    	vertices[v++] = 0;
+    	vertices[v++] = -1;
+    	vertices[v++] = 0;
+    }
+	//base center
+	//vertex
+	vertices[v++] = 0;
+	vertices[v++] = -height/2;
+	vertices[v++] = 0;
+	//normal
+	vertices[v++] = 0;
+	vertices[v++] = -1;
+	vertices[v++] = 0;
+	
+	for(n = 0; n < pointCount; n++) {
+		cout << "vertex " << n << ": ";
+		for(i = 0; i < 3; i++) {
+			cout << vertices[n*6 + i] << ",";
+		}
+		cout << endl;
+	}
+	
+    VertexFormat::Element elements[] =
+    {
+        VertexFormat::Element(VertexFormat::POSITION, 3),
+        VertexFormat::Element(VertexFormat::NORMAL, 3)
+    };
+    Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), pointCount, false);
+    if (mesh == NULL)
+    {
+        return NULL;
+    }
+    //mesh->setPrimitiveType(Mesh::LINES);
+    mesh->setVertexData(&vertices[0], 0, pointCount);
+    
+    //build the faces
+	short *indices = new short[3 * segments*2];
+	int f = 0;
+	for(n = 0; n < segments; n++)
+	{
+		//slanting side
+		indices[f++] = n*3;
+		indices[f++] = n*3 + 2;
+		indices[f++] = n*3 + 1;
+		//bottom wedge
+		indices[f++] = segments*3 + n;
+		indices[f++] = segments*3 + (n+1)%segments;
+		indices[f++] = segments*4;
+	}
+	
+	MeshPart *part = mesh->addPart(Mesh::TRIANGLES, Mesh::INDEX16, 6*segments);
+	part->setIndexData(indices, 0, 6*segments);//*/
+	
+	//add bounding sphere to allow to work with culling materials
+	mesh->setBoundingSphere(BoundingSphere(Vector3(0.0f, 0.0f, 0.0f), sqrt(radius*radius + height*height/4.0f)));
+	mesh->setBoundingBox(BoundingBox(Vector3(-radius, -height/2.0f, -radius), Vector3(radius, height/2.0f, radius)));
+	
+	if(node != NULL) { //store the vertex coords and edge indices to allow non-OpenGL calculations (eg. closest edge to touch)
+		setEdges(node, "cone", segments);
+		nodeData *data = (nodeData*)node->getUserPointer();
+		data->numVertices = segments + 1;
+		data->vertices = justVertices;
+	}
+    return mesh;
+}
+
+Model* createConeModel(float radius, float height, int segments, Node* node)
+{
+    Mesh* mesh = createConeMesh(radius, height, segments, node);
+    if (!mesh)
+        return NULL;
+
+    Model* model = Model::create(mesh);
+    mesh->release();
+    assert(model);
+    if(node != NULL) {
+		node->setModel(model);
+	}
+    return model;
+}
+
+void setEdges(Node* node, const char* type, ...)
 {
 	nodeData* data = new nodeData();
 	if(strcmp(type, "box") == 0) {
@@ -213,6 +474,41 @@ void setEdges(Node* node, const char* type)
 				data->edges[ind++] = i;
 				data->edges[ind++] = i+j;
 			}
+		}
+	}
+	else if(strcmp(type, "cylinder") == 0) {
+		va_list arguments;
+		va_start(arguments, type);
+		int segments = va_arg(arguments, int);
+		data->numEdges = segments * 3;
+		data->edges = (unsigned short*)malloc(2 * data->numEdges * sizeof(unsigned short));
+		int ind = 0;
+		for(int i = 0; i < segments; i++) {
+			//vertical
+			data->edges[ind++] = i*2;
+			data->edges[ind++] = i*2 + 1;
+			//bottom
+			data->edges[ind++] = i*2;
+			data->edges[ind++] = (i*2 + 2) % (segments*2);
+			//top
+			data->edges[ind++] = i*2 + 1;
+			data->edges[ind++] = (i*2 + 3) % (segments*2);
+		}
+	}
+	else if(strcmp(type, "cone") == 0) {
+		va_list arguments;
+		va_start(arguments, type);
+		int segments = va_arg(arguments, int);
+		data->numEdges = segments * 2;
+		data->edges = (unsigned short*)malloc(2 * data->numEdges * sizeof(unsigned short));
+		int ind =  0;
+		for(int i = 0; i < segments; i++) {
+			//slanting edge
+			data->edges[ind++] = i;
+			data->edges[ind++] = segments;
+			//base edge
+			data->edges[ind++] = i;
+			data->edges[ind++] = (i+1) % segments;
 		}
 	}
 	node->setUserPointer(data);
