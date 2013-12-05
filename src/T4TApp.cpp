@@ -67,6 +67,8 @@ void T4TApp::initialize()
     _itemNames->push_back("Cylinder");
     _itemNames->push_back("Box");
     _itemNames->push_back("Cone");
+    _itemNames->push_back("Sphere");
+    //keep track of how many of each item are instantiated, for naming purposes
     _itemCount = new std::vector<int>();
     _itemCount->resize(_itemNames->size());
     for(int i = 0; i < _itemNames->size(); i++) (*_itemCount)[i] = 0;
@@ -817,14 +819,17 @@ Node* T4TApp::addCatalogItem(int catalogInd)
 	Node *node = _scene->addNode(shapeName.c_str());
 	Model* model = NULL;
 	switch(catalogInd) {
-		case 0: //box
+		case 0: //cylinder
 			model = createCylinderModel(0.5f, 1.5f, 10, node);
 			break;
-		case 1: //sphere
+		case 1: //box
 			model = createBoxModel(1, 1, 2, node);
 			break;
 		case 2: //cone
 			model = createConeModel(0.5f, 1.0f, 10, node);
+			break;
+		case 3: //sphere
+			model = createEllipsoidModel(1.0f, 1.0f, 1.0f, 20, 10, node);
 			break;
 		default: break;
 	}
