@@ -1,13 +1,8 @@
 #include "T4TApp.h"
 #include "Grid.h"
-#include <cstdio>
 #include <cmath>
 #include <stdlib.h>
 #include <sstream>
-
-using std::cout;
-using std::cin;
-using std::endl;
 
 // Declare our game instance
 static T4TApp* __t4tInstance = NULL;
@@ -80,11 +75,11 @@ void T4TApp::initialize()
     _modeNames->push_back("Constraint");
 
 	//create the grid on which to place objects
-    Node* node = _scene->addNode("grid");
+/*    Node* node = _scene->addNode("grid");
     Model* gridModel = createGridModel();
     gridModel->setMaterial("res/common/grid.material");
     node->setModel(gridModel);
-    gridModel->release();//*/
+    gridModel->release();
 	PhysicsRigidBody::Parameters gridParams;
 	gridParams.mass = 0.0f;
 	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY,
@@ -92,12 +87,12 @@ void T4TApp::initialize()
 		&gridParams);
 	PhysicsRigidBody* body = (PhysicsRigidBody*)node->getCollisionObject();
 	body->setEnabled(true);
-	body->setLinearVelocity(Vector3(1.0f, 0.0f, 0.0f));
+	body->setLinearVelocity(Vector3(1.0f, 0.0f, 0.0f));//*/
     //store the plane representing the grid, for calculating intersections
     _groundPlane = Plane(Vector3(0, 1, 0), 0);
 
 	//as a test, add two boxes with a hinge constraint between them
-    node = addCatalogItem(1);
+/*    Node *node = addCatalogItem(1);
     node->setTranslation(0.0, 0.5, 0.0);
     PhysicsRigidBody *body1 = node->getCollisionObject()->asRigidBody();
     body1->setEnabled(false);
@@ -106,7 +101,7 @@ void T4TApp::initialize()
     node->setTranslation(1.0, 0.5, 0.0);
    	PhysicsRigidBody *body2 = node->getCollisionObject()->asRigidBody();
    	body2->setEnabled(false);
-	
+
 	PhysicsHingeConstraint* constraint = getPhysicsController()->createHingeConstraint(
 		body1,
 		Quaternion(0.0f, 0.0f, 0.0f, 1.0f),
@@ -118,7 +113,7 @@ void T4TApp::initialize()
 	constraint->setLimits(0.0f, PI, 1.0f);
 	
 	node->translate(0.0f, 1.0f, 0.0f);
-	node->rotate(0.0f, 0.0f, sin(45.0f*PI/180), cos(45.0f*PI/180));//*/
+	node->rotate(0.0f, 0.0f, sin(45.0f*PI/180), cos(45.0f*PI/180));
 	body1->setEnabled(true); body2->setEnabled(true);//*/
 	
     //get rid of the box built into the scene
@@ -126,10 +121,11 @@ void T4TApp::initialize()
     _scene->removeNode(boxNode);
     
     //create the form for selecting catalog items
-    Theme* theme = Theme::create("res/common/default.theme");
-    _formStyle = theme->getStyle("basicContainer");
-    _buttonStyle = theme->getStyle("buttonStyle");
-    _titleStyle = theme->getStyle("title");
+    _theme = Theme::create("res/common/default.theme");
+    _formStyle = _theme->getStyle("basicContainer");
+    _buttonStyle = _theme->getStyle("buttonStyle");
+    _titleStyle = _theme->getStyle("title");
+    _hiddenStyle = _theme->getStyle("hidden");
 
 	/*********************** GUI SETUP ***********************/
 	
@@ -142,14 +138,29 @@ void T4TApp::initialize()
     _itemContainer = addMenu(_sideMenu, "itemContainer");
     //submenu for current interaction mode
     _modeContainer = addMenu(_sideMenu, "modeContainer");
+    
+    //popup menu to allow user to select a component
+    _componentMenu = Form::create("componentMenu", _formStyle, Layout::LAYOUT_VERTICAL);
+    _componentMenu->setPosition(_sideMenu->getX() + _sideMenu->getWidth() + 25.0f, 25.0f);
+    _componentMenu->setWidth(getWidth() - _componentMenu->getX() - 25.0f);
+    _componentMenu->setHeight(getHeight() - 50.0f);
+    _componentMenu->setVisible(false);
+    _componentMenu->setScroll(Container::SCROLL_VERTICAL);
+    _componentMenu->setConsumeInputEvents(true);
+    _mainMenu->addControl(_componentMenu);
 
-    theme->release();   // So we can release it once we're done creating forms with it.
+    _theme->release();   // So we can release it once we're done creating forms with it.
 
 	//populate item submenu
 	_itemButton = addButton <Button> (_sideMenu, "parent_itemContainer", "Add Object >>"); //dropdown menu for object catalog
 	for(size_t i = 0; i < _itemNames->size(); i++) { //first, a button for each possible object
 		cout << "adding button for " << (*_itemNames)[i] << endl;
 		Button* itemButton = addButton <Button> (_itemContainer, (*_itemNames)[i].c_str());
+//		Button* itemImage = addButton <Button> (_componentMenu, (std::string("comp_") + (*_itemNames)[i]).c_str());
+		ImageControl* itemImage = addButton <ImageControl> (_componentMenu, (std::string("comp_") + (*_itemNames)[i]).c_str());
+		itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
+		itemImage->setWidth(150.0f);
+		itemImage->setHeight(150.0f);
 	}
 	//populate mode submenu
 	_modeButton = addButton <Button> (_sideMenu, "parent_modeContainer", "Set Mode >>");
@@ -185,34 +196,38 @@ void T4TApp::initialize()
 		_modeOptions[(*_modeNames)[i]] = options;
 	}
 	
-	setMode("Rotate");
+	//create an invisible overlay the size of the screen, on which specialized touch listeners can be temporarily added
+    _clickOverlayContainer = Form::create("clickOverlayContainer", _formStyle, Layout::LAYOUT_VERTICAL);
+	_clickOverlayContainer->setPosition(200.0f, 0.0f); //_sideMenu->getX() + _sideMenu->getWidth(), 0.0f);
+    _clickOverlayContainer->setWidth(getWidth() - _sideMenu->getWidth());
+    _clickOverlayContainer->setAutoHeight(true);
+    _clickOverlayContainer->setScroll(Container::SCROLL_VERTICAL);
+    _clickOverlayContainer->setConsumeInputEvents(true);
+    _clickOverlayContainer->setVisible(false);
+    _mainMenu->addControl(_clickOverlayContainer);
 
-	//checkbox for whether to snap to grid when placing/moving
-	/*_gridCheckbox = CheckBox::create("snapGrid", buttonStyle);
-	_gridCheckbox->setText("Snap to grid");
-	_gridCheckbox->setAutoWidth(true);
-	_gridCheckbox->setHeight(60);
-	_gridCheckbox->setConsumeInputEvents(false);
-	_gridCheckbox->addListener(this, Control::Listener::CLICK);
-	_gridCheckbox->setChecked(false);
-	_sideMenu->addControl(_gridCheckbox);
-	//slider to set grid spacing when snap-to-grid is on
-	_gridSlider = Slider::create("gridSpacing", buttonStyle);
-	_gridSlider->setMin(0.1f);
-	_gridSlider->setMax(2.0f);
-	_gridSlider->setStep(0.1f);
-	_gridSlider->setValue(1.0f);
-	_gridSlider->setValueTextVisible(true);
-	_gridSlider->setValueTextPrecision(1);
-	_gridSlider->setText("Grid spacing");
-	_gridSlider->setAutoWidth(true);
-	_gridSlider->setHeight(60);
-	_gridSlider->setConsumeInputEvents(false);
-	_gridSlider->addListener(this, Control::Listener::CLICK);
-	_gridSlider->setEnabled(false);
-	_sideMenu->addControl(_gridSlider);
+/*	_clickOverlay = Button::create("clickOverlay", _buttonStyle);
+	//_clickOverlay->setPosition(_sideMenu->getX() + _sideMenu->getWidth(), 0.0f);
+    _clickOverlay->setAutoWidth(true); //Width(getWidth() - _sideMenu->getWidth());
+    _clickOverlay->setAutoHeight(true);
+	_clickOverlay->setConsumeInputEvents(false);
+	_clickOverlayContainer->addControl(_clickOverlay);
+	_clickOverlay->setVisible(true);//*/
+
+	//create an instance of each project template - will be activated as needed
+	_vehicleProject = VehicleProject::create(this, "vehicleProject", _buttonStyle);
+    _vehicleProject->setAutoWidth(true); //Width(getWidth() - _sideMenu->getWidth());
+    _vehicleProject->setAutoHeight(true);
+	_vehicleProject->setConsumeInputEvents(false);
+	_clickOverlayContainer->addControl(_vehicleProject);
+	_vehicleProject->setVisible(true);
+	
+	setMode("Rotate");
+    _sideMenu->setState(Control::FOCUS);
+    buildVehicle();
+
 	//camera zoom slider
-	_zoomSlider = Slider::create("gridSpacing", buttonStyle);
+/*	_zoomSlider = Slider::create("gridSpacing", buttonStyle);
 	_zoomSlider->setMin(1.0f);
 	_zoomSlider->setMax(100.0f);
 	_zoomSlider->setStep(1.0f);
@@ -243,36 +258,34 @@ void T4TApp::initialize()
 	debugButton->setConsumeInputEvents(false);
 	debugButton->addListener(this, Control::Listener::CLICK);
 	_sideMenu->addControl(debugButton);
-	debugButton->release();*/
-
-	//give the form focus
-    _sideMenu->setState(Control::FOCUS);
+	debugButton->release();
+//*/
 }
 
 template <class ButtonType> ButtonType* T4TApp::addButton(Form *menu, const char *id, const char *text)
 {
-		ButtonType* button = ButtonType::create(id, _buttonStyle);
-		if(text == NULL) button->setText(id);
-		else button->setText(text);
-		button->setAutoWidth(true);
-		button->setHeight(50);
-		button->setConsumeInputEvents(false);
-		button->addListener(this, Control::Listener::CLICK);
-		menu->addControl(button);
-		return button;
+	ButtonType* button = ButtonType::create(id, _buttonStyle);
+	if(text == NULL) button->setText(id);
+	else button->setText(text);
+	button->setAutoWidth(true);
+	button->setHeight(50);
+	button->setConsumeInputEvents(false);
+	button->addListener(this, Control::Listener::CLICK);
+	menu->addControl(button);
+	return button;
 }
 
 template <class ControlType> ControlType* T4TApp::addControl(Form *parent, const char *id, Theme::Style *style, const char *text)
 {
-		ControlType* control = ControlType::create(id, style);
-		if(text == NULL) control->setText(id);
-		else control->setText(text);
-		control->setHeight(50);
-		control->setWidth(150);
-		control->setConsumeInputEvents(false);
-		control->addListener(this, Control::Listener::CLICK);
-		parent->addControl(control);
-		return control;
+	ControlType* control = ControlType::create(id, style);
+	if(text == NULL) control->setText(id);
+	else control->setText(text);
+	control->setHeight(50);
+	control->setWidth(150);
+	control->setConsumeInputEvents(false);
+	control->addListener(this, Control::Listener::CLICK);
+	parent->addControl(control);
+	return control;
 }
 
 Form* T4TApp::addMenu(Form *parent, const char *name)
@@ -382,8 +395,10 @@ void T4TApp::render(float elapsedTime)
     _font->finish();
 
     _sideMenu->draw();
+    if(_componentMenu->isVisible()) _componentMenu->draw();
     if(_itemContainer->isVisible()) _itemContainer->draw();
     if(_modeContainer->isVisible()) _modeContainer->draw();
+    if(_clickOverlayContainer->isVisible()) _clickOverlayContainer->draw();
 
     if(_lastBody) {
     	int activation = _lastBody->getActivation();
@@ -695,8 +710,8 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
     	_debugFlag = true;
     	if(_selectedNode != NULL) {
     		PhysicsRigidBody *body = _selectedNode->getCollisionObject()->asRigidBody();
-    		body->setEnabled(true);
-			body->setActivation(ACTIVE_TAG);
+    		//body->setEnabled(true);
+			//body->setActivation(ACTIVE_TAG);
     	}
     	setSelected(NULL);
     	enableScriptCamera(true);
@@ -776,6 +791,9 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 		_modeContainer->setVisible(false);
 	}
 	//user clicked on an item in the catalog
+	else if(_componentMenu->getControl(controlID) == control) {
+		
+	}
 	else if(_itemContainer->getControl(controlID) == control) {
 		Node *node = NULL;
 		for(size_t i = 0; i < catalogSize && node == NULL; i++)
@@ -807,7 +825,7 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 	}
 }
 
-Node* T4TApp::addCatalogItem(int catalogInd)
+Node* T4TApp::addCatalogItem(int catalogInd, float mass)
 {
 	//create the object ID using the next available index for this shape
 	std::stringstream ss;
@@ -842,7 +860,7 @@ Node* T4TApp::addCatalogItem(int catalogInd)
 	
 	//create the physics collision object
 	PhysicsRigidBody::Parameters params;
-	params.mass = 10.0f;
+	params.mass = mass;
 	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &params);
 	PhysicsRigidBody* body = (PhysicsRigidBody*) node->getCollisionObject();
 	body->setEnabled(false);
@@ -855,7 +873,7 @@ Node* T4TApp::addCatalogItem(int catalogInd)
 	//place the new object
 	Node *curSel = _selectedNode;
 	setSelected(node);
-	placeSelected(0.0f, 0.0f);
+	//placeSelected(0.0f, 0.0f);
 	setSelected(curSel);
 	
 	return node;
@@ -936,4 +954,117 @@ const std::string T4TApp::printVector2(Vector2& v) {
 	os << "<" << v.x << "," << v.y << ">";
 	return os.str();
 }
+
+//go through the interactive steps to add all required components to a vehicle
+void T4TApp::buildVehicle() {
+	cout << "starting vehicle" << endl;
+	_vehicleProject->setActive(true);
+}
+
+void T4TApp::VehicleProject::setActive(bool active) {
+	cout << "adding vehicle listener" << endl;
+	//app->_componentMenu->addListener(_vehicleListener, Control::Listener::CLICK);
+	app->_componentMenu->setVisible(active);
+	if(active) {
+		app->_componentMenu->setState(Control::FOCUS);
+		app->_mainMenu->addListener(this, Control::Listener::CLICK);
+		app->_componentMenu->addListener(this, Control::Listener::CLICK);
+	}else {
+		app->_componentMenu->setState(Control::NORMAL);
+		app->_mainMenu->removeListener(this);
+		app->_componentMenu->removeListener(this);
+	}
+	const std::vector<Control*> buttons = app->_componentMenu->getControls();
+	for(std::vector<Control*>::size_type i = 0; i != buttons.size(); i++) {
+		if(active) {
+			buttons[i]->addListener(this, Control::Listener::CLICK);
+			cout << "added listener to " << buttons[i]->getId() << endl;
+		}
+		else {
+			buttons[i]->removeListener(this);
+			cout << "removed listener from " << buttons[i]->getId() << endl;
+		}
+	}
+}
+
+Node* T4TApp::promptComponent() {
+	_componentMenu->setVisible(true);
+}
+
+void T4TApp::VehicleProject::controlEvent(Control* control, EventType evt) {
+	const char *controlID = control->getId();
+	cout << "CLICKED " << controlID << endl;
+	const size_t catalogSize = app->_itemNames->size();
+	if(strncmp(controlID, "comp_", 5) == 0) {
+		std::string itemName = std::string(controlID).substr(5);
+		for(size_t i = 0; i < catalogSize; i++) {
+			if((*app->_itemNames)[i].compare(itemName) == 0) {
+				bool found = true;
+				Node *node = NULL;;
+				node = app->addCatalogItem(i, 0.0f);
+				node->getCollisionObject()->setEnabled(false);
+				switch(_currentComponent) {
+					case CHASSIS:
+						break;
+					case FRONT_WHEELS:
+						break;
+					case BACK_WHEELS:
+						break;
+					default: found = false; break;
+				}
+				if(found) {
+					if(_currentComponent != COMPLETE) {
+						addListener(this, Control::Listener::CLICK);
+						app->_clickOverlayContainer->setVisible(true);
+					}
+				}
+				app->_componentMenu->setVisible(false);
+			}
+		}
+	}
+}
+
+bool T4TApp::VehicleProject::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
+{
+	bool componentDone = false;
+	switch(evt)
+	{
+		case Touch::TOUCH_PRESS:
+			cout << "clicked overlay at " << x << "," << y << endl;
+			//place the vehicle part at the chosen location
+			switch(_currentComponent) {
+				case CHASSIS:
+					componentDone = true;
+					break;
+				//for wheels, make sure they are transverse to the chassis' long axis which is Z
+				case FRONT_WHEELS:
+				case BACK_WHEELS: {
+					Camera* camera = app->_scene->getActiveCamera();
+					Ray ray;
+					camera->pickRay(app->getViewport(), x, y, &ray);
+					PhysicsController::HitResult hitResult;
+					if (!app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) break;
+					Node *node = hitResult.object->getNode();
+					if(node != _chassisNode) break;
+					Vector3 pt = hitResult.point;
+					componentDone = true;
+					} break;
+				default: break;
+			}
+			if(componentDone) {
+				advanceComponent();
+				cout << "Moving on to " << componentName[_currentComponent] << endl;
+				removeListener(this);
+				app->_clickOverlayContainer->setVisible(false);
+				//bring up the menu to select the next vehicle part
+				app->_componentMenu->setVisible(true);
+			}
+			break;
+		case Touch::TOUCH_RELEASE:
+			break;
+		default: break;
+	}
+	return true;
+}
+
 

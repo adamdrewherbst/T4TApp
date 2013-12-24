@@ -3,8 +3,12 @@
 
 #include "gameplay.h"
 #include <cstring>
+#include <cstdio>
 
 using namespace gameplay;
+
+using std::cout;
+using std::endl;
 
 /**
  * Main game class.
@@ -68,7 +72,7 @@ private:
      */
     bool drawScene(Node* node);
     
-    Node* addCatalogItem(int catalogInd);
+    Node* addCatalogItem(int catalogInd, float mass = 10.0f);
     void setSelected(Node* node);
     void placeSelected(float x, float y);
     void setMode(const char *mode);
@@ -89,6 +93,10 @@ private:
     Form* addPanel(Form *parent, const char *name);
     template <class ButtonType> ButtonType* addButton(Form *menu, const char *name, const char *text = NULL);
     template <class ControlType> ControlType* addControl(Form *parent, const char *name, Theme::Style *style, const char *text = NULL);
+    
+    //standard projects
+    void buildVehicle();
+    Node* promptComponent();
 
 	//scene setup
     Scene* _scene;
@@ -115,7 +123,7 @@ private:
     std::string _mode;
     
     //user interface
-    Form *_mainMenu, *_sideMenu, *_itemContainer, *_modeContainer; //main menu
+    Form *_mainMenu, *_sideMenu, *_itemContainer, *_modeContainer, *_componentMenu;
     std::vector<Form*> *_submenus; //submenus
     std::map<std::string, Form*> _modeOptions;
     Button *_itemButton, *_modeButton; //submenu handles
@@ -123,7 +131,66 @@ private:
     Slider *_gridSlider, *_zoomSlider;
     std::vector<std::string> *_modeNames;
     std::vector<RadioButton*> *_modeButtons;
-    Theme::Style *_formStyle, *_buttonStyle, *_titleStyle;
+    Theme *_theme;
+    Theme::Style *_formStyle, *_buttonStyle, *_titleStyle, *_hiddenStyle;
+    Button *_clickOverlay;
+    Form *_clickOverlayContainer;
+    
+    //use Control::Listener instances and enumerated lists of required components 
+    //for progressing through standard project scripts
+    class VehicleProject : public Button, Control::Listener {
+    
+public:
+    	T4TApp *app;
+    	std::vector<std::string> componentName;
+
+    	VehicleProject(T4TApp *app_) : app(app_) {
+    		_currentComponent = CHASSIS;
+    		componentName.push_back("Chassis");
+    		componentName.push_back("Front Wheels");
+    		componentName.push_back("Back Wheels");
+    	}
+    	
+    	static VehicleProject *create(T4TApp *app_, const char* id, Theme::Style* style) {
+    		VehicleProject *v = new VehicleProject(app_);
+    		v->_id = id;
+    		v->_style = style;
+    		return v;
+    	}
+
+		void controlEvent(Control *control, EventType evt);
+		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+
+		typedef enum {
+			CHASSIS,
+			FRONT_WHEELS,
+			BACK_WHEELS,
+			COMPLETE
+		} VehicleComponent;
+
+		VehicleComponent _currentComponent;
+		Node *_chassisNode;
+		
+		void advanceComponent() {
+			switch(_currentComponent) {
+				case CHASSIS: _currentComponent = FRONT_WHEELS; break;
+				case FRONT_WHEELS: _currentComponent = BACK_WHEELS; break;
+				case BACK_WHEELS: _currentComponent = COMPLETE; break;
+				default: break;
+			}
+		}
+		void setActive(bool active);
+	};
+	VehicleProject *_vehicleProject;
+	
+/*	class OverlayPad : public Button
+	{
+public:
+		T4TApp *app;
+		OverlayPad::OverlayPad() {}
+		void setApp(T4TApp *app_) { app = app_; }
+		void touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+	};//*/
     
     class TouchPoint
     {

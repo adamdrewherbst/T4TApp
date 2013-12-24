@@ -13,6 +13,9 @@ General procedure:
 	Rube Goldberg machine:
 		-attach and size simple machines to create framework
 		-fill in details using T4T items from catalog
+		
+-If they abort the standard procedure for making the project,
+ they should still be able to add the required components on the fly
 
 Create Screen:
 	Buttons on left:

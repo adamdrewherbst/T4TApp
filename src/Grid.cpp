@@ -253,13 +253,13 @@ Mesh* createCylinderMesh(float radius, float height, int segments, Node *node)
 		vertices[v++] = 0;
 	}
 	
-	for(n = 0; n < pointCount; n++) {
+	/*for(n = 0; n < pointCount; n++) {
 		cout << "vertex " << n << ": ";
 		for(i = 0; i < 3; i++) {
 			cout << vertices[n*3 + i] << ",";
 		}
 		cout << endl;
-	}
+	}//*/
 	
     VertexFormat::Element elements[] =
     {
@@ -391,13 +391,13 @@ Mesh* createConeMesh(float radius, float height, int segments, Node *node)
 	vertices[v++] = -1;
 	vertices[v++] = 0;
 	
-	for(n = 0; n < pointCount; n++) {
+	/*for(n = 0; n < pointCount; n++) {
 		cout << "vertex " << n << ": ";
 		for(i = 0; i < 3; i++) {
 			cout << vertices[n*6 + i] << ",";
 		}
 		cout << endl;
-	}
+	}//*/
 	
     VertexFormat::Element elements[] =
     {

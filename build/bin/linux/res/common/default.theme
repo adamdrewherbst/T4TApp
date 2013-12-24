@@ -175,6 +175,12 @@ theme mainMenu
     {
         color = #C3D9BFff
     }
+    
+    skin hideNormal
+    {
+    	region = 1, 1, 74, 74
+    	color = #00000000
+    }
 
     style plus
     {
@@ -217,6 +223,18 @@ theme mainMenu
             fontSize = 25
             textAlignment = ALIGN_BOTTOM_HCENTER
         }
+    }
+    
+    style hidden
+    {
+    	stateNormal
+    	{
+    		skin = hideNormal
+    	}
+    	stateActive
+    	{
+    		skin = hideNormal
+    	}
     }
 
     style leftAlignedUnderlined : underlined
