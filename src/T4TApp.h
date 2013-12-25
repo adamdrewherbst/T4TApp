@@ -25,7 +25,10 @@ public:
     T4TApp* getInstance();
     
     bool printNode(Node *node);
-
+    //misc functions
+    const std::string printVector(Vector3& v);
+    const std::string printVector2(Vector2& v);
+    
     /**
      * @see Game::keyEvent
      */
@@ -80,10 +83,6 @@ private:
     //see if the current touch coordinates intersect a given model in the scene
     bool checkTouchModel(Node* node);
     bool checkTouchEdge(Node* node);
-    
-    //misc functions
-    const std::string printVector(Vector3& v);
-    const std::string printVector2(Vector2& v);
     
     //model factory functions
     Node* createBoxNode(float width, float height, float depth);
@@ -149,6 +148,7 @@ public:
     		componentName.push_back("Chassis");
     		componentName.push_back("Front Wheels");
     		componentName.push_back("Back Wheels");
+    		componentName.push_back("Complete");
     	}
     	
     	static VehicleProject *create(T4TApp *app_, const char* id, Theme::Style* style) {

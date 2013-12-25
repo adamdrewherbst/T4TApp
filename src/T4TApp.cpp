@@ -37,7 +37,7 @@ void T4TApp::initialize()
     cout << "sin(30) = " << sin(30.0f*PI/180) << endl;
 
     // Generate game scene
-    _scene = Scene::load("res/box.gpb");
+    _scene = Scene::load("res/common/models.scene");
     _scene->visit(this, &T4TApp::printNode);
     setSelected(NULL);
     
@@ -45,8 +45,15 @@ void T4TApp::initialize()
     _scene->getActiveCamera()->setAspectRatio(getAspectRatio());
     
     // Get light node
-    _lightNode = _scene->findNode("directionalLight");
+    _lightNode = _scene->findNode("lightNode");
     _light = _lightNode->getLight();
+
+   	Material* material = _scene->findNode("cylinder")->getModel()->setMaterial("res/common/sample.material#cube");
+	material->getParameter("u_ambientColor")->setValue(_scene->getAmbientColor());
+	material->getParameter("u_lightColor")->setValue(_light->getColor());
+	material->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());
+	
+	getPhysicsController()->setGravity(Vector3(0.0f, -1.0f, 0.0f));
 
     // Load camera script
     getScriptController()->loadScript("res/common/camera.lua");
@@ -73,6 +80,9 @@ void T4TApp::initialize()
     _modeNames->push_back("Rotate");
     _modeNames->push_back("Select");
     _modeNames->push_back("Constraint");
+    
+    /*Node *testNode = addCatalogItem(3, 0.0f);
+    testNode->getCollisionObject()->setEnabled(false);//*/
 
 	//create the grid on which to place objects
 /*    Node* node = _scene->addNode("grid");
@@ -117,8 +127,8 @@ void T4TApp::initialize()
 	body1->setEnabled(true); body2->setEnabled(true);//*/
 	
     //get rid of the box built into the scene
-    Node* boxNode = _scene->findNode("box");
-    _scene->removeNode(boxNode);
+	/*Node* boxNode = _scene->findNode("box");
+    _scene->removeNode(boxNode);//*/
     
     //create the form for selecting catalog items
     _theme = Theme::create("res/common/default.theme");
@@ -224,7 +234,7 @@ void T4TApp::initialize()
 	
 	setMode("Rotate");
     _sideMenu->setState(Control::FOCUS);
-    buildVehicle();
+    //buildVehicle();
 
 	//camera zoom slider
 /*	_zoomSlider = Slider::create("gridSpacing", buttonStyle);
@@ -800,7 +810,7 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 		{
 			if((*_itemNames)[i].compare(controlID) == 0)
 			{
-				node = addCatalogItem(i);
+				node = addCatalogItem(i, 10.0f);
 				setMode("Select");
 				_lastNode = node;
 				enableScriptCamera(false);
@@ -853,27 +863,27 @@ Node* T4TApp::addCatalogItem(int catalogInd, float mass)
 	}
 	if(model == NULL) return NULL;
 	Material* material = model->setMaterial("res/common/sample.material#cube");
-	material->getParameter("u_ambientColor")->setValue(_scene->getAmbientColor());
+	/*material->getParameter("u_ambientColor")->setValue(_scene->getAmbientColor());
 	material->getParameter("u_lightColor")->setValue(_light->getColor());
-	material->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());
-	model->release();
+	material->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());//*/
 	
 	//create the physics collision object
 	PhysicsRigidBody::Parameters params;
 	params.mass = mass;
+	Mesh *mesh = model->getMesh();
 	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &params);
-	PhysicsRigidBody* body = (PhysicsRigidBody*) node->getCollisionObject();
+	PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
 	body->setEnabled(false);
 	body->setRestitution(0.5f);
+	body->_body->setSleepingThresholds(0.1f, 0.1f);
 	Vector3 pos = node->getTranslation();
-	PhysicsCollisionObject* obj = node->getCollisionObject();
-	obj->asRigidBody()->_body->setSleepingThresholds(0.1f, 0.1f);
-	cout << node->getId() << " is at " << pos.x << ", " << pos.y << ", " << pos.z << " and has shape type " << obj->getShapeType() << endl;
+	model->release();
 	
 	//place the new object
 	Node *curSel = _selectedNode;
 	setSelected(node);
 	//placeSelected(0.0f, 0.0f);
+	node->setTranslation(0.5f, 5.0f, 0.0f);
 	setSelected(curSel);
 	
 	return node;
@@ -1002,9 +1012,10 @@ void T4TApp::VehicleProject::controlEvent(Control* control, EventType evt) {
 				bool found = true;
 				Node *node = NULL;;
 				node = app->addCatalogItem(i, 0.0f);
-				node->getCollisionObject()->setEnabled(false);
+				//node->getCollisionObject()->setEnabled(false);
 				switch(_currentComponent) {
 					case CHASSIS:
+						_chassisNode = node;
 						break;
 					case FRONT_WHEELS:
 						break;
@@ -1042,10 +1053,21 @@ bool T4TApp::VehicleProject::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 					Camera* camera = app->_scene->getActiveCamera();
 					Ray ray;
 					camera->pickRay(app->getViewport(), x, y, &ray);
+					Vector3 origin = ray.getOrigin(), direction = ray.getDirection(),
+						camPos = camera->getNode()->getTranslation(), chassisPos = _chassisNode->getTranslation();
+					cout << "camera: " << app->printVector(camPos) << endl;
+					cout << "chassis: " << app->printVector(chassisPos) << endl;
+					cout << "ray: " << app->printVector(origin) << " => " << app->printVector(direction) << endl;
 					PhysicsController::HitResult hitResult;
-					if (!app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) break;
+					if (!app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) {
+						cout << "didn't hit object" << endl;
+						break;
+					}
 					Node *node = hitResult.object->getNode();
-					if(node != _chassisNode) break;
+					if(node != _chassisNode) {
+						break;
+						cout << "hit " << node->getId() << ", not " << _chassisNode->getId() << endl;
+					}
 					Vector3 pt = hitResult.point;
 					componentDone = true;
 					} break;
@@ -1056,8 +1078,10 @@ bool T4TApp::VehicleProject::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 				cout << "Moving on to " << componentName[_currentComponent] << endl;
 				removeListener(this);
 				app->_clickOverlayContainer->setVisible(false);
-				//bring up the menu to select the next vehicle part
-				app->_componentMenu->setVisible(true);
+				if(_currentComponent != COMPLETE) {
+					//bring up the menu to select the next vehicle part
+					app->_componentMenu->setVisible(true);
+				}
 			}
 			break;
 		case Touch::TOUCH_RELEASE:
