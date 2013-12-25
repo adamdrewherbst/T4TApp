@@ -33,7 +33,7 @@
 #include "../samples/Common/Common.h"
 #include "Thumbnail.h"
 
-#define OUTPUT_DIRECTORY "/home/aherbst/Documents/Programming/GamePlay/bin/linux/input/"
+#define OUTPUT_DIRECTORY "/home/aherbst/Documents/Programming/GamePlay/tools/encoder/build/input/"
 #define OUTPUT_FILENAME OUTPUT_DIRECTORY "models.fbx"
 
 #define PI 3.1415926535
@@ -131,7 +131,10 @@ bool CreateScene(FbxManager *pSdkManager, FbxScene* pScene)
 	FbxLight* lLight = FbxLight::Create(pScene, "light");
 	lLightNode->SetNodeAttribute(lLight);
 	lLight->LightType.Set(FbxLight::eDirectional);
+	lLightNode->LclRotation.Set(FbxVector4(0.0, 0.0, -90.0));
 	lRootNode->AddChild(lLightNode);
+	
+	pScene->GetGlobalSettings().SetAmbientColor(FbxColor(1.0, 1.0, 0.0));
 
 	// Store poses
     //StoreBindPose(pScene, lPatch);
