@@ -37,7 +37,7 @@ void T4TApp::initialize()
     cout << "sin(30) = " << sin(30.0f*PI/180) << endl;
 
     // Generate game scene
-    _scene = Scene::load("res/common/models.scene");
+    _scene = Scene::load("res/common/game.scene");
     _scene->visit(this, &T4TApp::printNode);
     setSelected(NULL);
     
@@ -48,11 +48,6 @@ void T4TApp::initialize()
     _lightNode = _scene->findNode("lightNode");
     _light = _lightNode->getLight();
 
-   	Material* material = _scene->findNode("cylinder")->getModel()->setMaterial("res/common/sample.material#cube");
-	material->getParameter("u_ambientColor")->setValue(_scene->getAmbientColor());
-	material->getParameter("u_lightColor")->setValue(_light->getColor());
-	material->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());
-	
 	getPhysicsController()->setGravity(Vector3(0.0f, -1.0f, 0.0f));
 
     // Load camera script
@@ -64,16 +59,7 @@ void T4TApp::initialize()
     getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_RELEASE, 0, 0, 0);
 
     // populate catalog of items
-    _catalog = new std::vector<Node*>();
-    _itemNames = new std::vector<std::string>();
-    _itemNames->push_back("Cylinder");
-    _itemNames->push_back("Box");
-    _itemNames->push_back("Cone");
-    _itemNames->push_back("Sphere");
-    //keep track of how many of each item are instantiated, for naming purposes
-    _itemCount = new std::vector<int>();
-    _itemCount->resize(_itemNames->size());
-    for(int i = 0; i < _itemNames->size(); i++) (*_itemCount)[i] = 0;
+    _models = Scene::load("res/common/models.scene");
     
     //set available interaction modes
     _modeNames = new std::vector<std::string>();
@@ -163,14 +149,18 @@ void T4TApp::initialize()
 
 	//populate item submenu
 	_itemButton = addButton <Button> (_sideMenu, "parent_itemContainer", "Add Object >>"); //dropdown menu for object catalog
-	for(size_t i = 0; i < _itemNames->size(); i++) { //first, a button for each possible object
-		cout << "adding button for " << (*_itemNames)[i] << endl;
-		Button* itemButton = addButton <Button> (_itemContainer, (*_itemNames)[i].c_str());
-//		Button* itemImage = addButton <Button> (_componentMenu, (std::string("comp_") + (*_itemNames)[i]).c_str());
-		ImageControl* itemImage = addButton <ImageControl> (_componentMenu, (std::string("comp_") + (*_itemNames)[i]).c_str());
+
+    Node *modelNode = _models->getFirstNode();
+    while(modelNode) {
+//	for(size_t i = 0; i < _itemNames->size(); i++) { //first, a button for each possible object
+		cout << "adding button for " << modelNode->getId() << endl;
+		modelNode->getCollisionObject()->setEnabled(false);
+		Button* itemButton = addButton <Button> (_itemContainer, (std::string("item_") + std::string(modelNode->getId())).c_str());
+		ImageControl* itemImage = addButton <ImageControl> (_componentMenu, (std::string("comp_") + std::string(modelNode->getId())).c_str());
 		itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
 		itemImage->setWidth(150.0f);
 		itemImage->setHeight(150.0f);
+		modelNode = modelNode->getNextSibling();
 	}
 	//populate mode submenu
 	_modeButton = addButton <Button> (_sideMenu, "parent_modeContainer", "Set Mode >>");
@@ -419,6 +409,7 @@ void T4TApp::render(float elapsedTime)
 
 bool T4TApp::drawScene(Node* node)
 {
+	if(strcmp(node->getScene()->getId(), "models") == 0) return true;
     // If the node visited contains a model, draw it
     Model* model = node->getModel(); 
     if (model)
@@ -775,7 +766,7 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 {
 	const char *controlID = control->getId();
 	cout << "CLICKED " << controlID << endl;
-	const size_t catalogSize = _itemNames->size();
+	//const size_t catalogSize = _itemNames->size();
 
 	//if a submenu handle is clicked, toggle whether the submenu is expanded
 	if(strncmp(controlID, "parent_", 7) == 0) {
@@ -805,16 +796,10 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 		
 	}
 	else if(_itemContainer->getControl(controlID) == control) {
-		Node *node = NULL;
-		for(size_t i = 0; i < catalogSize && node == NULL; i++)
-		{
-			if((*_itemNames)[i].compare(controlID) == 0)
-			{
-				node = addCatalogItem(i, 10.0f);
-				setMode("Select");
-				_lastNode = node;
-				enableScriptCamera(false);
-			}
+		Node *node = _models->findNode(controlID+5);
+		if(node) {
+			node = node->clone();
+			_scene->addNode(node);
 		}
 		if(node != NULL) {
 			_itemContainer->setVisible(false);

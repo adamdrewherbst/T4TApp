@@ -9,6 +9,8 @@ material colored
 
             u_worldViewProjectionMatrix = WORLD_VIEW_PROJECTION_MATRIX
             u_inverseTransposeWorldViewMatrix = INVERSE_TRANSPOSE_WORLD_VIEW_MATRIX
+			u_lightColor = SCENE_LIGHT_COLOR
+			u_lightDirection = SCENE_LIGHT_DIRECTION
             
             renderState
             {
@@ -19,27 +21,26 @@ material colored
     }
 }
 
-material cube : colored
+material cylinder : colored
 {
     technique
     {
         pass
         {
-        	u_ambientColor = 1.0, 1.0, 1.0, 1
-			u_lightColor = 1.0, 1.0, 1.0, 1
-			u_lightDirection = 0.0, -1.0, 0.0, 1
-            u_diffuseColor = 1.0, 1.0, 1.0, 1
+			u_ambientColor = 0.0, 1.0, 0.0
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
 }
 
-material blue : colored
+material box : colored
 {
     technique
     {
         pass
         {
-            u_diffuseColor = 0, 0, 1, 1
+        	u_ambientColor = 1.0, 1.0, 0.0
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
 }

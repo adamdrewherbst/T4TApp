@@ -103,6 +103,7 @@ private:
     Light* _light;
     
     //T4T objects for modeling
+    Scene* _models;
     std::vector<Node*>* _catalog;
     std::vector<std::string>* _itemNames;
     std::vector<int>* _itemCount;
