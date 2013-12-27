@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <sstream>
 
+using std::istringstream;
+
 // Declare our game instance
 static T4TApp* __t4tInstance = NULL;
 static bool _debugFlag = false;
@@ -48,7 +50,7 @@ void T4TApp::initialize()
     _lightNode = _scene->findNode("lightNode");
     _light = _lightNode->getLight();
 
-	getPhysicsController()->setGravity(Vector3(0.0f, -1.0f, 0.0f));
+	getPhysicsController()->setGravity(Vector3(0.0f, -10.0f, 0.0f));
 
     // Load camera script
     getScriptController()->loadScript("res/common/camera.lua");
@@ -67,11 +69,8 @@ void T4TApp::initialize()
     _modeNames->push_back("Select");
     _modeNames->push_back("Constraint");
     
-    /*Node *testNode = addCatalogItem(3, 0.0f);
-    testNode->getCollisionObject()->setEnabled(false);//*/
-
 	//create the grid on which to place objects
-/*    Node* node = _scene->addNode("grid");
+    Node* node = _scene->addNode("grid");
     Model* gridModel = createGridModel();
     gridModel->setMaterial("res/common/grid.material");
     node->setModel(gridModel);
@@ -81,7 +80,7 @@ void T4TApp::initialize()
 	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY,
 		PhysicsCollisionShape::box(),
 		&gridParams);
-	PhysicsRigidBody* body = (PhysicsRigidBody*)node->getCollisionObject();
+	PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
 	body->setEnabled(true);
 	body->setLinearVelocity(Vector3(1.0f, 0.0f, 0.0f));//*/
     //store the plane representing the grid, for calculating intersections
@@ -155,8 +154,9 @@ void T4TApp::initialize()
 //	for(size_t i = 0; i < _itemNames->size(); i++) { //first, a button for each possible object
 		cout << "adding button for " << modelNode->getId() << endl;
 		modelNode->getCollisionObject()->setEnabled(false);
-		Button* itemButton = addButton <Button> (_itemContainer, (std::string("item_") + std::string(modelNode->getId())).c_str());
-		ImageControl* itemImage = addButton <ImageControl> (_componentMenu, (std::string("comp_") + std::string(modelNode->getId())).c_str());
+		loadNodeData(modelNode, modelNode->getId());
+		Button* itemButton = addButton <Button> (_itemContainer, concat(2, "item_", modelNode->getId()));
+		ImageControl* itemImage = addButton <ImageControl> (_componentMenu, concat(2, "comp_", modelNode->getId()));
 		itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
 		itemImage->setWidth(150.0f);
 		itemImage->setHeight(150.0f);
@@ -316,24 +316,6 @@ Form* T4TApp::addPanel(Form *parent, const char *name)
     parent->addControl(container);
     _mainMenu->addControl(container);
     return container;
-}
-
-Node* T4TApp::createBoxNode(float width, float height, float depth)
-{
-	Model* model = createBoxModel(width, height, depth);
-	Node* node = Node::create();
-	node->setModel(model);
-	Material* material = model->setMaterial("res/common/sample.material#cube");
-	material->getParameter("u_ambientColor")->setValue(_scene->getAmbientColor());
-	material->getParameter("u_lightColor")->setValue(_light->getColor());
-	material->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());
-	PhysicsRigidBody::Parameters params;
-	params.mass = 10.0f;
-	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &params);
-	PhysicsRigidBody* body = (PhysicsRigidBody*) node->getCollisionObject();
-	body->setEnabled(false);
-	body->setRestitution(1.0f);
-	return node;
 }
 
 void T4TApp::finalize()
@@ -711,8 +693,8 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
     	_debugFlag = true;
     	if(_selectedNode != NULL) {
     		PhysicsRigidBody *body = _selectedNode->getCollisionObject()->asRigidBody();
-    		//body->setEnabled(true);
-			//body->setActivation(ACTIVE_TAG);
+    		body->setEnabled(true);
+			body->setActivation(ACTIVE_TAG);
     	}
     	setSelected(NULL);
     	enableScriptCamera(true);
@@ -726,6 +708,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 //see if the current touch location intersects the bottom face of the given object
 bool T4TApp::checkTouchModel(Node* node)
 {
+	if(strcmp(node->getScene()->getId(), "models") == 0) return true;
 	if(node == _selectedNode) return true;
 	Vector3 pos = node->getTranslation();
 	Model* model = node->getModel();
@@ -744,8 +727,9 @@ bool T4TApp::checkTouchModel(Node* node)
 		if(_intersectModel == NULL || halfY + pos.y + bbox.max.y > _intersectPoint.y)
 		{
 			_intersectModel = node;
-			_intersectPoint.y = halfY + pos.y + bbox.max.y;
-			//cout << "intersects " << node->getId() << "; moving to " << _intersectPoint.x << ", " << _intersectPoint.y << ", " << _intersectPoint.z << endl;
+			_intersectPoint.y = pos.y + bbox.max.y + halfY;
+			//cout << "intersects " << node->getId() << " [" << pos.y << ", " << bbox.min.y << "-" << bbox.max.y << "]" << endl;
+			//cout << "\tmoving to " << halfY << ": " << _intersectPoint.x << ", " << _intersectPoint.y << ", " << _intersectPoint.z << endl;
 		}
 	}
 	return true;
@@ -762,7 +746,7 @@ bool T4TApp::checkTouchEdge(Node* node)
 	return false;
 }
 
-void T4TApp::controlEvent(Control* control, EventType evt)
+void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 {
 	const char *controlID = control->getId();
 	cout << "CLICKED " << controlID << endl;
@@ -796,14 +780,8 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 		
 	}
 	else if(_itemContainer->getControl(controlID) == control) {
-		Node *node = _models->findNode(controlID+5);
-		if(node) {
-			node = node->clone();
-			_scene->addNode(node);
-		}
-		if(node != NULL) {
-			_itemContainer->setVisible(false);
-		}
+		Node *node = duplicateModelNode(controlID+5);
+		_itemContainer->setVisible(false);
 	}
 	else if(control == _gridCheckbox) {
 		//cout << "checkbox is now " << (_gridCheckbox->isChecked() ? "" : "NOT ") << "checked" << endl;
@@ -820,58 +798,65 @@ void T4TApp::controlEvent(Control* control, EventType evt)
 	}
 }
 
-Node* T4TApp::addCatalogItem(int catalogInd, float mass)
+Node* T4TApp::duplicateModelNode(const char* type)
 {
-	//create the object ID using the next available index for this shape
-	std::stringstream ss;
-	ss << (*_itemNames)[catalogInd] << ++(*_itemCount)[catalogInd];
-	std::string shapeName = ss.str();
-	cout << "selected " << shapeName << endl;
-	
-	//create the object
-	Node *node = _scene->addNode(shapeName.c_str());
-	Model* model = NULL;
-	switch(catalogInd) {
-		case 0: //cylinder
-			model = createCylinderModel(0.5f, 1.5f, 10, node);
-			break;
-		case 1: //box
-			model = createBoxModel(1, 1, 2, node);
-			break;
-		case 2: //cone
-			model = createConeModel(0.5f, 1.0f, 10, node);
-			break;
-		case 3: //sphere
-			model = createEllipsoidModel(1.0f, 1.0f, 1.0f, 20, 10, node);
-			break;
-		default: break;
-	}
-	if(model == NULL) return NULL;
-	Material* material = model->setMaterial("res/common/sample.material#cube");
-	/*material->getParameter("u_ambientColor")->setValue(_scene->getAmbientColor());
-	material->getParameter("u_lightColor")->setValue(_light->getColor());
-	material->getParameter("u_lightDirection")->setValue(_lightNode->getForwardVectorView());//*/
-	
-	//create the physics collision object
-	PhysicsRigidBody::Parameters params;
-	params.mass = mass;
-	Mesh *mesh = model->getMesh();
-	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &params);
+	Node *modelNode = _models->findNode(type);
+	if(modelNode == NULL) return NULL;
+	Node *node = modelNode->clone();
+	nodeData *data = (nodeData*) modelNode->getUserPointer();
+	data->typeCount++;
+	node->setUserPointer(data);
+	node->setCollisionObject(concat(2, "res/common/models.physics#", modelNode->getId()));
 	PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
-	body->setEnabled(false);
-	body->setRestitution(0.5f);
-	body->_body->setSleepingThresholds(0.1f, 0.1f);
-	Vector3 pos = node->getTranslation();
-	model->release();
-	
-	//place the new object
-	Node *curSel = _selectedNode;
+	body->addCollisionListener(this);
+	body->_body->setSleepingThresholds(0.0f, 0.0f);
+	body->setActivation(ACTIVE_TAG);
+	_scene->addNode(node);
+	Node *curSelected = _selectedNode;
 	setSelected(node);
-	//placeSelected(0.0f, 0.0f);
-	node->setTranslation(0.5f, 5.0f, 0.0f);
-	setSelected(curSel);
-	
+	placeSelected(0.0f, 0.0f);
+	setSelected(curSelected);
 	return node;
+}
+
+void T4TApp::loadNodeData(Node *node, const char *type)
+{
+	char *filename = concat(3, "res/common/", type, ".node");
+	cout << "reading " << node->getId() << " from file " << filename << endl;
+	std::auto_ptr<Stream> stream(FileSystem::open(filename));
+	if (stream.get() == NULL)
+	{
+		GP_ERROR("Failed to open file '%s'.", filename);
+		return;
+	}
+	
+	nodeData* data = new nodeData();
+	data->typeCount = 0;
+
+	char *str, line[2048];
+	istringstream in;
+    str = stream->readLine(line, 2048);
+    int nv = atoi(str), v = 0;
+    cout << nv << " vertices" << endl;
+    data->numVertices = nv;
+    data->vertices = (float*) malloc(3 * nv * sizeof(float));
+    for(int i = 0; i < nv; i++) {
+    	str = stream->readLine(line, 2048);
+    	in.str(str);
+    	in >> data->vertices[v++] >> data->vertices[v++] >> data->vertices[v++];
+    }
+    str = stream->readLine(line, 2048);
+    int ne = atoi(str), e = 0;
+    cout << ne << " edges" << endl;
+    data->numEdges = ne;
+    data->edges = (unsigned short*) malloc(2* ne * sizeof(unsigned short));
+    for(int i = 0; i < ne; i++) {
+    	str = stream->readLine(line, 2048);
+    	in.str(str);
+    	in >> data->edges[e++] >> data->edges[e++];
+    }
+	node->setUserPointer(data);
+    stream->close();//*/
 }
 
 //place the selected object at the given xz-coords and set its y-coord so it is on top of any objects it would otherwise intersect
@@ -889,6 +874,7 @@ void T4TApp::setSelected(Node* node)
 	cout << "selecting " << (node == NULL ? "NULL" : node->getId()) << endl;
 	if(node != NULL)
 	{
+		if(strcmp(node->getId(), "grid") == 0) return;
 		if(node->getCollisionObject() == NULL) return; //shouldn't select a non-physical object (like the floor grid)
 		PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
 		body->setEnabled(false); //turn off physics on this body while dragging it around
@@ -989,33 +975,28 @@ Node* T4TApp::promptComponent() {
 void T4TApp::VehicleProject::controlEvent(Control* control, EventType evt) {
 	const char *controlID = control->getId();
 	cout << "CLICKED " << controlID << endl;
-	const size_t catalogSize = app->_itemNames->size();
 	if(strncmp(controlID, "comp_", 5) == 0) {
-		std::string itemName = std::string(controlID).substr(5);
-		for(size_t i = 0; i < catalogSize; i++) {
-			if((*app->_itemNames)[i].compare(itemName) == 0) {
-				bool found = true;
-				Node *node = NULL;;
-				node = app->addCatalogItem(i, 0.0f);
-				//node->getCollisionObject()->setEnabled(false);
-				switch(_currentComponent) {
-					case CHASSIS:
-						_chassisNode = node;
-						break;
-					case FRONT_WHEELS:
-						break;
-					case BACK_WHEELS:
-						break;
-					default: found = false; break;
-				}
-				if(found) {
-					if(_currentComponent != COMPLETE) {
-						addListener(this, Control::Listener::CLICK);
-						app->_clickOverlayContainer->setVisible(true);
-					}
-				}
-				app->_componentMenu->setVisible(false);
+		Node *node = app->duplicateModelNode(controlID+5);
+		if(node != NULL) {
+			bool found = true;
+			//node->getCollisionObject()->setEnabled(false);
+			switch(_currentComponent) {
+				case CHASSIS:
+					_chassisNode = node;
+					break;
+				case FRONT_WHEELS:
+					break;
+				case BACK_WHEELS:
+					break;
+				default: found = false; break;
 			}
+			if(found) {
+				if(_currentComponent != COMPLETE) {
+					addListener(this, Control::Listener::CLICK);
+					app->_clickOverlayContainer->setVisible(true);
+				}
+			}
+			app->_componentMenu->setVisible(false);
 		}
 	}
 }
@@ -1076,4 +1057,30 @@ bool T4TApp::VehicleProject::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 	return true;
 }
 
+char* T4TApp::concat(int n, ...)
+{
+	const char** strings = new const char*[n];
+	int length = 0;
+	va_list arguments;
+	va_start(arguments, n);
+	for(int i = 0; i < n; i++) {
+		strings[i] = (const char*) va_arg(arguments, const char*);
+		length += strlen(strings[i]);
+	}
+	char* dest = new char[length+1];
+	dest[0] = '\0';
+	for(int i = 0; i < n; i++) strcat(dest, strings[i]);
+	dest[length] = '\0';
+	return dest;
+}
+
+void T4TApp::collisionEvent(PhysicsCollisionObject::CollisionListener::EventType type, 
+                            const PhysicsCollisionObject::CollisionPair& pair, 
+                            const Vector3& pointA, const Vector3& pointB)
+{
+    GP_WARN("Collision between rigid bodies %s (at point (%f, %f, %f)) "
+            "and %s (at point (%f, %f, %f)).",
+            pair.objectA->getNode()->getId(), pointA.x, pointA.y, pointA.z, 
+            pair.objectB->getNode()->getId(), pointB.x, pointB.y, pointB.z);
+}
 

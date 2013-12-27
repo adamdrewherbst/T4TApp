@@ -28,25 +28,37 @@
 /////////////////////////////////////////////////////////////////////////
 
 #include <fbxsdk.h>
+#include <ios>
 #include <iostream>
+#include <fstream>
+#include <cstdarg>
 
 #include "../samples/Common/Common.h"
 #include "Thumbnail.h"
 
 #define OUTPUT_DIRECTORY "/home/aherbst/Documents/Programming/GamePlay/tools/encoder/build/input/"
+#define APP_RESOURCE_DIRECTORY "/home/aherbst/Documents/Programming/GamePlay/projects/t4tapp/build/bin/linux/res/common/"
 #define SCENE_FILENAME OUTPUT_DIRECTORY "scene.fbx"
 #define MODEL_FILENAME OUTPUT_DIRECTORY "models.fbx"
 
 #define PI 3.1415926535
 
-using std::cin; using std::cout; using std::endl;
+using std::cin; using std::cout; using std::endl; using std::ofstream; using std::ios;
 
 // Function prototypes.
 bool CreateScene(FbxManager* pSdkManager, FbxScene* pScene);
 bool CreateModels(FbxManager* pSdkManager, FbxScene* pScene);
 
-FbxNode* CreateCylinder(FbxScene* pScene, const char* pName, float radius, float height, int segments);
-FbxNode* CreateBox(FbxScene* pScene, const char* pName, float length, float width, float height);
+FbxNode* CreateNode(FbxScene* pScene, const char* pName, const char* type, ...);
+FbxMesh* CreateCylinder(FbxScene* pScene, const char* pName, float radius, float height, int segments);
+FbxMesh* CreateBox(FbxScene* pScene, const char* pName, float length, float width, float height);
+
+void printVector(ofstream& of, FbxVector4 vec) {
+	of << vec[0] << " " << vec[1] << " " << vec[2] << endl;
+}
+void printEdge(ofstream& of, int v1, int v2) {
+	of << v1 << " " << v2 << endl;
+}
 
 int main(int argc, char** argv)
 {
@@ -164,15 +176,81 @@ bool CreateModels(FbxManager *pSdkManager, FbxScene* pScene)
 
     // Build the node tree.
     FbxNode* lRootNode = pScene->GetRootNode();
-    FbxNode* lPatch = CreateCylinder(pScene, "cylinder", 1.0, 3.0, 20);
+    FbxNode* lPatch = CreateNode(pScene, "cylinder", "cylinder", 1.0, 3.0, 20);
     lRootNode->AddChild(lPatch);
-    lPatch = CreateBox(pScene, "box", 2.0, 2.0, 2.0);
+    lPatch = CreateNode(pScene, "box", "box", 2.0, 2.0, 2.0);
     lRootNode->AddChild(lPatch);
 
     return true;
 }
 
-FbxNode* CreateCylinder(FbxScene* pScene, const char* pName, float radius, float height, int segments) {
+FbxNode* CreateNode(FbxScene* pScene, const char* pName, const char* type, ...) {
+
+	FbxMesh* mesh;
+
+	va_list arguments;
+	va_start(arguments, type);
+
+    //write the vertices and edges to a file to be loaded by the app as reference data
+    char* filename = new char[strlen(APP_RESOURCE_DIRECTORY) + strlen(pName) + 5];
+    filename[0] = '\0';
+    strcat(filename, APP_RESOURCE_DIRECTORY);
+    strcat(filename, pName);
+    strcat(filename, ".node");
+    //why doesn't this line work the 2nd time around?
+    //const char* filename = (std::string(APP_RESOURCE_DIRECTORY) + std::string(pName) + std::string(".node")).c_str();
+    cout << "writing node file:\n" << filename << endl;
+    ofstream out(filename, ios::out | ios::trunc);
+
+	if(strcmp(type, "cylinder") == 0) {
+		float radius = (float)va_arg(arguments, double);
+		float height = (float)va_arg(arguments, double);
+		int segments = va_arg(arguments, int);
+		mesh = CreateCylinder(pScene, pName, radius, height, segments);
+		//write vertex/edge data
+		out << 2*segments << endl;
+		for(int i = 0; i < 2; i++) {
+			for(int j = 0; j < segments; j++) {
+				printVector(out, mesh->GetControlPointAt(i*(segments+1) + j));
+			}
+		}
+		out << 3*segments << endl;
+		for(int i = 0; i < segments; i++) {
+			printEdge(out, i, (i+1)%segments);
+			printEdge(out, segments + i, segments + (i+1)%segments);
+			printEdge(out, i, segments + i);
+		}
+	}
+	else if(strcmp(type, "box") == 0) {
+		float length = (float)va_arg(arguments, double);
+		float width = (float)va_arg(arguments, double);
+		float height = (float)va_arg(arguments, double);
+		mesh = CreateBox(pScene, pName, length, width, height);
+		//write vertex/edge data
+		out << 8 << endl;
+		for(int i = 0; i < 8; i++) {
+			printVector(out, mesh->GetControlPointAt(i));
+		}
+		out << 12 << endl;
+		for(int i = 0; i < 7; i++) {
+			for(int j = 1; j <= 4; j*=2) {
+				if(i%(j*2) < j && i+j < 12) printEdge(out, i, i+j);
+			}
+		}
+	}
+
+	out.close();
+	
+	//create the node	
+    FbxNode* lNode = FbxNode::Create(pScene,pName);
+    FbxVector4 lR(0.0, 0.0, 0.0);
+    lNode->LclRotation.Set(lR);
+    lNode->SetNodeAttribute(mesh);
+    
+    return lNode;
+}
+
+FbxMesh* CreateCylinder(FbxScene* pScene, const char* pName, float radius, float height, int segments) {
 	FbxMesh* mesh = FbxMesh::Create(pScene, pName);
 	mesh->InitControlPoints(segments+1);
 	int v = 0;
@@ -211,16 +289,10 @@ FbxNode* CreateCylinder(FbxScene* pScene, const char* pName, float radius, float
 	
 	//add normals
 	mesh->GenerateNormals(true, false, false);
-	
-    FbxNode* lNode = FbxNode::Create(pScene,pName);
-
-    FbxVector4 lR(0.0, 0.0, 0.0);
-    lNode->LclRotation.Set(lR);
-    lNode->SetNodeAttribute(mesh);
-    return lNode;
+	return mesh;
 }
 
-FbxNode* CreateBox(FbxScene* pScene, const char* pName, float length, float width, float height) {
+FbxMesh* CreateBox(FbxScene* pScene, const char* pName, float length, float width, float height) {
 	FbxMesh* mesh = FbxMesh::Create(pScene, pName);
 	//vertices
 	mesh->InitControlPoints(8);
@@ -255,12 +327,6 @@ FbxNode* CreateBox(FbxScene* pScene, const char* pName, float length, float widt
 		}
 	}
 	mesh->GenerateNormals(true, false, false);
-	
-    FbxNode* lNode = FbxNode::Create(pScene,pName);
-
-    FbxVector4 lR(0.0, 0.0, 0.0);
-    lNode->LclRotation.Set(lR);
-    lNode->SetNodeAttribute(mesh);
-    return lNode;
+	return mesh;
 }
 

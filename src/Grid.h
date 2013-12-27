@@ -51,7 +51,7 @@ typedef struct {
 	unsigned short numVertices, numEdges;
 	float *vertices;
 	unsigned short *edges;
-	
+	int typeCount;
 } nodeData;
 
 #endif

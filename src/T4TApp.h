@@ -4,6 +4,7 @@
 #include "gameplay.h"
 #include <cstring>
 #include <cstdio>
+#include <cstdarg>
 
 using namespace gameplay;
 
@@ -13,7 +14,7 @@ using std::endl;
 /**
  * Main game class.
  */
-class T4TApp: public Game, Control::Listener
+class T4TApp: public Game, Control::Listener, PhysicsCollisionObject::CollisionListener
 {
 public:
 
@@ -24,6 +25,7 @@ public:
     
     T4TApp* getInstance();
     
+    Node* duplicateModelNode(const char* type);
     bool printNode(Node *node);
     //misc functions
     const std::string printVector(Vector3& v);
@@ -42,9 +44,12 @@ public:
      */
     void touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
     
-    void controlEvent(Control* control, EventType evt);
+    void controlEvent(Control* control, Control::Listener::EventType evt);
     
     void enableScriptCamera(bool enable);
+
+    void collisionEvent(PhysicsCollisionObject::CollisionListener::EventType type,
+    	const PhysicsCollisionObject::CollisionPair& pair, const Vector3& pointA, const Vector3& pointB);
 
 protected:
 
@@ -74,8 +79,6 @@ private:
      * Draws the scene each frame.
      */
     bool drawScene(Node* node);
-    
-    Node* addCatalogItem(int catalogInd, float mass = 10.0f);
     void setSelected(Node* node);
     void placeSelected(float x, float y);
     void setMode(const char *mode);
@@ -85,7 +88,8 @@ private:
     bool checkTouchEdge(Node* node);
     
     //model factory functions
-    Node* createBoxNode(float width, float height, float depth);
+    void loadNodeData(Node *node, const char *type);
+    char* concat(int n, ...);
     
     //UI factory functions
     Form* addMenu(Form *parent, const char *name);
@@ -104,9 +108,6 @@ private:
     
     //T4T objects for modeling
     Scene* _models;
-    std::vector<Node*>* _catalog;
-    std::vector<std::string>* _itemNames;
-    std::vector<int>* _itemCount;
     
     //for placing objects
     Node *_selectedNode, *_lastNode, *_intersectModel;

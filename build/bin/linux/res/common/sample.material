@@ -27,7 +27,7 @@ material cylinder : colored
     {
         pass
         {
-			u_ambientColor = 0.0, 1.0, 0.0
+			u_ambientColor = 0.0, 1.0, 1.0
             u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
