@@ -63,6 +63,15 @@ void T4TApp::initialize()
     // populate catalog of items
     _models = Scene::load("res/common/models.scene");
     
+    _vehicle = Scene::load("res/common/vehicle.scene");
+    _scene->addNode(_vehicle->findNode("car"));
+	Node* carNode = _scene->findNode("carbody");
+	if (carNode && carNode->getCollisionObject()->getType() == PhysicsCollisionObject::VEHICLE)
+	{
+		_carVehicle = static_cast<PhysicsVehicle*>(carNode->getCollisionObject());
+	}
+	_steering = _braking = _driving = 0.0f;
+
     //set available interaction modes
     _modeNames = new std::vector<std::string>();
     _modeNames->push_back("Rotate");
@@ -110,17 +119,13 @@ void T4TApp::initialize()
 	node->translate(0.0f, 1.0f, 0.0f);
 	node->rotate(0.0f, 0.0f, sin(45.0f*PI/180), cos(45.0f*PI/180));
 	body1->setEnabled(true); body2->setEnabled(true);//*/
-	
-    //get rid of the box built into the scene
-	/*Node* boxNode = _scene->findNode("box");
-    _scene->removeNode(boxNode);//*/
     
     //create the form for selecting catalog items
     _theme = Theme::create("res/common/default.theme");
     _formStyle = _theme->getStyle("basicContainer");
+    _hiddenStyle = _theme->getStyle("hiddenContainer");
     _buttonStyle = _theme->getStyle("buttonStyle");
     _titleStyle = _theme->getStyle("title");
-    _hiddenStyle = _theme->getStyle("hidden");
 
 	/*********************** GUI SETUP ***********************/
 	
@@ -196,35 +201,25 @@ void T4TApp::initialize()
 		_modeOptions[(*_modeNames)[i]] = options;
 	}
 	
+	_drawDebugCheckbox = addControl <CheckBox> (_sideMenu, "drawDebug", _buttonStyle, "Draw Debug");
+	
 	//create an invisible overlay the size of the screen, on which specialized touch listeners can be temporarily added
-    _clickOverlayContainer = Form::create("clickOverlayContainer", _formStyle, Layout::LAYOUT_VERTICAL);
-	_clickOverlayContainer->setPosition(200.0f, 0.0f); //_sideMenu->getX() + _sideMenu->getWidth(), 0.0f);
-    _clickOverlayContainer->setWidth(getWidth() - _sideMenu->getWidth());
-    _clickOverlayContainer->setAutoHeight(true);
+/*	_clickOverlayContainer = Form::create("clickOverlayContainer", _hiddenStyle, Layout::LAYOUT_VERTICAL);
+    _clickOverlayContainer->setPosition(_sideMenu->getX() + _sideMenu->getWidth(), 0.0f);
+    _clickOverlayContainer->setWidth(getWidth() - _clickOverlayContainer->getX());
+    _clickOverlayContainer->setHeight(getHeight());
     _clickOverlayContainer->setScroll(Container::SCROLL_VERTICAL);
     _clickOverlayContainer->setConsumeInputEvents(true);
     _clickOverlayContainer->setVisible(false);
-    _mainMenu->addControl(_clickOverlayContainer);
-
-/*	_clickOverlay = Button::create("clickOverlay", _buttonStyle);
-	//_clickOverlay->setPosition(_sideMenu->getX() + _sideMenu->getWidth(), 0.0f);
-    _clickOverlay->setAutoWidth(true); //Width(getWidth() - _sideMenu->getWidth());
-    _clickOverlay->setAutoHeight(true);
-	_clickOverlay->setConsumeInputEvents(false);
-	_clickOverlayContainer->addControl(_clickOverlay);
-	_clickOverlay->setVisible(true);//*/
+    _mainMenu->addControl(_clickOverlayContainer);//*/
 
 	//create an instance of each project template - will be activated as needed
-	_vehicleProject = VehicleProject::create(this, "vehicleProject", _buttonStyle);
-    _vehicleProject->setAutoWidth(true); //Width(getWidth() - _sideMenu->getWidth());
-    _vehicleProject->setAutoHeight(true);
-	_vehicleProject->setConsumeInputEvents(false);
-	_clickOverlayContainer->addControl(_vehicleProject);
-	_vehicleProject->setVisible(true);
-	
+	_vehicleProject = new VehicleProject(this, "vehicleProject", _buttonStyle, _formStyle);
+
+	_drawDebug = true;	
 	setMode("Rotate");
     _sideMenu->setState(Control::FOCUS);
-    //buildVehicle();
+	//buildVehicle();
 
 	//camera zoom slider
 /*	_zoomSlider = Slider::create("gridSpacing", buttonStyle);
@@ -327,10 +322,11 @@ void T4TApp::finalize()
 int updateCount = 0;
 void T4TApp::update(float elapsedTime)
 {
-    // Rotate model
-    //if(!paused) _scene->findNode("box")->rotateY(MATH_DEG_TO_RAD((float)elapsedTime / 1000.0f * 180.0f));
     _mainMenu->update(elapsedTime);
-    getScriptController()->executeFunction<void>("camera_update", "f", elapsedTime);
+	_carVehicle->update(elapsedTime, _steering, _braking, _driving);
+	cout << "updating car [" << elapsedTime << "]: " << _driving << ", " << _braking << ", " << _steering << endl;
+	getScriptController()->executeFunction<void>("camera_update", "f", elapsedTime);
+
     if(_state == Game::RUNNING) {
     	//cout << "Still running... " << updateCount++ << endl;
     }else if(!_physicsStopped) {
@@ -353,7 +349,8 @@ void T4TApp::render(float elapsedTime)
 
     // Visit all the nodes in the scene for drawing
     _scene->visit(this, &T4TApp::drawScene);
-    getPhysicsController()->drawDebug(_scene->getActiveCamera()->getViewProjectionMatrix());
+    _vehicle->visit(this, &T4TApp::drawScene);
+    if(_drawDebug) getPhysicsController()->drawDebug(_scene->getActiveCamera()->getViewProjectionMatrix());
 
     // Draw text
     Vector4 fontColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -380,7 +377,7 @@ void T4TApp::render(float elapsedTime)
     if(_componentMenu->isVisible()) _componentMenu->draw();
     if(_itemContainer->isVisible()) _itemContainer->draw();
     if(_modeContainer->isVisible()) _modeContainer->draw();
-    if(_clickOverlayContainer->isVisible()) _clickOverlayContainer->draw();
+	if(_vehicleProject->container->isVisible()) _vehicleProject->container->draw();
 
     if(_lastBody) {
     	int activation = _lastBody->getActivation();
@@ -391,7 +388,7 @@ void T4TApp::render(float elapsedTime)
 
 bool T4TApp::drawScene(Node* node)
 {
-	if(strcmp(node->getScene()->getId(), "models") == 0) return true;
+//	if(strcmp(node->getScene()->getId(), "models") == 0) return true;
     // If the node visited contains a model, draw it
     Model* model = node->getModel(); 
     if (model)
@@ -413,9 +410,28 @@ void T4TApp::keyEvent(Keyboard::KeyEvent evt, int key)
     {
         switch (key)
         {
-        case Keyboard::KEY_ESCAPE:
-            exit();
-            break;
+	        case Keyboard::KEY_ESCAPE:
+    	        exit();
+    	        break;
+    	    case Keyboard::KEY_UP_ARROW:
+    	    	_braking = 0.0f;
+    	    	_driving += 0.1f;
+    	    	if(_driving > 1.0f) _driving = 1.0f;
+    	    	break;
+    	    case Keyboard::KEY_DOWN_ARROW:
+    	    	_driving = 0.0f;
+    	    	_braking += 0.1f;
+    	    	if(_braking > 1.0f) _braking = 1.0f;
+    	    	break;
+    	    case Keyboard::KEY_LEFT_ARROW:
+    	    	_steering -= 0.1f;
+    	    	if(_steering < -1.0f) _steering = -1.0f;
+    	    	break;
+    	    case Keyboard::KEY_RIGHT_ARROW:
+    	    	_steering += 0.1f;
+    	    	if(_steering > 1.0f) _steering = 1.0f;
+    	    	break;
+    	    default: break;
         }
     }
 }
@@ -438,6 +454,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 		    if (getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) {
 		    	Node *node = hitResult.object->getNode();
 		    	if(node->getCollisionObject() != NULL) {
+		    		if(node != NULL && strcmp(node->getId(), "grid") == 0) break;
 					cout << "selected: " << node->getId() << endl;
 					//see if this object is constrained to any others
 					PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
@@ -508,6 +525,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 		    {
 		        // Get the node we touched
 		        Node* node = hitResult.object->getNode();
+		        if(node != NULL && strcmp(node->getId(), "grid") == 0) break;
 		        // Get the exact point touched, in world space
 		        Vector3 p = hitResult.point;
 		        cout << "hit " << node->getId() << " at " << p.x << "," << p.y << "," << p.z << endl;
@@ -542,7 +560,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 				    }
 				    cout << "closest edge at distance " << minDistance << ": (<" << vertices[data->edges[minEdge*2]].x << "," << vertices[data->edges[minEdge*2]].y << "," << vertices[data->edges[minEdge*2]].z << ">, <" << vertices[data->edges[minEdge*2+1]].x << "," << vertices[data->edges[minEdge*2+1]].y << "," << vertices[data->edges[minEdge*2+1]].z << ">)" << endl;
 				    
-				    if(_constraintNodes[0] == NULL) { //if this is the first edge, highlight it
+				    if(_constraintNodes[0] == NULL || _constraintNodes[0] == node) { //if this is the first edge, highlight it
 				    	_constraintNodes[0] = node;
 				    	_constraintEdges[0] = minEdge;
 				    } else { //otherwise, create the constraint
@@ -796,26 +814,32 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 			cout << "last node " << _lastNode->getId() << " is " << (body->isEnabled() ? "" : "NOT") << " enabled" << endl;
 		}
 	}
+	else if(control == _drawDebugCheckbox) {
+		_drawDebug = _drawDebugCheckbox->isChecked();
+	}
 }
 
-Node* T4TApp::duplicateModelNode(const char* type)
+Node* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 {
 	Node *modelNode = _models->findNode(type);
 	if(modelNode == NULL) return NULL;
 	Node *node = modelNode->clone();
 	nodeData *data = (nodeData*) modelNode->getUserPointer();
-	data->typeCount++;
+	const char count[2] = {(char)(++data->typeCount + 48), '\0'};
+	node->setId(concat(2, modelNode->getId(), count));
 	node->setUserPointer(data);
-	node->setCollisionObject(concat(2, "res/common/models.physics#", modelNode->getId()));
+	if(isStatic) node->setCollisionObject(concat(2, "res/common/models.physics#static", modelNode->getId()));
+	else node->setCollisionObject(concat(2, "res/common/models.physics#", modelNode->getId()));
 	PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
 	body->addCollisionListener(this);
-	body->_body->setSleepingThresholds(0.0f, 0.0f);
+	body->_body->setSleepingThresholds(0.1f, 0.1f);
 	body->setActivation(ACTIVE_TAG);
 	_scene->addNode(node);
 	Node *curSelected = _selectedNode;
 	setSelected(node);
 	placeSelected(0.0f, 0.0f);
 	setSelected(curSelected);
+	cout << "ADDED NODE " << node->getId() << endl;
 	return node;
 }
 
@@ -871,17 +895,18 @@ void T4TApp::placeSelected(float x, float z)
 
 void T4TApp::setSelected(Node* node)
 {
-	cout << "selecting " << (node == NULL ? "NULL" : node->getId()) << endl;
 	if(node != NULL)
 	{
 		if(strcmp(node->getId(), "grid") == 0) return;
 		if(node->getCollisionObject() == NULL) return; //shouldn't select a non-physical object (like the floor grid)
+		cout << "selecting " << node->getId() << endl;
 		PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
 		body->setEnabled(false); //turn off physics on this body while dragging it around
 		_selectedBox = &(node->getModel()->getMesh()->getBoundingBox());
 	}
 	else
 	{
+		cout << "selecting NULL" << endl;
 		if(_selectedNode) {
 			PhysicsRigidBody* body = _selectedNode->getCollisionObject()->asRigidBody();
 			body->setEnabled(true); //turn off physics on this body while dragging it around
@@ -976,7 +1001,7 @@ void T4TApp::VehicleProject::controlEvent(Control* control, EventType evt) {
 	const char *controlID = control->getId();
 	cout << "CLICKED " << controlID << endl;
 	if(strncmp(controlID, "comp_", 5) == 0) {
-		Node *node = app->duplicateModelNode(controlID+5);
+		Node *node = app->duplicateModelNode(controlID+5, true);
 		if(node != NULL) {
 			bool found = true;
 			//node->getCollisionObject()->setEnabled(false);
@@ -993,7 +1018,8 @@ void T4TApp::VehicleProject::controlEvent(Control* control, EventType evt) {
 			if(found) {
 				if(_currentComponent != COMPLETE) {
 					addListener(this, Control::Listener::CLICK);
-					app->_clickOverlayContainer->setVisible(true);
+					//app->_clickOverlayContainer->setVisible(true);
+					container->setVisible(true);
 				}
 			}
 			app->_componentMenu->setVisible(false);
@@ -1043,7 +1069,8 @@ bool T4TApp::VehicleProject::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 				advanceComponent();
 				cout << "Moving on to " << componentName[_currentComponent] << endl;
 				removeListener(this);
-				app->_clickOverlayContainer->setVisible(false);
+				//app->_clickOverlayContainer->setVisible(false);
+				container->setVisible(false);
 				if(_currentComponent != COMPLETE) {
 					//bring up the menu to select the next vehicle part
 					app->_componentMenu->setVisible(true);

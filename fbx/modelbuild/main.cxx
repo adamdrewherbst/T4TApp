@@ -40,6 +40,7 @@
 #define APP_RESOURCE_DIRECTORY "/home/aherbst/Documents/Programming/GamePlay/projects/t4tapp/build/bin/linux/res/common/"
 #define SCENE_FILENAME OUTPUT_DIRECTORY "scene.fbx"
 #define MODEL_FILENAME OUTPUT_DIRECTORY "models.fbx"
+#define VEHICLE_FILENAME OUTPUT_DIRECTORY "vehicle.fbx"
 
 #define PI 3.1415926535
 
@@ -48,6 +49,7 @@ using std::cin; using std::cout; using std::endl; using std::ofstream; using std
 // Function prototypes.
 bool CreateScene(FbxManager* pSdkManager, FbxScene* pScene);
 bool CreateModels(FbxManager* pSdkManager, FbxScene* pScene);
+bool CreateVehicle(FbxManager* pSdkManager, FbxScene* pScene);
 
 FbxNode* CreateNode(FbxScene* pScene, const char* pName, const char* type, ...);
 FbxMesh* CreateCylinder(FbxScene* pScene, const char* pName, float radius, float height, int segments);
@@ -63,14 +65,15 @@ void printEdge(ofstream& of, int v1, int v2) {
 int main(int argc, char** argv)
 {
     FbxManager* lSdkManager = NULL;
-    FbxScene *lScene = NULL, *lModels = NULL;
+    FbxScene *lScene = NULL, *lModels = NULL, *lVehicle = NULL;
     bool lResult;
 
     // Prepare the FBX SDK.
     InitializeSdkObjects(lSdkManager, lScene);
 	lScene = FbxScene::Create(lSdkManager, "scene");
 	lModels = FbxScene::Create(lSdkManager, "models");
-	if(!lScene || !lModels)
+	lVehicle = FbxScene::Create(lSdkManager, "vehicle");
+	if(!lScene || !lModels || !lVehicle)
     {
         FBXSDK_printf("Error: Unable to create FBX scene!\n");
         exit(1);
@@ -84,7 +87,6 @@ int main(int argc, char** argv)
         DestroySdkObjects(lSdkManager, lResult);
         return 0;
     }
-
     // Create the models.
     lResult = CreateModels(lSdkManager, lModels);
     if(lResult == false)
@@ -93,18 +95,17 @@ int main(int argc, char** argv)
         DestroySdkObjects(lSdkManager, lResult);
         return 0;
     }
+    // Create the vehicle.
+    lResult = CreateVehicle(lSdkManager, lVehicle);
+    if(lResult == false)
+    {
+        FBXSDK_printf("\n\nAn error occurred while creating the vehicle...\n");
+        DestroySdkObjects(lSdkManager, lResult);
+        return 0;
+    }
 
     // Save the scene and models.
 
-    // The example can take an output file name as an argument.
-	const char* lSampleFileName = NULL;
-	for( int i = 1; i < argc; ++i )
-	{
-		if( FBXSDK_stricmp(argv[i], "-test") == 0 ) continue;
-		else if( !lSampleFileName ) lSampleFileName = argv[i];
-	}
-	if( !lSampleFileName ) lSampleFileName = SCENE_FILENAME;
-	
 	lResult = SaveScene(lSdkManager, lScene, SCENE_FILENAME);
     if(lResult == false)
     {
@@ -112,11 +113,17 @@ int main(int argc, char** argv)
         DestroySdkObjects(lSdkManager, lResult);
         return 0;
     }
-
 	lResult = SaveScene(lSdkManager, lModels, MODEL_FILENAME);
     if(lResult == false)
     {
         FBXSDK_printf("\n\nAn error occurred while saving the models...\n");
+        DestroySdkObjects(lSdkManager, lResult);
+        return 0;
+    }
+	lResult = SaveScene(lSdkManager, lVehicle, VEHICLE_FILENAME);
+    if(lResult == false)
+    {
+        FBXSDK_printf("\n\nAn error occurred while saving the vehicle...\n");
         DestroySdkObjects(lSdkManager, lResult);
         return 0;
     }
@@ -176,10 +183,53 @@ bool CreateModels(FbxManager *pSdkManager, FbxScene* pScene)
 
     // Build the node tree.
     FbxNode* lRootNode = pScene->GetRootNode();
-    FbxNode* lPatch = CreateNode(pScene, "cylinder", "cylinder", 1.0, 3.0, 20);
+    FbxNode* lPatch;
+   	lPatch = CreateNode(pScene, "cylinder", "cylinder", 1.0, 3.0, 20);
     lRootNode->AddChild(lPatch);
     lPatch = CreateNode(pScene, "box", "box", 2.0, 2.0, 2.0);
     lRootNode->AddChild(lPatch);
+
+    return true;
+}
+
+bool CreateVehicle(FbxManager *pSdkManager, FbxScene* pScene)
+{
+    // create scene info
+    FbxDocumentInfo* sceneInfo = FbxDocumentInfo::Create(pSdkManager,"SceneInfo");
+    sceneInfo->mTitle = "Models";
+    sceneInfo->mSubject = "Models for Gameplay3D T4T App";
+    sceneInfo->mAuthor = "modelbuild program.";
+    sceneInfo->mRevision = "rev. 1.0";
+    sceneInfo->mKeywords = "models";
+    sceneInfo->mComment = "no particular comments required.";
+
+    pScene->SetSceneInfo(sceneInfo);
+
+    // Build the node tree.
+    FbxNode* lRootNode = pScene->GetRootNode();
+    FbxNode* lCarNode = FbxNode::Create(pScene,"car");
+    FbxNode* lWheelsNode = FbxNode::Create(pScene,"wheels");
+    lRootNode->AddChild(lCarNode);
+    lCarNode->AddChild(lWheelsNode);
+    FbxNode* lPatch;
+    char id[] = "cylinder1";
+    for(int i = 0; i < 4; i++) {
+    	id[8] = (char)(48+i+1);
+    	lPatch = CreateNode(pScene, id, "cylinder", 1.0, 3.0, 20);
+	    lWheelsNode->AddChild(lPatch);
+	}
+    lPatch = CreateNode(pScene, "box", "box", 2.0, 2.0, 2.0);
+    lCarNode->AddChild(lPatch);
+
+	// Create a node for our light in the scene.
+	FbxNode* lLightNode = FbxNode::Create(pScene, "lightNode");
+	FbxLight* lLight = FbxLight::Create(pScene, "light");
+	lLightNode->SetNodeAttribute(lLight);
+	lLight->LightType.Set(FbxLight::eDirectional);
+	lLightNode->LclRotation.Set(FbxVector4(0.0, 0.0, -90.0));
+	lRootNode->AddChild(lLightNode);
+	
+	pScene->GetGlobalSettings().SetAmbientColor(FbxColor(1.0, 1.0, 0.0));
 
     return true;
 }

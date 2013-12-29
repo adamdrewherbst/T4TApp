@@ -25,7 +25,7 @@ public:
     
     T4TApp* getInstance();
     
-    Node* duplicateModelNode(const char* type);
+    Node* duplicateModelNode(const char* type, bool isStatic = false);
     bool printNode(Node *node);
     //misc functions
     const std::string printVector(Vector3& v);
@@ -107,7 +107,9 @@ private:
     Light* _light;
     
     //T4T objects for modeling
-    Scene* _models;
+    Scene *_models, *_vehicle;
+    PhysicsVehicle *_carVehicle;
+    float _steering, _braking, _driving;
     
     //for placing objects
     Node *_selectedNode, *_lastNode, *_intersectModel;
@@ -122,13 +124,14 @@ private:
     
     //current state
     std::string _mode;
+    bool _drawDebug;
     
     //user interface
     Form *_mainMenu, *_sideMenu, *_itemContainer, *_modeContainer, *_componentMenu;
     std::vector<Form*> *_submenus; //submenus
     std::map<std::string, Form*> _modeOptions;
     Button *_itemButton, *_modeButton; //submenu handles
-    CheckBox *_gridCheckbox, *_debugCheckbox;
+    CheckBox *_gridCheckbox, *_drawDebugCheckbox;
     Slider *_gridSlider, *_zoomSlider;
     std::vector<std::string> *_modeNames;
     std::vector<RadioButton*> *_modeButtons;
@@ -143,20 +146,38 @@ private:
     
 public:
     	T4TApp *app;
+    	Form *container;
     	std::vector<std::string> componentName;
 
-    	VehicleProject(T4TApp *app_) : app(app_) {
+    	VehicleProject(T4TApp *app_, const char* id, Theme::Style* buttonStyle, Theme::Style* formStyle) : app(app_) {
+    	
     		_currentComponent = CHASSIS;
     		componentName.push_back("Chassis");
     		componentName.push_back("Front Wheels");
     		componentName.push_back("Back Wheels");
     		componentName.push_back("Complete");
+
+			//create the form to hold this button
+    		container = Form::create(app->concat(2, "container_", id), formStyle, Layout::LAYOUT_VERTICAL);
+    		container->setPosition(app->_sideMenu->getX(), 0.0f);
+    		container->setWidth(app->getWidth() - container->getX());
+    		container->setAutoHeight(true);
+    		container->setScroll(Container::SCROLL_VERTICAL);
+			container->setConsumeInputEvents(true);
+    		container->setVisible(false);
+    		
+    		_id = id;
+    		_style = buttonStyle;
+    		setAutoWidth(true);
+    		setAutoHeight(true);
+    		setConsumeInputEvents(true);
+    		container->addControl(this);
+    		app->_mainMenu->addControl(container);
     	}
     	
-    	static VehicleProject *create(T4TApp *app_, const char* id, Theme::Style* style) {
-    		VehicleProject *v = new VehicleProject(app_);
-    		v->_id = id;
-    		v->_style = style;
+    	static VehicleProject *create(T4TApp *app_, const char* id, Theme::Style* buttonStyle, Theme::Style* formStyle) {
+
+    		VehicleProject *v = new VehicleProject(app_, id, buttonStyle, formStyle);
     		return v;
     	}
 
