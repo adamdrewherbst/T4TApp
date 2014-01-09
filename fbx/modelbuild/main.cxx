@@ -215,10 +215,13 @@ bool CreateVehicle(FbxManager *pSdkManager, FbxScene* pScene)
     char id[] = "cylinder1";
     for(int i = 0; i < 4; i++) {
     	id[8] = (char)(48+i+1);
-    	lPatch = CreateNode(pScene, id, "cylinder", 1.0, 3.0, 20);
+    	lPatch = CreateNode(pScene, id, "cylinder", 0.5, 0.5, 20);
+    	lPatch->LclRotation.Set(FbxVector4(90.0, 0.0, 0.0));
+    	lPatch->LclTranslation.Set(FbxVector4(i<2 ? 2.0 : -2.0, 0.5, i%2==0 ? -1.75 : 1.75));
 	    lWheelsNode->AddChild(lPatch);
 	}
-    lPatch = CreateNode(pScene, "box", "box", 2.0, 2.0, 2.0);
+    lPatch = CreateNode(pScene, "box", "box", 4.0, 6.0, 2.0);
+    lPatch->LclTranslation.Set(FbxVector4(0.0, 3.2, 0.0));
     lCarNode->AddChild(lPatch);
 
 	// Create a node for our light in the scene.
@@ -229,6 +232,13 @@ bool CreateVehicle(FbxManager *pSdkManager, FbxScene* pScene)
 	lLightNode->LclRotation.Set(FbxVector4(0.0, 0.0, -90.0));
 	lRootNode->AddChild(lLightNode);
 	
+	// Create a node for our camera in the scene.
+	FbxNode* lCameraNode = FbxNode::Create(pScene, "cameraNode");
+	FbxCamera* lCamera = FbxCamera::Create(pScene, "camera");
+	lCameraNode->SetNodeAttribute(lCamera);
+	lRootNode->AddChild(lCameraNode);
+	pScene->GetGlobalSettings().SetDefaultCamera((char *) lCamera->GetName());
+
 	pScene->GetGlobalSettings().SetAmbientColor(FbxColor(1.0, 1.0, 0.0));
 
     return true;
@@ -306,9 +316,9 @@ FbxMesh* CreateCylinder(FbxScene* pScene, const char* pName, float radius, float
 	int v = 0;
 	for(int n = 0; n < 2; n++) {
 		for(int i = 0; i < segments; i++) {
-			mesh->SetControlPointAt(FbxVector4(radius * cos(2*PI*i/segments), (2*n-1) * height/2, radius * sin(2*PI*i/segments)), v++);
+			mesh->SetControlPointAt(FbxVector4((2*n-1) * height/2, radius * cos(2*PI*i/segments), radius * sin(2*PI*i/segments)), v++);
 		}
-		mesh->SetControlPointAt(FbxVector4(0.0, (2*n-1) * height/2, 0.0), v++);
+		mesh->SetControlPointAt(FbxVector4((2*n-1) * height/2, 0.0, 0.0), v++);
 	}
 	for(int i = 0; i < segments; i++) {
 		//bottom

@@ -36,8 +36,9 @@ function camera_setActive(flag)
     if _useScriptCamera then
         Game.getInstance():setMultiTouch(true)
         
-        _scene = Scene.getScene()
-        _cameraNode = _scene:getActiveCamera():getNode()
+        _scene = Scene.getScene("scene")
+        _vehicle = Scene.getScene("vehicle")
+        _cameraNodes = {_scene:getActiveCamera():getNode(), _vehicle:getActiveCamera():getNode()}
 
         -- Set initial camera angles
         --local eulers = camera_quatToEuler(_cameraNode:getRotation())
@@ -46,7 +47,7 @@ function camera_setActive(flag)
     else
 		-- Release scene and camera
 		_scene = nil
-		_cameraNode = nil
+		_cameraNodes = nil
 	end
 end
 
@@ -203,9 +204,11 @@ function camera_setPosition()
 	-- Pull SRT components out of matrix
 	_eyeMatrix:decompose(_scale, _rotation, _translation)
 	-- Set SRT on node
-	_cameraNode:setScale(_scale)
-	_cameraNode:setTranslation(_translation)
-	_cameraNode:setRotation(_rotation)
+	for ind,_cameraNode in ipairs(_cameraNodes) do
+		_cameraNode:setScale(_scale)
+		_cameraNode:setTranslation(_translation)
+		_cameraNode:setRotation(_rotation)
+	end
 end
 
 function camera_setRadius(radius)
@@ -214,15 +217,19 @@ function camera_setRadius(radius)
 end
 
 function camera_moveForward(by)
-    local v = _cameraNode:getForwardVector()
-    v:normalize():scale(by)
-    _cameraNode:translate(v)
+	for ind,_cameraNode in ipairs(_cameraNodes) do
+		local v = _cameraNode:getForwardVector()
+		v:normalize():scale(by)
+		_cameraNode:translate(v)
+	end
 end
 
 function camera_moveRight(by)
-    local v = _cameraNode:getRightVector()
-    v:normalize():scale(by)
-    _cameraNode:translate(v)
+	for ind,_cameraNode in ipairs(_cameraNodes) do
+		local v = _cameraNode:getRightVector()
+		v:normalize():scale(by)
+		_cameraNode:translate(v)
+	end
 end
 
 function camera_quatToEuler(quat)

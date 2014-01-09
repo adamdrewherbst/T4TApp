@@ -27,6 +27,7 @@ public:
     
     Node* duplicateModelNode(const char* type, bool isStatic = false);
     bool printNode(Node *node);
+    bool prepareNode(Node *node);
     //misc functions
     const std::string printVector(Vector3& v);
     const std::string printVector2(Vector2& v);

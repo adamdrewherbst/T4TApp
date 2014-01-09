@@ -1,0 +1,22 @@
+scene {
+
+	path = res/common/models.gpb
+	
+	node cylinder {
+		url = cylinder
+		material = res/common/sample.material#cylinder
+		translate = 0, 0, 0
+		rotate = 0, 0, 1, 90
+		scale = 1, 1, 1
+		collisionObject = res/common/models.physics#cylinder
+	}
+
+	node box {
+		url = box
+		material = res/common/sample.material#box
+		translate = 0, 0, 0
+		scale = 1, 1, 1
+		collisionObject = res/common/models.physics#box
+	}
+}
+

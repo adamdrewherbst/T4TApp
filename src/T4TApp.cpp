@@ -40,11 +40,20 @@ void T4TApp::initialize()
 
     // Generate game scene
     _scene = Scene::load("res/common/game.scene");
+    _scene->setId("scene");
     _scene->visit(this, &T4TApp::printNode);
     setSelected(NULL);
     
+    // populate catalog of items
+    _models = Scene::load("res/common/models.scene");
+    _models->setId("models");
+    _vehicle = Scene::load("res/common/vehicle.scene");
+    _vehicle->setId("vehicle");
+    _vehicle->visit(this, &T4TApp::prepareNode);
+
     // Set the aspect ratio for the scene's camera to match the current resolution
     _scene->getActiveCamera()->setAspectRatio(getAspectRatio());
+    _vehicle->getActiveCamera()->setAspectRatio(getAspectRatio());
     
     // Get light node
     _lightNode = _scene->findNode("lightNode");
@@ -60,13 +69,9 @@ void T4TApp::initialize()
     getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_MOVE, 0, 0, 0);
     getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_RELEASE, 0, 0, 0);
 
-    // populate catalog of items
-    _models = Scene::load("res/common/models.scene");
-    
-    _vehicle = Scene::load("res/common/vehicle.scene");
-    _scene->addNode(_vehicle->findNode("car"));
-	Node* carNode = _scene->findNode("carbody");
-	if (carNode && carNode->getCollisionObject()->getType() == PhysicsCollisionObject::VEHICLE)
+    //_scene->addNode(_vehicle->findNode("car"));
+	Node* carNode = _vehicle->findNode("carbody");
+	if (carNode && carNode->getCollisionObject() && carNode->getCollisionObject()->getType() == PhysicsCollisionObject::VEHICLE)
 	{
 		_carVehicle = static_cast<PhysicsVehicle*>(carNode->getCollisionObject());
 	}
@@ -323,8 +328,11 @@ int updateCount = 0;
 void T4TApp::update(float elapsedTime)
 {
     _mainMenu->update(elapsedTime);
-	_carVehicle->update(elapsedTime, _steering, _braking, _driving);
-	cout << "updating car [" << elapsedTime << "]: " << _driving << ", " << _braking << ", " << _steering << endl;
+	if(_carVehicle) _carVehicle->update(elapsedTime, _steering, _braking, _driving);
+/*	cout << "updating car [" << elapsedTime << "]: " << _driving << ", " << _braking << ", " << _steering << endl;
+	cout << "\tspeed now " << _carVehicle->getSpeedKph();
+	Vector3 vel = _carVehicle->getRigidBody()->getLinearVelocity();
+	cout << ", vel = " << printVector(vel) << endl;//*/
 	getScriptController()->executeFunction<void>("camera_update", "f", elapsedTime);
 
     if(_state == Game::RUNNING) {
@@ -384,6 +392,15 @@ void T4TApp::render(float elapsedTime)
     	//cout << "rendering last body: " << activation << endl;
     	if(activation == 2) _lastBody = NULL;
     }
+}
+
+bool T4TApp::prepareNode(Node* node)
+{
+	PhysicsCollisionObject* obj = node->getCollisionObject();
+	if(obj && obj->asRigidBody()) {
+		cout << "adding collision listener to " << node->getId() << endl;
+		obj->asRigidBody()->addCollisionListener(this);
+	}
 }
 
 bool T4TApp::drawScene(Node* node)
@@ -458,54 +475,56 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 					cout << "selected: " << node->getId() << endl;
 					//see if this object is constrained to any others
 					PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
-					cout << "\tenabled: " << body->isEnabled() << endl;
-					cout << "\tkinematic: " << body->isKinematic() << endl;
-					cout << "\tstatic: " << body->isStatic() << endl;
-					cout << "\tactivation = " << body->getActivation() << endl;
-					if(body->_constraints != NULL) for(int i = 0, size = body->_constraints->size(); i < size; i++) {
-						PhysicsConstraint* constraint = (*(body->_constraints))[i];
-						PhysicsRigidBody* other = constraint->_a == body ? constraint->_b : constraint->_a;
-						cout << "\tconstrained to " << other->getNode()->getId() << endl;
-						btHingeConstraint *_constraint = (btHingeConstraint*) constraint->_constraint;
-						btTransform transform = constraint->_a == body ? _constraint->getFrameOffsetA() : _constraint->getFrameOffsetB();
-						//determine the axis of rotation in world coords
-						btQuaternion rotation = transform.getRotation();
-						btScalar angle = rotation.getAngle();
-						btVector3 axis = rotation.getAxis(), origin = transform.getOrigin();
-						btTransform rot = btTransform(rotation);
-						axis = rot * btVector3(0, 0, 1);
-						//determine the compensatory translation to maintain the hinge alignment
-						float ang = 45.0f*PI/180;
-						btTransform t1 = btTransform(btQuaternion(axis, ang));
-						btVector3 test = t1 * origin - origin;
-						cout << "\thinge = " << angle << " about " << axis.x() << "," << axis.y() << "," << axis.z()
-							<< " with origin " << origin.x() << "," << origin.y() << "," << origin.z() << endl;
-						//as a test, rotate the object about the hinge by 45 degrees
-						cout << "\tbefore: activation = " << body->getActivation() << endl;
-						body->setEnabled(false);
-						node->rotate(Vector3(axis.x(), axis.y(), axis.z()), ang);
-						node->translate(-test.x(), -test.y(), -test.z());
-						body->setActivation(ACTIVE_TAG);
-						body->setEnabled(true);
-						cout << "\tafter: activation = " << body->getActivation() << endl;
-						_lastBody = body;
-					}
-					else {
-						cout << "\tbefore: activation = " << body->getActivation() << endl;
-						setSelected(node);
-						//treat it as if the user clicked on the point on the grid directly below this object's center
-						_dragOffset.set(0.0f, 0.0f);
-						Vector3 center = node->getTranslation(), hitPoint = hitResult.point;
-						Vector2 centerPix, hitPix;
-						center.y = 0;
-						Matrix viewProj = _scene->getActiveCamera()->getViewProjectionMatrix();
-						_scene->getActiveCamera()->project(getViewport(), hitPoint, &hitPix);
-						cout << "hit at " << printVector(hitPoint) << " => " << printVector2(hitPix) << endl;
-						_scene->getActiveCamera()->project(getViewport(), center, &centerPix);
-						_dragOffset.set(centerPix.x - x, centerPix.y - y);
-						cout << "dragging " << node->getId() << " with offset " << printVector2(_dragOffset) << endl;
-						body->setEnabled(false);
-						_lastBody = body;
+					if(body) {
+						cout << "\tenabled: " << body->isEnabled() << endl;
+						cout << "\tkinematic: " << body->isKinematic() << endl;
+						cout << "\tstatic: " << body->isStatic() << endl;
+						cout << "\tactivation = " << body->getActivation() << endl;
+						if(body->_constraints != NULL) for(int i = 0, size = body->_constraints->size(); i < size; i++) {
+							PhysicsConstraint* constraint = (*(body->_constraints))[i];
+							PhysicsRigidBody* other = constraint->_a == body ? constraint->_b : constraint->_a;
+							cout << "\tconstrained to " << other->getNode()->getId() << endl;
+							btHingeConstraint *_constraint = (btHingeConstraint*) constraint->_constraint;
+							btTransform transform = constraint->_a == body ? _constraint->getFrameOffsetA() : _constraint->getFrameOffsetB();
+							//determine the axis of rotation in world coords
+							btQuaternion rotation = transform.getRotation();
+							btScalar angle = rotation.getAngle();
+							btVector3 axis = rotation.getAxis(), origin = transform.getOrigin();
+							btTransform rot = btTransform(rotation);
+							axis = rot * btVector3(0, 0, 1);
+							//determine the compensatory translation to maintain the hinge alignment
+							float ang = 45.0f*PI/180;
+							btTransform t1 = btTransform(btQuaternion(axis, ang));
+							btVector3 test = t1 * origin - origin;
+							cout << "\thinge = " << angle << " about " << axis.x() << "," << axis.y() << "," << axis.z()
+								<< " with origin " << origin.x() << "," << origin.y() << "," << origin.z() << endl;
+							//as a test, rotate the object about the hinge by 45 degrees
+							cout << "\tbefore: activation = " << body->getActivation() << endl;
+							body->setEnabled(false);
+							node->rotate(Vector3(axis.x(), axis.y(), axis.z()), ang);
+							node->translate(-test.x(), -test.y(), -test.z());
+							body->setActivation(ACTIVE_TAG);
+							body->setEnabled(true);
+							cout << "\tafter: activation = " << body->getActivation() << endl;
+							_lastBody = body;
+						}
+						else {
+							cout << "\tbefore: activation = " << body->getActivation() << endl;
+							setSelected(node);
+							//treat it as if the user clicked on the point on the grid directly below this object's center
+							_dragOffset.set(0.0f, 0.0f);
+							Vector3 center = node->getTranslation(), hitPoint = hitResult.point;
+							Vector2 centerPix, hitPix;
+							center.y = 0;
+							Matrix viewProj = _scene->getActiveCamera()->getViewProjectionMatrix();
+							_scene->getActiveCamera()->project(getViewport(), hitPoint, &hitPix);
+							cout << "hit at " << printVector(hitPoint) << " => " << printVector2(hitPix) << endl;
+							_scene->getActiveCamera()->project(getViewport(), center, &centerPix);
+							_dragOffset.set(centerPix.x - x, centerPix.y - y);
+							cout << "dragging " << node->getId() << " with offset " << printVector2(_dragOffset) << endl;
+							body->setEnabled(false);
+							_lastBody = body;
+						}
 					}
 				}
 			}
