@@ -32,6 +32,8 @@ public:
     //misc functions
     const std::string printVector(Vector3& v);
     const std::string printVector2(Vector2& v);
+	void loadScene();
+	void releaseScene();
     void setActiveScene(Scene *scene);
     
     /**
@@ -155,70 +157,18 @@ public:
     	std::vector<std::string> componentName;
     	Scene *_scene;
     	Node *_chassisNode, *_frontWheels[2], *_backWheels[2];
-
-    	VehicleProject(T4TApp *app_, const char* id, Theme::Style* buttonStyle, Theme::Style* formStyle) : app(app_) {
-    	
-    		_currentComponent = CHASSIS;
-    		componentName.push_back("Chassis");
-    		componentName.push_back("Front Wheels");
-    		componentName.push_back("Back Wheels");
-    		componentName.push_back("Complete");
-
-			//create the form to hold this button
-    		container = Form::create(app->concat(2, "container_", id), formStyle, Layout::LAYOUT_VERTICAL);
-    		container->setPosition(app->_sideMenu->getX(), 0.0f);
-    		container->setWidth(app->getWidth() - container->getX());
-    		container->setAutoHeight(true);
-    		container->setScroll(Container::SCROLL_VERTICAL);
-			container->setConsumeInputEvents(true);
-    		container->setVisible(false);
-    		
-    		_id = id;
-    		_style = buttonStyle;
-    		setAutoWidth(true);
-    		setAutoHeight(true);
-    		setConsumeInputEvents(true);
-    		container->addControl(this);
-    		app->_mainMenu->addControl(container);
-    		
-    		_scene = Scene::load("res/common/vehicle.scene");
-    		_scene->setId("vehicle");
-   		    _scene->getActiveCamera()->setAspectRatio(app->getAspectRatio());
-    		//scene is inactive until called upon to build a vehicle project
-    		for(Node *node = _scene->getFirstNode(); node != NULL; node = node->getNextSibling()) {
-    			PhysicsCollisionObject *obj = node->getCollisionObject();
-    			if(obj) obj->setEnabled(false);
-    		}
-    		_chassisNode = _scene->findNode("carbody");
-    		_frontWheels[0] = _scene->findNode("wheelFrontLeft");
-    		_frontWheels[1] = _scene->findNode("wheelFrontRight");
-    		_backWheels[0] = _scene->findNode("wheelBackLeft");
-    		_backWheels[1] = _scene->findNode("wheelBackRight");
-    		
-    		//camera will always be pointing down the z axis from 20 units away
-    		Node *cameraNode = _scene->getActiveCamera()->getNode();
-    		Matrix lookAt;
-    		Vector3 scale, translation;
-    		Quaternion rotation;
-    		Matrix::createLookAt(Vector3(0.0f,2.0f,20.0f), Vector3(0.0f,0.0f,0.0f), Vector3(0.0f,1.0f,0.0f), &lookAt);
-    		lookAt.invert();
-    		lookAt.decompose(&scale, &rotation, &translation);
-    		cameraNode->setScale(scale);
-    		cameraNode->setRotation(rotation);
-    		cameraNode->setTranslation(translation);
-    		cout << "set vehicle cam scale = " << app->printVector(scale) << ", translation = " << app->printVector(translation);
-    		cout << ", rotation = " << rotation.x << "," << rotation.y << "," << rotation.z << "," << rotation.w << endl;
-    	}
-    	
-    	static VehicleProject *create(T4TApp *app_, const char* id, Theme::Style* buttonStyle, Theme::Style* formStyle) {
-
-    		VehicleProject *v = new VehicleProject(app_, id, buttonStyle, formStyle);
-    		return v;
-    	}
+    	Node *_allNodes[5], *_carNode;
 
 		void controlEvent(Control *control, EventType evt);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
-
+	    bool disableObject(Node* node);
+		bool hideNode(Node* node);
+		bool showNode(Node* node);
+		void loadScene();
+		void releaseScene();
+		
+    	VehicleProject(T4TApp *app_, const char* id, Theme::Style* buttonStyle, Theme::Style* formStyle);
+    	
 		typedef enum {
 			CHASSIS,
 			FRONT_WHEELS,

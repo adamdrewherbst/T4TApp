@@ -37,7 +37,7 @@ function camera_setActive(flag)
         Game.getInstance():setMultiTouch(true)
         
         _scene = Scene.getScene("scene")
-        _vehicle = Scene.getScene("vehicle")
+        --_vehicle = Scene.getScene("vehicle")
         _cameraNodes = {_scene:getActiveCamera():getNode()}
         --, _vehicle:getActiveCamera():getNode()}
 

@@ -8,15 +8,15 @@ scene {
 		translate = 0, 0, 0
 		rotate = 0, 0, 1, 90
 		scale = 1, 1, 1
-		collisionObject = res/common/models.physics#cylinder
+		//collisionObject = res/common/models.physics#cylinder
 	}
 
 	node box {
 		url = box
 		material = res/common/sample.material#box
 		translate = 0, 0, 0
-		scale = 1, 1, 1
-		collisionObject = res/common/models.physics#box
+		scale = 3, 1, 2
+		//collisionObject = res/common/models.physics#box
 	}
 }
 

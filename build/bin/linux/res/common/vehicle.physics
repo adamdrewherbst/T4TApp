@@ -24,6 +24,11 @@ collisionObject carbody
     downforce = 4.5
 }
 
+collisionObject carbody_static : carbody
+{
+	mass = 0.0
+}
+
 collisionObject carwheel
 {
     type = VEHICLE_WHEEL
@@ -56,3 +61,11 @@ collisionObject rearWheel: carwheel
 	steerable = false
 }
 
+collisionObject frontWheel_static : frontWheel
+{
+	mass = 0.0
+}
+collisionObject rearWheel_static : frontWheel
+{
+	mass = 0.0
+}

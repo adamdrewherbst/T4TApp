@@ -22,56 +22,29 @@ T4TApp* T4TApp::getInstance() {
 	return __t4tInstance;
 }
 
-bool T4TApp::printNode(Node *node) {
-	Node *parent = node->getParent();
-	if(parent != NULL) {
-		cout << parent->getId() << ";" << parent->getType() << " => ";
-	}
-	cout << node->getId() << ";" << node->getType() << endl;
-	return true;
-}
 void T4TApp::initialize()
 {
     // Load font
     _font = Font::create("res/common/arial18.gpb");
     assert(_font);
     
-    cout << "sin(30) = " << sin(30.0f*PI/180) << endl;
+    // Load camera script
+    getScriptController()->loadScript("res/common/camera.lua");
 
-    // Generate game scene
-    _scene = Scene::load("res/common/game.scene");
-    _scene->setId("scene");
-    _scene->visit(this, &T4TApp::printNode);
-    setActiveScene(_scene);
-    setSelected(NULL);
+    loadScene();
     
     // populate catalog of items
     _models = Scene::load("res/common/models.scene");
     _models->setId("models");
 
-    // Set the aspect ratio for the scene's camera to match the current resolution
-    _scene->getActiveCamera()->setAspectRatio(getAspectRatio());
-    
-    // Get light node
-    _lightNode = _scene->findNode("lightNode");
-    _light = _lightNode->getLight();
-
 	getPhysicsController()->setGravity(Vector3(0.0f, -10.0f, 0.0f));
-
-    // Load camera script
-    getScriptController()->loadScript("res/common/camera.lua");
-    enableScriptCamera(true);
-    //and initialize camera position by triggering a touch event
-    getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_PRESS, 0, 0, 0);
-    getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_MOVE, 0, 0, 0);
-    getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_RELEASE, 0, 0, 0);
 
 	/*Node* carNode = _vehicle->findNode("carbody");
 	if (carNode && carNode->getCollisionObject() && carNode->getCollisionObject()->getType() == PhysicsCollisionObject::VEHICLE)
 	{
 		_carVehicle = static_cast<PhysicsVehicle*>(carNode->getCollisionObject());
-	}
-	_steering = _braking = _driving = 0.0f;//*/
+	}//*/
+	_steering = _braking = _driving = 0.0f;
 
     //set available interaction modes
     _modeNames = new std::vector<std::string>();
@@ -79,23 +52,6 @@ void T4TApp::initialize()
     _modeNames->push_back("Select");
     _modeNames->push_back("Constraint");
     
-	//create the grid on which to place objects
-    Node* node = _scene->addNode("grid");
-    Model* gridModel = createGridModel();
-    gridModel->setMaterial("res/common/grid.material");
-    node->setModel(gridModel);
-    gridModel->release();
-	PhysicsRigidBody::Parameters gridParams;
-	gridParams.mass = 0.0f;
-	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY,
-		PhysicsCollisionShape::box(),
-		&gridParams);
-	PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
-	body->setEnabled(true);
-	body->setLinearVelocity(Vector3(1.0f, 0.0f, 0.0f));//*/
-    //store the plane representing the grid, for calculating intersections
-    _groundPlane = Plane(Vector3(0, 1, 0), 0);
-
 	//as a test, add two boxes with a hinge constraint between them
 /*    Node *node = addCatalogItem(1);
     node->setTranslation(0.0, 0.5, 0.0);
@@ -159,7 +115,6 @@ void T4TApp::initialize()
     while(modelNode) {
 //	for(size_t i = 0; i < _itemNames->size(); i++) { //first, a button for each possible object
 		cout << "adding button for " << modelNode->getId() << endl;
-		modelNode->getCollisionObject()->setEnabled(false);
 		loadNodeData(modelNode, modelNode->getId());
 		Button* itemButton = addButton <Button> (_itemContainer, concat(2, "item_", modelNode->getId()));
 		ImageControl* itemImage = addButton <ImageControl> (_componentMenu, concat(2, "comp_", modelNode->getId()));
@@ -206,16 +161,6 @@ void T4TApp::initialize()
 	
 	_drawDebugCheckbox = addControl <CheckBox> (_sideMenu, "drawDebug", _buttonStyle, "Draw Debug");
 	
-	//create an invisible overlay the size of the screen, on which specialized touch listeners can be temporarily added
-/*	_clickOverlayContainer = Form::create("clickOverlayContainer", _hiddenStyle, Layout::LAYOUT_VERTICAL);
-    _clickOverlayContainer->setPosition(_sideMenu->getX() + _sideMenu->getWidth(), 0.0f);
-    _clickOverlayContainer->setWidth(getWidth() - _clickOverlayContainer->getX());
-    _clickOverlayContainer->setHeight(getHeight());
-    _clickOverlayContainer->setScroll(Container::SCROLL_VERTICAL);
-    _clickOverlayContainer->setConsumeInputEvents(true);
-    _clickOverlayContainer->setVisible(false);
-    _mainMenu->addControl(_clickOverlayContainer);//*/
-
 	//create an instance of each project template - will be activated as needed
 	_vehicleProject = new VehicleProject(this, "vehicleProject", _buttonStyle, _formStyle);
 
@@ -223,41 +168,54 @@ void T4TApp::initialize()
 	setMode("Rotate");
     _sideMenu->setState(Control::FOCUS);
 	//buildVehicle();
+}
 
-	//camera zoom slider
-/*	_zoomSlider = Slider::create("gridSpacing", buttonStyle);
-	_zoomSlider->setMin(1.0f);
-	_zoomSlider->setMax(100.0f);
-	_zoomSlider->setStep(1.0f);
-	_zoomSlider->setValue(10.0f);
-	_zoomSlider->setValueTextVisible(true);
-	_zoomSlider->setValueTextPrecision(1);
-	_zoomSlider->setText("Zoom");
-	_zoomSlider->setAutoWidth(true);
-	_zoomSlider->setHeight(60);
-	_zoomSlider->setConsumeInputEvents(false);
-	_zoomSlider->addListener(this, Control::Listener::CLICK);
-	_sideMenu->addControl(_zoomSlider);
-	//checkbox for whether to just print object info when clicking on it
-	_debugCheckbox = CheckBox::create("snapGrid", buttonStyle);
-	_debugCheckbox->setText("Debug-only");
-	_debugCheckbox->setAutoWidth(true);
-	_debugCheckbox->setHeight(60);
-	_debugCheckbox->setConsumeInputEvents(false);
-	_debugCheckbox->addListener(this, Control::Listener::CLICK);
-	_debugCheckbox->setChecked(false);
-	_sideMenu->addControl(_debugCheckbox);
+void T4TApp::loadScene()
+{
+    // Generate game scene
+    _scene = Scene::load("res/common/game.scene");
+    _scene->setId("scene");
+    _scene->visit(this, &T4TApp::printNode);
+    setActiveScene(_scene);
+    setSelected(NULL);
+    
+    // Set the aspect ratio for the scene's camera to match the current resolution
+    _scene->getActiveCamera()->setAspectRatio(getAspectRatio());
+    
+    // Get light node
+    _lightNode = _scene->findNode("lightNode");
+    _light = _lightNode->getLight();
 
-	//button to print out some predefined debug info
-	Button* debugButton = Button::create("DebugButton", buttonStyle);
-	debugButton->setText("Debug");
-	debugButton->setAutoWidth(true);
-	debugButton->setHeight(60);
-	debugButton->setConsumeInputEvents(false);
-	debugButton->addListener(this, Control::Listener::CLICK);
-	_sideMenu->addControl(debugButton);
-	debugButton->release();
-//*/
+	//create the grid on which to place objects
+    Node* node = _scene->addNode("grid");
+    Model* gridModel = createGridModel();
+    gridModel->setMaterial("res/common/grid.material");
+    node->setModel(gridModel);
+    gridModel->release();
+	PhysicsRigidBody::Parameters gridParams;
+	gridParams.mass = 0.0f;
+	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY,
+		PhysicsCollisionShape::box(),
+		&gridParams);
+	PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
+	body->setEnabled(true);
+	body->setLinearVelocity(Vector3(1.0f, 0.0f, 0.0f));//*/
+    //store the plane representing the grid, for calculating intersections
+    _groundPlane = Plane(Vector3(0, 1, 0), 0);
+
+    enableScriptCamera(true);
+    //and initialize camera position by triggering a touch event
+    getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_PRESS, 0, 0, 0);
+    getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_MOVE, 0, 0, 0);
+    getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_RELEASE, 0, 0, 0);
+}
+
+void T4TApp::releaseScene()
+{
+	if(_activeScene == _scene) _activeScene = NULL;
+	_carVehicle = NULL;
+	enableScriptCamera(false);
+	SAFE_RELEASE(_scene);
 }
 
 template <class ButtonType> ButtonType* T4TApp::addButton(Form *menu, const char *id, const char *text)
@@ -354,9 +312,11 @@ void T4TApp::render(float elapsedTime)
     clear(CLEAR_COLOR_DEPTH, Vector4::zero(), 1.0f, 0);
 
     // Visit all the nodes in the scene for drawing
-    _activeScene->visit(this, &T4TApp::drawScene);
-    if(_activeScene != _vehicleProject->_scene) _vehicleProject->_scene->visit(this, &T4TApp::drawScene);
-    if(_drawDebug) getPhysicsController()->drawDebug(_scene->getActiveCamera()->getViewProjectionMatrix());
+    if(_activeScene != NULL) {
+    	_activeScene->visit(this, &T4TApp::drawScene);
+	    //if(_activeScene != _vehicleProject->_scene) _vehicleProject->_scene->visit(this, &T4TApp::drawScene);
+    	if(_drawDebug) getPhysicsController()->drawDebug(_activeScene->getActiveCamera()->getViewProjectionMatrix());
+    }
 
     // Draw text
     Vector4 fontColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -400,7 +360,14 @@ bool T4TApp::prepareNode(Node* node)
 		obj->asRigidBody()->addCollisionListener(this);
 	}
 }
-
+bool T4TApp::printNode(Node *node) {
+	Node *parent = node->getParent();
+	if(parent != NULL) {
+		cout << parent->getId() << ";" << parent->getType() << " => ";
+	}
+	cout << node->getId() << ";" << node->getType() << endl;
+	return true;
+}
 bool T4TApp::drawScene(Node* node)
 {
 //	if(strcmp(node->getScene()->getId(), "models") == 0) return true;
@@ -844,7 +811,9 @@ void T4TApp::changeNodeModel(Node *node, const char* type)
 	Node *modelNode = _models->findNode(type);
 	if(modelNode == NULL) return;
 	Node *clone = modelNode->clone();
-	node->setModel(clone->getModel()); 
+	node->setModel(clone->getModel());
+//	node->setScale(modelNode->getScale());
+//	node->setRotation(modelNode->getRotation());
 	nodeData *data = (nodeData*) modelNode->getUserPointer();
 	node->setUserPointer(data);
 	clone->release();
@@ -1003,16 +972,92 @@ void T4TApp::buildVehicle() {
 	_vehicleProject->setActive(true);
 }
 
+Node* T4TApp::promptComponent() {
+	_componentMenu->setVisible(true);
+}
+
+T4TApp::VehicleProject::VehicleProject(T4TApp *app_, const char* id, Theme::Style* buttonStyle, Theme::Style* formStyle) : app(app_) {
+
+	_currentComponent = CHASSIS;
+	componentName.push_back("Chassis");
+	componentName.push_back("Front Wheels");
+	componentName.push_back("Back Wheels");
+	componentName.push_back("Complete");
+
+	//create the form to hold this button
+	container = Form::create(app->concat(2, "container_", id), formStyle, Layout::LAYOUT_VERTICAL);
+	container->setPosition(app->_sideMenu->getX(), 0.0f);
+	container->setWidth(app->getWidth() - container->getX());
+	container->setAutoHeight(true);
+	container->setScroll(Container::SCROLL_VERTICAL);
+	container->setConsumeInputEvents(true);
+	container->setVisible(false);
+	
+	_id = id;
+	_style = buttonStyle;
+	setAutoWidth(true);
+	setAutoHeight(true);
+	setConsumeInputEvents(true);
+	container->addControl(this);
+	app->_mainMenu->addControl(container);
+	
+	//scene is inactive until called upon to build a vehicle project
+	//setActive(false);
+}
+
+void T4TApp::VehicleProject::loadScene()
+{
+	_scene = Scene::load("res/common/vehicle.scene");
+	_scene->setId("vehicle");
+    _scene->getActiveCamera()->setAspectRatio(app->getAspectRatio());
+    _carNode = _scene->findNode("car");
+	_chassisNode = _scene->findNode("carbody");
+	_frontWheels[0] = _scene->findNode("wheelFrontLeft");
+	_frontWheels[1] = _scene->findNode("wheelFrontRight");
+	_backWheels[0] = _scene->findNode("wheelBackLeft");
+	_backWheels[1] = _scene->findNode("wheelBackRight");
+	_allNodes[0] = _chassisNode;
+	for(int i = 0; i < 2; i++) {
+		_allNodes[i+1] = _backWheels[i];
+		_allNodes[i+3] = _frontWheels[i];
+	}
+	
+	//camera will always be pointing down the z axis from 20 units away
+	Node *cameraNode = _scene->getActiveCamera()->getNode();
+	Matrix lookAt;
+	Vector3 scale, translation;
+	Quaternion rotation;
+	Matrix::createLookAt(Vector3(0.0f,2.0f,20.0f), Vector3(0.0f,0.0f,0.0f), Vector3(0.0f,1.0f,0.0f), &lookAt);
+	lookAt.invert();
+	lookAt.decompose(&scale, &rotation, &translation);
+	cameraNode->setScale(scale);
+	cameraNode->setRotation(rotation);
+	cameraNode->setTranslation(translation);
+	cout << "set vehicle cam scale = " << app->printVector(scale) << ", translation = " << app->printVector(translation);
+	cout << ", rotation = " << rotation.x << "," << rotation.y << "," << rotation.z << "," << rotation.w << endl;
+}
+
+void T4TApp::VehicleProject::releaseScene()
+{
+	SAFE_RELEASE(_scene);
+}
+
 void T4TApp::VehicleProject::setActive(bool active) {
 	cout << "adding vehicle listener" << endl;
 	//app->_componentMenu->addListener(_vehicleListener, Control::Listener::CLICK);
 	app->_componentMenu->setVisible(active);
-	app->setActiveScene(this->_scene);
 	if(active) {
+		app->releaseScene();
+		loadScene();
+		//_scene->visit(this, &T4TApp::VehicleProject::showNode);
+		app->setActiveScene(this->_scene);
 		app->_componentMenu->setState(Control::FOCUS);
 		app->_mainMenu->addListener(this, Control::Listener::CLICK);
 		app->_componentMenu->addListener(this, Control::Listener::CLICK);
 	}else {
+		releaseScene();
+		app->loadScene();
+		//_scene->visit(this, &T4TApp::VehicleProject::hideNode);
 		app->_componentMenu->setState(Control::NORMAL);
 		app->_mainMenu->removeListener(this);
 		app->_componentMenu->removeListener(this);
@@ -1030,8 +1075,23 @@ void T4TApp::VehicleProject::setActive(bool active) {
 	}
 }
 
-Node* T4TApp::promptComponent() {
-	_componentMenu->setVisible(true);
+bool T4TApp::VehicleProject::disableObject(Node *node) {
+	cout << "checking disable " << node->getId() << endl;
+	PhysicsCollisionObject *obj = node->getCollisionObject();
+	if(obj != NULL) {
+		//obj->setEnabled(false);
+		cout << "disabled obj for " << node->getId() << endl;
+	}
+	return true;
+}
+bool T4TApp::VehicleProject::hideNode(Node *node) {
+	node->setTranslation(Vector3(1000.0f, 0.0f, 0.0f));
+	cout << "HID NODE " << node->getId() << endl;
+	return true;
+}
+bool T4TApp::VehicleProject::showNode(Node *node) {
+	node->setTranslation(Vector3(0.0f, 0.0f, 0.0f));
+	return true;
 }
 
 void T4TApp::VehicleProject::controlEvent(Control* control, EventType evt) {
@@ -1078,7 +1138,7 @@ bool T4TApp::VehicleProject::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 				//for wheels, make sure they are transverse to the chassis' long axis which is Z
 				case FRONT_WHEELS:
 				case BACK_WHEELS: {
-					Camera* camera = app->_scene->getActiveCamera();
+					Camera* camera = _scene->getActiveCamera();
 					Ray ray;
 					camera->pickRay(app->getViewport(), x, y, &ray);
 					Vector3 origin = ray.getOrigin(), direction = ray.getDirection(),
@@ -1111,7 +1171,17 @@ bool T4TApp::VehicleProject::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 					//bring up the menu to select the next vehicle part
 					app->_componentMenu->setVisible(true);
 				} else {
-					app->setActiveScene(app->_scene);
+					Node *car = _scene->findNode("car")->clone();
+					for(int i = 0; i < 5; i++) {
+						const char *id = _allNodes[i]->getId();
+						Node *node = car->findNode(id);
+						if(strcmp(id, "carbody") == 0) node->setCollisionObject("res/common/vehicle.physics#carbody");
+						else node->setCollisionObject("res/common/vehicle.physics#carwheel");
+						node->getCollisionObject()->setEnabled(true);
+					}
+					setActive(false);
+					app->_scene->addNode(car);
+					app->_carVehicle = static_cast<PhysicsVehicle*>(car->findNode("carbody")->getCollisionObject());
 				}
 			}
 			break;
