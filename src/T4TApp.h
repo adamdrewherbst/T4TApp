@@ -26,11 +26,13 @@ public:
     T4TApp* getInstance();
     
     Node* duplicateModelNode(const char* type, bool isStatic = false);
+    void changeNodeModel(Node *node, const char* type);
     bool printNode(Node *node);
     bool prepareNode(Node *node);
     //misc functions
     const std::string printVector(Vector3& v);
     const std::string printVector2(Vector2& v);
+    void setActiveScene(Scene *scene);
     
     /**
      * @see Game::keyEvent
@@ -52,7 +54,7 @@ public:
     void collisionEvent(PhysicsCollisionObject::CollisionListener::EventType type,
     	const PhysicsCollisionObject::CollisionPair& pair, const Vector3& pointA, const Vector3& pointB);
 
-protected:
+//protected:
 
     /**
      * @see Game::initialize
@@ -74,7 +76,7 @@ protected:
      */
     void render(float elapsedTime);
 
-private:
+//private:
 
     /**
      * Draws the scene each frame.
@@ -108,7 +110,7 @@ private:
     Light* _light;
     
     //T4T objects for modeling
-    Scene *_models, *_vehicle;
+    Scene *_models;
     PhysicsVehicle *_carVehicle;
     float _steering, _braking, _driving;
     
@@ -126,12 +128,14 @@ private:
     //current state
     std::string _mode;
     bool _drawDebug;
-    
+    Scene *_activeScene;
+
     //user interface
     Form *_mainMenu, *_sideMenu, *_itemContainer, *_modeContainer, *_componentMenu;
     std::vector<Form*> *_submenus; //submenus
     std::map<std::string, Form*> _modeOptions;
     Button *_itemButton, *_modeButton; //submenu handles
+    Button *_vehicleButton;
     CheckBox *_gridCheckbox, *_drawDebugCheckbox;
     Slider *_gridSlider, *_zoomSlider;
     std::vector<std::string> *_modeNames;
@@ -149,6 +153,8 @@ public:
     	T4TApp *app;
     	Form *container;
     	std::vector<std::string> componentName;
+    	Scene *_scene;
+    	Node *_chassisNode, *_frontWheels[2], *_backWheels[2];
 
     	VehicleProject(T4TApp *app_, const char* id, Theme::Style* buttonStyle, Theme::Style* formStyle) : app(app_) {
     	
@@ -174,6 +180,34 @@ public:
     		setConsumeInputEvents(true);
     		container->addControl(this);
     		app->_mainMenu->addControl(container);
+    		
+    		_scene = Scene::load("res/common/vehicle.scene");
+    		_scene->setId("vehicle");
+   		    _scene->getActiveCamera()->setAspectRatio(app->getAspectRatio());
+    		//scene is inactive until called upon to build a vehicle project
+    		for(Node *node = _scene->getFirstNode(); node != NULL; node = node->getNextSibling()) {
+    			PhysicsCollisionObject *obj = node->getCollisionObject();
+    			if(obj) obj->setEnabled(false);
+    		}
+    		_chassisNode = _scene->findNode("carbody");
+    		_frontWheels[0] = _scene->findNode("wheelFrontLeft");
+    		_frontWheels[1] = _scene->findNode("wheelFrontRight");
+    		_backWheels[0] = _scene->findNode("wheelBackLeft");
+    		_backWheels[1] = _scene->findNode("wheelBackRight");
+    		
+    		//camera will always be pointing down the z axis from 20 units away
+    		Node *cameraNode = _scene->getActiveCamera()->getNode();
+    		Matrix lookAt;
+    		Vector3 scale, translation;
+    		Quaternion rotation;
+    		Matrix::createLookAt(Vector3(0.0f,2.0f,20.0f), Vector3(0.0f,0.0f,0.0f), Vector3(0.0f,1.0f,0.0f), &lookAt);
+    		lookAt.invert();
+    		lookAt.decompose(&scale, &rotation, &translation);
+    		cameraNode->setScale(scale);
+    		cameraNode->setRotation(rotation);
+    		cameraNode->setTranslation(translation);
+    		cout << "set vehicle cam scale = " << app->printVector(scale) << ", translation = " << app->printVector(translation);
+    		cout << ", rotation = " << rotation.x << "," << rotation.y << "," << rotation.z << "," << rotation.w << endl;
     	}
     	
     	static VehicleProject *create(T4TApp *app_, const char* id, Theme::Style* buttonStyle, Theme::Style* formStyle) {
@@ -193,7 +227,6 @@ public:
 		} VehicleComponent;
 
 		VehicleComponent _currentComponent;
-		Node *_chassisNode;
 		
 		void advanceComponent() {
 			switch(_currentComponent) {

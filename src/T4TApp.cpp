@@ -42,18 +42,15 @@ void T4TApp::initialize()
     _scene = Scene::load("res/common/game.scene");
     _scene->setId("scene");
     _scene->visit(this, &T4TApp::printNode);
+    setActiveScene(_scene);
     setSelected(NULL);
     
     // populate catalog of items
     _models = Scene::load("res/common/models.scene");
     _models->setId("models");
-    _vehicle = Scene::load("res/common/vehicle.scene");
-    _vehicle->setId("vehicle");
-    _vehicle->visit(this, &T4TApp::prepareNode);
 
     // Set the aspect ratio for the scene's camera to match the current resolution
     _scene->getActiveCamera()->setAspectRatio(getAspectRatio());
-    _vehicle->getActiveCamera()->setAspectRatio(getAspectRatio());
     
     // Get light node
     _lightNode = _scene->findNode("lightNode");
@@ -69,13 +66,12 @@ void T4TApp::initialize()
     getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_MOVE, 0, 0, 0);
     getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_RELEASE, 0, 0, 0);
 
-    //_scene->addNode(_vehicle->findNode("car"));
-	Node* carNode = _vehicle->findNode("carbody");
+	/*Node* carNode = _vehicle->findNode("carbody");
 	if (carNode && carNode->getCollisionObject() && carNode->getCollisionObject()->getType() == PhysicsCollisionObject::VEHICLE)
 	{
 		_carVehicle = static_cast<PhysicsVehicle*>(carNode->getCollisionObject());
 	}
-	_steering = _braking = _driving = 0.0f;
+	_steering = _braking = _driving = 0.0f;//*/
 
     //set available interaction modes
     _modeNames = new std::vector<std::string>();
@@ -205,6 +201,8 @@ void T4TApp::initialize()
 		options->setVisible(true);
 		_modeOptions[(*_modeNames)[i]] = options;
 	}
+
+	_vehicleButton = addControl <Button> (_sideMenu, "buildVehicle", _buttonStyle, "Build Vehicle");
 	
 	_drawDebugCheckbox = addControl <CheckBox> (_sideMenu, "drawDebug", _buttonStyle, "Draw Debug");
 	
@@ -356,8 +354,8 @@ void T4TApp::render(float elapsedTime)
     clear(CLEAR_COLOR_DEPTH, Vector4::zero(), 1.0f, 0);
 
     // Visit all the nodes in the scene for drawing
-    _scene->visit(this, &T4TApp::drawScene);
-    _vehicle->visit(this, &T4TApp::drawScene);
+    _activeScene->visit(this, &T4TApp::drawScene);
+    if(_activeScene != _vehicleProject->_scene) _vehicleProject->_scene->visit(this, &T4TApp::drawScene);
     if(_drawDebug) getPhysicsController()->drawDebug(_scene->getActiveCamera()->getViewProjectionMatrix());
 
     // Draw text
@@ -827,6 +825,9 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	else if(control == _zoomSlider) {
 	    getScriptController()->executeFunction<void>("camera_setRadius", "f", _zoomSlider->getValue());
 	}
+	else if(control == _vehicleButton) {
+		buildVehicle();
+	}
 	else if(strcmp(control->getId(), "DebugButton") == 0) {
 		if(_lastNode) {
 			PhysicsRigidBody *body = _lastNode->getCollisionObject()->asRigidBody();
@@ -836,6 +837,17 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	else if(control == _drawDebugCheckbox) {
 		_drawDebug = _drawDebugCheckbox->isChecked();
 	}
+}
+
+void T4TApp::changeNodeModel(Node *node, const char* type)
+{
+	Node *modelNode = _models->findNode(type);
+	if(modelNode == NULL) return;
+	Node *clone = modelNode->clone();
+	node->setModel(clone->getModel()); 
+	nodeData *data = (nodeData*) modelNode->getUserPointer();
+	node->setUserPointer(data);
+	clone->release();
 }
 
 Node* T4TApp::duplicateModelNode(const char* type, bool isStatic)
@@ -963,6 +975,11 @@ void T4TApp::setMode(const char *mode)
 	_mode = mode;
 }
 
+void T4TApp::setActiveScene(Scene *scene)
+{
+	_activeScene = scene;
+}
+
 void T4TApp::enableScriptCamera(bool enable)
 {
 	getScriptController()->executeFunction<void>("camera_setActive", "b", enable);
@@ -990,6 +1007,7 @@ void T4TApp::VehicleProject::setActive(bool active) {
 	cout << "adding vehicle listener" << endl;
 	//app->_componentMenu->addListener(_vehicleListener, Control::Listener::CLICK);
 	app->_componentMenu->setVisible(active);
+	app->setActiveScene(this->_scene);
 	if(active) {
 		app->_componentMenu->setState(Control::FOCUS);
 		app->_mainMenu->addListener(this, Control::Listener::CLICK);
@@ -1020,29 +1038,28 @@ void T4TApp::VehicleProject::controlEvent(Control* control, EventType evt) {
 	const char *controlID = control->getId();
 	cout << "CLICKED " << controlID << endl;
 	if(strncmp(controlID, "comp_", 5) == 0) {
-		Node *node = app->duplicateModelNode(controlID+5, true);
-		if(node != NULL) {
-			bool found = true;
-			//node->getCollisionObject()->setEnabled(false);
-			switch(_currentComponent) {
-				case CHASSIS:
-					_chassisNode = node;
-					break;
-				case FRONT_WHEELS:
-					break;
-				case BACK_WHEELS:
-					break;
-				default: found = false; break;
-			}
-			if(found) {
-				if(_currentComponent != COMPLETE) {
-					addListener(this, Control::Listener::CLICK);
-					//app->_clickOverlayContainer->setVisible(true);
-					container->setVisible(true);
-				}
-			}
-			app->_componentMenu->setVisible(false);
+		bool found = true;
+		//node->getCollisionObject()->setEnabled(false);
+		switch(_currentComponent) {
+			case CHASSIS:
+				app->changeNodeModel(_chassisNode, controlID+5);
+				break;
+			case FRONT_WHEELS:
+				for(int i = 0; i < 2; i++) app->changeNodeModel(_frontWheels[i], controlID+5);
+				break;
+			case BACK_WHEELS:
+				for(int i = 0; i < 2; i++) app->changeNodeModel(_backWheels[i], controlID+5);
+				break;
+			default: found = false; break;
 		}
+		if(found) {
+			if(_currentComponent != COMPLETE) {
+				addListener(this, Control::Listener::CLICK);
+				//app->_clickOverlayContainer->setVisible(true);
+				container->setVisible(true);
+			}
+		}
+		app->_componentMenu->setVisible(false);
 	}
 }
 
@@ -1093,6 +1110,8 @@ bool T4TApp::VehicleProject::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 				if(_currentComponent != COMPLETE) {
 					//bring up the menu to select the next vehicle part
 					app->_componentMenu->setVisible(true);
+				} else {
+					app->setActiveScene(app->_scene);
 				}
 			}
 			break;

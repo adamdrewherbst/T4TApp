@@ -38,7 +38,8 @@ function camera_setActive(flag)
         
         _scene = Scene.getScene("scene")
         _vehicle = Scene.getScene("vehicle")
-        _cameraNodes = {_scene:getActiveCamera():getNode(), _vehicle:getActiveCamera():getNode()}
+        _cameraNodes = {_scene:getActiveCamera():getNode()}
+        --, _vehicle:getActiveCamera():getNode()}
 
         -- Set initial camera angles
         --local eulers = camera_quatToEuler(_cameraNode:getRotation())
@@ -47,6 +48,7 @@ function camera_setActive(flag)
     else
 		-- Release scene and camera
 		_scene = nil
+		_vehicle = nil
 		_cameraNodes = nil
 	end
 end
