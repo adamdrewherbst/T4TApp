@@ -32,6 +32,7 @@ public:
     //misc functions
     const std::string printVector(Vector3& v);
     const std::string printVector2(Vector2& v);
+    const std::string printQuat(Quaternion& q);
 	void loadScene();
 	void releaseScene();
     void setActiveScene(Scene *scene);
@@ -130,22 +131,20 @@ public:
     //current state
     std::string _mode;
     bool _drawDebug;
+    int _running;
     Scene *_activeScene;
 
     //user interface
-    Form *_mainMenu, *_sideMenu, *_itemContainer, *_modeContainer, *_componentMenu;
-    std::vector<Form*> *_submenus; //submenus
+    Form *_mainMenu, *_sideMenu, *_itemContainer, *_machineContainer, *_modeContainer, *_componentMenu;
+    std::vector<Form*> _submenus; //submenus
+    Button *_itemButton, *_modeButton, *_machineButton; //submenu handles
     std::map<std::string, Form*> _modeOptions;
-    Button *_itemButton, *_modeButton; //submenu handles
     Button *_vehicleButton;
     CheckBox *_gridCheckbox, *_drawDebugCheckbox;
     Slider *_gridSlider, *_zoomSlider;
-    std::vector<std::string> *_modeNames;
-    std::vector<RadioButton*> *_modeButtons;
+    std::vector<std::string> _modeNames, _machineNames;
     Theme *_theme;
     Theme::Style *_formStyle, *_buttonStyle, *_titleStyle, *_hiddenStyle;
-    Button *_clickOverlay;
-    Form *_clickOverlayContainer;
     
     //use Control::Listener instances and enumerated lists of required components 
     //for progressing through standard project scripts
@@ -190,15 +189,48 @@ public:
 	};
 	VehicleProject *_vehicleProject;
 	
-/*	class OverlayPad : public Button
+	class ProjectComponent : public Button, Control::Listener
 	{
 public:
-		T4TApp *app;
-		OverlayPad::OverlayPad() {}
-		void setApp(T4TApp *app_) { app = app_; }
-		void touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
-	};//*/
-    
+		T4TApp *app; //containing app
+    	Form *_container; //wrapper for the full-screen button that handles touch events for this component
+    	//component is divided into elements, eg. a lever has a base and arm
+    	std::vector<std::string> _elementNames;
+    	int _currentElement;
+    	std::vector<bool> _isStatic; //whether this element should be immovable
+    	//blank scene onto which to build the component
+    	std::string _sceneFile;
+    	Scene *_scene;
+    	std::vector<Node*> _allNodes;
+
+		//each element of this component is positioned/finalized via touches => has its own touch callback
+		typedef bool (T4TApp::ProjectComponent::*TouchCallback)(Touch::TouchEvent, int, int);
+    	std::vector<T4TApp::ProjectComponent::TouchCallback> _elementCallbacks;
+
+    	ProjectComponent(T4TApp *app_, const char* filename, const char* id, Theme::Style* buttonStyle, Theme::Style* formStyle);
+
+		void setActive(bool active);
+		void loadScene();
+		void releaseScene();
+		void addElement(const char *name, bool (T4TApp::ProjectComponent::*)(Touch::TouchEvent evt, int x, int y),
+				bool isStatic = false);
+		void controlEvent(Control *control, EventType evt);
+		virtual void placeElement(Node *node){}
+		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+		void finishComponent();
+	};
+	
+	class Lever : public ProjectComponent 
+	{
+public:
+		PhysicsHingeConstraint *_armConstraint;
+		Lever(T4TApp *app_, Theme::Style* buttonStyle, Theme::Style* formStyle);
+		bool baseTouch(Touch::TouchEvent evt, int x, int y);
+		bool armTouch(Touch::TouchEvent evt, int x, int y);
+		void placeElement(Node *node);
+	};
+	std::vector<ProjectComponent*> _machines;
+	
     class TouchPoint
     {
     public:

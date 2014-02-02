@@ -216,7 +216,7 @@ bool CreateVehicle(FbxManager *pSdkManager, FbxScene* pScene)
     for(int i = 0; i < 4; i++) {
     	id[8] = (char)(48+i+1);
     	lPatch = CreateNode(pScene, id, "cylinder", 0.5, 0.5, 20);
-    	lPatch->LclRotation.Set(FbxVector4(90.0, 0.0, 0.0));
+	   	lPatch->LclRotation.Set(FbxVector4(90.0, 0.0, 0.0));
     	lPatch->LclTranslation.Set(FbxVector4(i<2 ? 2.0 : -2.0, 0.5, i%2==0 ? -1.75 : 1.75));
 	    lWheelsNode->AddChild(lPatch);
 	}
@@ -224,6 +224,10 @@ bool CreateVehicle(FbxManager *pSdkManager, FbxScene* pScene)
     lPatch->LclTranslation.Set(FbxVector4(0.0, 3.2, 0.0));
     lCarNode->AddChild(lPatch);
 
+    lPatch = CreateNode(pScene, "ground", "box", 100.0, 100.0, 1.0);
+    lPatch->LclTranslation.Set(FbxVector4(0.0, -10.0, 0.0));
+    lRootNode->AddChild(lPatch);
+    
 	// Create a node for our light in the scene.
 	FbxNode* lLightNode = FbxNode::Create(pScene, "lightNode");
 	FbxLight* lLight = FbxLight::Create(pScene, "light");
