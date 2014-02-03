@@ -6,8 +6,17 @@ scene {
 		url = cylinder
 		material = res/common/sample.material#cylinder
 		translate = 0, 0, 0
-		rotate = 0, 0, 1, 90
-		scale = 1, 4, 1
+		rotate = 0, 0, 1, 0
+		scale = 4, 1, 1
+		//collisionObject = res/common/models.physics#cylinder
+	}
+
+	node halfpipe {
+		url = halfpipe
+		material = res/common/sample.material#halfpipe
+		translate = 0, 0, 0
+		rotate = 0, 0, 1, 180
+		scale = 4, 1, 1
 		//collisionObject = res/common/models.physics#cylinder
 	}
 

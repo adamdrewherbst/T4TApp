@@ -100,7 +100,7 @@ void T4TApp::ProjectComponent::loadScene() {
 	Matrix lookAt;
 	Vector3 scale, translation;
 	Quaternion rotation;
-	Matrix::createLookAt(Vector3(0.0f,2.0f,40.0f), Vector3(0.0f,0.0f,0.0f), Vector3(0.0f,1.0f,0.0f), &lookAt);
+	Matrix::createLookAt(Vector3(30.0f,2.0f,30.0f), Vector3(0.0f,0.0f,0.0f), Vector3(0.0f,1.0f,0.0f), &lookAt);
 	lookAt.invert();
 	lookAt.decompose(&scale, &rotation, &translation);
 	cameraNode->setScale(scale);

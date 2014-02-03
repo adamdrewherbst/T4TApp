@@ -32,6 +32,7 @@
 #include <iostream>
 #include <fstream>
 #include <cstdarg>
+#include <cmath>
 
 #include "../samples/Common/Common.h"
 #include "Thumbnail.h"
@@ -54,6 +55,7 @@ bool CreateVehicle(FbxManager* pSdkManager, FbxScene* pScene);
 FbxNode* CreateNode(FbxScene* pScene, const char* pName, const char* type, ...);
 FbxMesh* CreateCylinder(FbxScene* pScene, const char* pName, float radius, float height, int segments);
 FbxMesh* CreateBox(FbxScene* pScene, const char* pName, float length, float width, float height);
+FbxMesh* CreateHalfPipe(FbxScene* pScene, const char* pName, float radius, float height, float thickness, int segments);
 
 void printVector(ofstream& of, FbxVector4 vec) {
 	of << vec[0] << " " << vec[1] << " " << vec[2] << endl;
@@ -188,6 +190,8 @@ bool CreateModels(FbxManager *pSdkManager, FbxScene* pScene)
     lRootNode->AddChild(lPatch);
     lPatch = CreateNode(pScene, "box", "box", 2.0, 2.0, 2.0);
     lRootNode->AddChild(lPatch);
+    lPatch = CreateNode(pScene, "halfpipe", "halfpipe", 1.0, 3.0, 0.2, 20);
+    lRootNode->AddChild(lPatch);
 
     return true;
 }
@@ -285,6 +289,30 @@ FbxNode* CreateNode(FbxScene* pScene, const char* pName, const char* type, ...) 
 			printEdge(out, i, segments + i);
 		}
 	}
+	else if(strcmp(type, "halfpipe") == 0) {
+		float radius = (float)va_arg(arguments, double);
+		float height = (float)va_arg(arguments, double);
+		float thickness = (float)va_arg(arguments, double);
+		int segments = va_arg(arguments, int);
+		mesh = CreateHalfPipe(pScene, pName, radius, height, thickness, segments);
+		//write vertex/edge data
+		out << 2*segments+4 << endl;
+		for(int i = 0; i < 2*segments+4; i++) {
+			printVector(out, mesh->GetControlPointAt(i));
+		}
+		out << 3*segments+6 << endl;
+		for(int i = 0; i < segments; i++) {
+			printEdge(out, i, i+2);
+			printEdge(out, segments+2 + i, segments+2 + i+2);
+			printEdge(out, i, segments+2 + i);
+		}
+		printEdge(out, 0, 1);
+		printEdge(out, segments+2, segments+2 + 1);
+		printEdge(out, segments, segments + 1);
+		printEdge(out, segments+2 + segments, segments+2 + segments + 1);
+		printEdge(out, segments, segments+2 + segments);
+		printEdge(out, segments+1, segments+2 + segments+1);
+	}
 	else if(strcmp(type, "box") == 0) {
 		float length = (float)va_arg(arguments, double);
 		float width = (float)va_arg(arguments, double);
@@ -316,7 +344,7 @@ FbxNode* CreateNode(FbxScene* pScene, const char* pName, const char* type, ...) 
 
 FbxMesh* CreateCylinder(FbxScene* pScene, const char* pName, float radius, float height, int segments) {
 	FbxMesh* mesh = FbxMesh::Create(pScene, pName);
-	mesh->InitControlPoints(segments+1);
+	mesh->InitControlPoints(2*(segments+1));
 	int v = 0;
 	for(int n = 0; n < 2; n++) {
 		for(int i = 0; i < segments; i++) {
@@ -328,26 +356,87 @@ FbxMesh* CreateCylinder(FbxScene* pScene, const char* pName, float radius, float
 		//bottom
 		mesh->BeginPolygon();
 		mesh->AddPolygon(i);
-		mesh->AddPolygon((i+1) % segments);
 		mesh->AddPolygon(segments);
+		mesh->AddPolygon((i+1) % segments);
 		mesh->EndPolygon();
 		//top
 		mesh->BeginPolygon();
 		mesh->AddPolygon(segments+1 + i);
-		mesh->AddPolygon(segments+1 + segments);
 		mesh->AddPolygon(segments+1 + (i+1) % segments);
+		mesh->AddPolygon(segments+1 + segments);
 		mesh->EndPolygon();
 		//side
 		mesh->BeginPolygon();
 		mesh->AddPolygon(i);
-		mesh->AddPolygon(segments+1 + i);
 		mesh->AddPolygon((i+1) % segments);
+		mesh->AddPolygon(segments+1 + i);
 		mesh->EndPolygon();
 
 		mesh->BeginPolygon();
 		mesh->AddPolygon((i+1) % segments);
-		mesh->AddPolygon(segments+1 + i);
 		mesh->AddPolygon(segments+1 + (i+1) % segments);
+		mesh->AddPolygon(segments+1 + i);
+		mesh->EndPolygon();
+	}
+	
+	//add normals
+	mesh->GenerateNormals(true, false, false);
+	return mesh;
+}
+
+FbxMesh* CreateHalfPipe(FbxScene* pScene, const char* pName, float radius, float height, float thickness, int segments) {
+	FbxMesh* mesh = FbxMesh::Create(pScene, pName);
+	mesh->InitControlPoints(2*segments+4);
+	int v = 0;
+	double ang = -M_PI/2;
+	for(int n = 0; n < 2; n++) {
+		for(int i = 0; i < segments/2+1; i++) {
+			mesh->SetControlPointAt(FbxVector4((2*n-1) * height/2, radius * cos(ang + 2*M_PI*i/segments), radius * sin(ang + 2*M_PI*i/segments)), v++);
+			mesh->SetControlPointAt(FbxVector4((2*n-1) * height/2, (radius-thickness) * cos(ang + 2*M_PI*i/segments), (radius - thickness) * sin(ang + 2*M_PI*i/segments)), v++);
+		}
+	}
+	int up = segments+2;
+	for(int i = 0; i < segments; i++) {
+		int next=i+2, across=i+1;
+		bool outer = i%2==0;
+		//bottom
+		mesh->BeginPolygon();
+		mesh->AddPolygon(i);
+		mesh->AddPolygon(!outer ? next : across);
+		mesh->AddPolygon(!outer ? across : next);
+		mesh->EndPolygon();
+		//top
+		mesh->BeginPolygon();
+		mesh->AddPolygon(up + i);
+		mesh->AddPolygon(up + (!outer ? across : next));
+		mesh->AddPolygon(up + (!outer ? next : across));
+		mesh->EndPolygon();
+		//side
+		mesh->BeginPolygon();
+		mesh->AddPolygon(i);
+		mesh->AddPolygon(!outer ? up+i : next);
+		mesh->AddPolygon(!outer ? next : up+i);
+		mesh->EndPolygon();
+
+		mesh->BeginPolygon();
+		mesh->AddPolygon(next);
+		mesh->AddPolygon(!outer ? up+i : up+i+2);
+		mesh->AddPolygon(!outer ? up+i+2 : up+i);
+		mesh->EndPolygon();
+	}
+	//side edges of half-pipe
+	for(int i = 0; i < segments+1; i+=segments) {
+		bool left = i == 0;
+		mesh->BeginPolygon();
+		mesh->AddPolygon(i);
+		mesh->AddPolygon(!left ? i+1+up : i+up);
+		mesh->AddPolygon(!left ? i+up : i+1+up);
+		mesh->EndPolygon();
+
+		mesh->BeginPolygon();
+		mesh->AddPolygon(i);
+		mesh->AddPolygon(!left ? i+1 : i+1+up);
+		mesh->AddPolygon(!left ? i+1+up : i+1);
 		mesh->EndPolygon();
 	}
 	

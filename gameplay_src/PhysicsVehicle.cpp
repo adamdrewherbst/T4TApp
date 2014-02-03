@@ -202,6 +202,7 @@ PhysicsVehicle::~PhysicsVehicle()
     // Note that the destructor for PhysicsRigidBody calls removeCollisionObject and so
     // that is where the rigid body gets removed from the dynamics world. The vehicle
     // itself is just an action interface in the dynamics world.
+    Game::getInstance()->getPhysicsController()->_world->removeVehicle(_vehicle);
     SAFE_DELETE(_vehicle);
     SAFE_DELETE(_vehicleRaycaster);
     SAFE_DELETE(_rigidBody);

@@ -926,6 +926,8 @@ void Control::notifyListeners(Control::Listener::EventType eventType)
     // If the user calls exit() or otherwise releases this control, we
     // need to keep it alive until the method returns.
     addRef();
+    
+//if(strncmp(this->getId(), "comp_", 5) == 0) cout << "\t" << this->getId() << " clickered" << endl;
 
     if (_listeners)
     {

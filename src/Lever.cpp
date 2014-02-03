@@ -36,15 +36,16 @@ void T4TApp::Lever::placeElement(Node *node) {
 			break;
 		case 1: //lever arm
 			node->setTranslation(Vector3(0.0f, 4.0f, 0.0f));
-			Quaternion rot;
-			Quaternion::createFromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), (float)(0.0f), &rot);
+			Quaternion rot1, rot2;
+			Quaternion::createFromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), (float)(0.0f), &rot1);
+			Quaternion::createFromAxisAngle(Vector3(1.0f, 0.0f, 0.0f), (float)(0.0f), &rot2);
 			//add the hinge constraint between the base and arm
 			_armConstraint = app->getPhysicsController()->createHingeConstraint(
 				_allNodes[0]->getCollisionObject()->asRigidBody(),
-				rot,
+				rot1,
 				Vector3(0.0f, 4.0f, 0.0f),
 				_allNodes[1]->getCollisionObject()->asRigidBody(),
-				rot,
+				rot2,
 				Vector3(0.0f, 0.0f, 0.0f)
 			);//*/
 			break;

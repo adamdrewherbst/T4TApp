@@ -33,6 +33,18 @@ material cylinder : colored
     }
 }
 
+material halfpipe : colored
+{
+    technique
+    {
+        pass
+        {
+			u_ambientColor = 1.0, 0.0, 1.0
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
+        }
+    }
+}
+
 material box : colored
 {
     technique

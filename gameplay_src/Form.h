@@ -162,22 +162,24 @@ public:
      */
     const char* getType() const;
 
-private:
-    
+protected:
+
     /**
      * Constructor.
      */
     Form();
 
     /**
-     * Constructor.
-     */
-    Form(const Form& copy);
-
-    /**
      * Destructor.
      */
     virtual ~Form();
+
+private:
+    
+    /**
+     * Constructor.
+     */
+    Form(const Form& copy);
 
     /**
      * Initialize a quad for this form in order to draw it in 3D.

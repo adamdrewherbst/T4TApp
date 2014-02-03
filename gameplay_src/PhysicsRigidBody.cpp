@@ -28,7 +28,7 @@ PhysicsRigidBody::PhysicsRigidBody(Node* node, const PhysicsCollisionShape::Defi
     // inertia. However, if the collision shape is a triangle mesh, we don't calculate 
     // inertia since Bullet doesn't currently support this.
     btVector3 localInertia(0.0, 0.0, 0.0);
-    if (parameters.mass != 0.0 && _collisionShape->getType() != PhysicsCollisionShape::SHAPE_MESH)
+    //if (parameters.mass != 0.0 && _collisionShape->getType() != PhysicsCollisionShape::SHAPE_MESH)
         _collisionShape->getShape()->calculateLocalInertia(parameters.mass, localInertia);
 
     // Create the Bullet physics rigid body object.
@@ -367,7 +367,7 @@ void PhysicsRigidBody::removeConstraint(PhysicsConstraint* constraint)
 
 bool PhysicsRigidBody::supportsConstraints()
 {
-    return (getShapeType() != PhysicsCollisionShape::SHAPE_HEIGHTFIELD && getShapeType() != PhysicsCollisionShape::SHAPE_MESH);
+    return (getShapeType() != PhysicsCollisionShape::SHAPE_HEIGHTFIELD); // && getShapeType() != PhysicsCollisionShape::SHAPE_MESH);
 }
 
 void PhysicsRigidBody::transformChanged(Transform* transform, long cookie)

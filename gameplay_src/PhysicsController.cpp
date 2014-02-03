@@ -6,6 +6,7 @@
 #include "MeshPart.h"
 #include "Bundle.h"
 #include "Terrain.h"
+#include "BulletCollision/Gimpact/btGImpactShape.h"
 
 #ifdef GAMEPLAY_MEM_LEAK_DETECTION
 #undef new
@@ -1162,7 +1163,7 @@ PhysicsCollisionShape* PhysicsController::createMesh(Mesh* mesh, const Vector3& 
             btIndexedMesh indexedMesh;
             indexedMesh.m_indexType = indexType;
             indexedMesh.m_numTriangles = meshPart->indexCount / 3; // assume TRIANGLES primitive type
-            indexedMesh.m_numVertices = meshPart->indexCount;
+            indexedMesh.m_numVertices = vertexCount; //meshPart->indexCount;
             indexedMesh.m_triangleIndexBase = (const unsigned char*)shapeMeshData->indexData[i];
             indexedMesh.m_triangleIndexStride = indexStride*3;
             indexedMesh.m_vertexBase = (const unsigned char*)shapeMeshData->vertexData;
@@ -1199,8 +1200,11 @@ PhysicsCollisionShape* PhysicsController::createMesh(Mesh* mesh, const Vector3& 
     }
 
     // Create our collision shape object and store shapeMeshData in it.
+    btGImpactMeshShape* btShape = bullet_new<btGImpactMeshShape>(meshInterface);
+    btShape->updateBound();
+    //bullet_new<btBvhTriangleMeshShape>(meshInterface, true)
     PhysicsCollisionShape* shape =
-        new PhysicsCollisionShape(PhysicsCollisionShape::SHAPE_MESH, bullet_new<btBvhTriangleMeshShape>(meshInterface, true), meshInterface);
+        new PhysicsCollisionShape(PhysicsCollisionShape::SHAPE_MESH, btShape, meshInterface);
     shape->_shapeData.meshData = shapeMeshData;
 
     _shapes.push_back(shape);
