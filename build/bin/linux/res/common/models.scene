@@ -2,6 +2,15 @@ scene {
 
 	path = res/common/models.gpb
 	
+	node sphere {
+		url = sphere
+		material = res/common/sample.material#cylinder
+		translate = 0, 0, 0
+		rotate = 0, 0, 1, 0
+		scale = 1, 1, 1
+		//collisionObject = res/common/models.physics#cylinder
+	}
+
 	node cylinder {
 		url = cylinder
 		material = res/common/sample.material#cylinder

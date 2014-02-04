@@ -31,6 +31,9 @@
 #include <ios>
 #include <iostream>
 #include <fstream>
+#include <sstream>
+#include <cstring>
+#include <cstdlib>
 #include <cstdarg>
 #include <cmath>
 
@@ -52,10 +55,13 @@ bool CreateScene(FbxManager* pSdkManager, FbxScene* pScene);
 bool CreateModels(FbxManager* pSdkManager, FbxScene* pScene);
 bool CreateVehicle(FbxManager* pSdkManager, FbxScene* pScene);
 
-FbxNode* CreateNode(FbxScene* pScene, const char* pName, const char* type, ...);
-FbxMesh* CreateCylinder(FbxScene* pScene, const char* pName, float radius, float height, int segments);
-FbxMesh* CreateBox(FbxScene* pScene, const char* pName, float length, float width, float height);
-FbxMesh* CreateHalfPipe(FbxScene* pScene, const char* pName, float radius, float height, float thickness, int segments);
+FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...);
+FbxMesh** CreateCylinder(FbxScene* pScene, const char* pName, float radius, float height, int segments);
+FbxMesh** CreateBox(FbxScene* pScene, const char* pName, float length, float width, float height);
+FbxMesh** CreateHalfPipe(FbxScene* pScene, const char* pName, float radius, float height, float thickness, int segments);
+FbxMesh** CreateSphere(FbxScene* pScene, const char* pName, float radius, int segments);
+
+char* concat(int n, ...);
 
 void printVector(ofstream& of, FbxVector4 vec) {
 	of << vec[0] << " " << vec[1] << " " << vec[2] << endl;
@@ -185,13 +191,23 @@ bool CreateModels(FbxManager *pSdkManager, FbxScene* pScene)
 
     // Build the node tree.
     FbxNode* lRootNode = pScene->GetRootNode();
-    FbxNode* lPatch;
+    FbxNode** lPatch;
    	lPatch = CreateNode(pScene, "cylinder", "cylinder", 1.0, 3.0, 20);
-    lRootNode->AddChild(lPatch);
+    for(int i = 0; i < sizeof(lPatch)/sizeof(FbxNode*); i++) {
+    	lRootNode->AddChild(lPatch[i]);
+    }
     lPatch = CreateNode(pScene, "box", "box", 2.0, 2.0, 2.0);
-    lRootNode->AddChild(lPatch);
+    for(int i = 0; i < sizeof(lPatch)/sizeof(FbxNode*); i++) {
+    	lRootNode->AddChild(lPatch[i]);
+    }
     lPatch = CreateNode(pScene, "halfpipe", "halfpipe", 1.0, 3.0, 0.2, 20);
-    lRootNode->AddChild(lPatch);
+    for(int i = 0; i < sizeof(lPatch)/sizeof(FbxNode*); i++) {
+    	lRootNode->AddChild(lPatch[i]);
+    }
+    lPatch = CreateNode(pScene, "sphere", "sphere", 1.0, 6);
+    for(int i = 0; i < sizeof(lPatch)/sizeof(FbxNode*); i++) {
+    	lRootNode->AddChild(lPatch[i]);
+    }
 
     return true;
 }
@@ -219,16 +235,16 @@ bool CreateVehicle(FbxManager *pSdkManager, FbxScene* pScene)
     char id[] = "cylinder1";
     for(int i = 0; i < 4; i++) {
     	id[8] = (char)(48+i+1);
-    	lPatch = CreateNode(pScene, id, "cylinder", 0.5, 0.5, 20);
+    	lPatch = CreateNode(pScene, id, "cylinder", 0.5, 0.5, 20)[0];
 	   	lPatch->LclRotation.Set(FbxVector4(90.0, 0.0, 0.0));
     	lPatch->LclTranslation.Set(FbxVector4(i<2 ? 2.0 : -2.0, 0.5, i%2==0 ? -1.75 : 1.75));
 	    lWheelsNode->AddChild(lPatch);
 	}
-    lPatch = CreateNode(pScene, "box", "box", 4.0, 6.0, 2.0);
+    lPatch = CreateNode(pScene, "box", "box", 4.0, 6.0, 2.0)[0];
     lPatch->LclTranslation.Set(FbxVector4(0.0, 3.2, 0.0));
     lCarNode->AddChild(lPatch);
 
-    lPatch = CreateNode(pScene, "ground", "box", 100.0, 100.0, 1.0);
+    lPatch = CreateNode(pScene, "ground", "box", 100.0, 100.0, 1.0)[0];
     lPatch->LclTranslation.Set(FbxVector4(0.0, -10.0, 0.0));
     lRootNode->AddChild(lPatch);
     
@@ -252,9 +268,9 @@ bool CreateVehicle(FbxManager *pSdkManager, FbxScene* pScene)
     return true;
 }
 
-FbxNode* CreateNode(FbxScene* pScene, const char* pName, const char* type, ...) {
+FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...) {
 
-	FbxMesh* mesh;
+	FbxMesh **arr, *mesh;
 
 	va_list arguments;
 	va_start(arguments, type);
@@ -270,11 +286,34 @@ FbxNode* CreateNode(FbxScene* pScene, const char* pName, const char* type, ...) 
     cout << "writing node file:\n" << filename << endl;
     ofstream out(filename, ios::out | ios::trunc);
 
+	if(strcmp(type, "sphere") == 0) {
+		float radius = (float)va_arg(arguments, double);
+		int segments = va_arg(arguments, int);
+		arr = CreateSphere(pScene, pName, radius, segments);
+		mesh = arr[0];
+		//write vertex/edge data
+		out << segments*(segments-1)+2 << endl;
+		for(int i = 0; i < segments*(segments-1)+2; i++) {
+			printVector(out, mesh->GetControlPointAt(i));
+		}
+		out << segments*(2*segments-1) << endl;
+		int start;
+		for(int i = 0; i < segments-1; i++) {
+			start = 1+i*segments;
+			for(int j = 0; j < segments; j++) {
+				printEdge(out, start+j, start+(j+1)%segments);
+				if(i == 0) printEdge(out, start+j, 0);
+				if(i < segments-2) printEdge(out, start+j, start+segments+j);
+				else printEdge(out, start+j, segments*(segments-1)+1);
+			}
+		}
+	}
 	if(strcmp(type, "cylinder") == 0) {
 		float radius = (float)va_arg(arguments, double);
 		float height = (float)va_arg(arguments, double);
 		int segments = va_arg(arguments, int);
-		mesh = CreateCylinder(pScene, pName, radius, height, segments);
+		arr = CreateCylinder(pScene, pName, radius, height, segments);
+		mesh = arr[0];
 		//write vertex/edge data
 		out << 2*segments << endl;
 		for(int i = 0; i < 2; i++) {
@@ -294,7 +333,8 @@ FbxNode* CreateNode(FbxScene* pScene, const char* pName, const char* type, ...) 
 		float height = (float)va_arg(arguments, double);
 		float thickness = (float)va_arg(arguments, double);
 		int segments = va_arg(arguments, int);
-		mesh = CreateHalfPipe(pScene, pName, radius, height, thickness, segments);
+		arr = CreateHalfPipe(pScene, pName, radius, height, thickness, segments);
+		mesh = arr[0];
 		//write vertex/edge data
 		out << 2*segments+4 << endl;
 		for(int i = 0; i < 2*segments+4; i++) {
@@ -317,7 +357,8 @@ FbxNode* CreateNode(FbxScene* pScene, const char* pName, const char* type, ...) 
 		float length = (float)va_arg(arguments, double);
 		float width = (float)va_arg(arguments, double);
 		float height = (float)va_arg(arguments, double);
-		mesh = CreateBox(pScene, pName, length, width, height);
+		arr = CreateBox(pScene, pName, length, width, height);
+		mesh = arr[0];
 		//write vertex/edge data
 		out << 8 << endl;
 		for(int i = 0; i < 8; i++) {
@@ -333,17 +374,91 @@ FbxNode* CreateNode(FbxScene* pScene, const char* pName, const char* type, ...) 
 
 	out.close();
 	
-	//create the node	
+    int numParts = sizeof(arr) / sizeof(FbxMesh*), n = 0;
+    FbxNode** nodes = new FbxNode*[numParts];
+
+	//create the node
     FbxNode* lNode = FbxNode::Create(pScene,pName);
     FbxVector4 lR(0.0, 0.0, 0.0);
     lNode->LclRotation.Set(lR);
     lNode->SetNodeAttribute(mesh);
+    nodes[n++] = lNode;
+    //add the mesh parts as subnodes
+    for(int i = 1; i < numParts; i++) {
+    	std::stringstream ss;
+    	ss << i;
+    	lNode = FbxNode::Create(pScene,concat(3,pName,"_part",ss.str().c_str()));
+    	lNode->SetNodeAttribute(arr[i]);
+    	nodes[n++] = lNode;
+    }
     
-    return lNode;
+    return nodes;
 }
 
-FbxMesh* CreateCylinder(FbxScene* pScene, const char* pName, float radius, float height, int segments) {
-	FbxMesh* mesh = FbxMesh::Create(pScene, pName);
+FbxMesh** CreateSphere(FbxScene* pScene, const char* pName, float radius, int segments) {
+	FbxMesh **arr = new FbxMesh*[2], *mesh;
+	arr[0] = FbxMesh::Create(pScene, pName);
+	arr[1] = FbxMesh::Create(pScene, concat(2, pName, "_part1"));
+	mesh = arr[0];
+	mesh->InitControlPoints(segments*(segments-1)+2);
+	int v = 0;
+	float latitude, longitude;
+	for(int i = 0; i <= segments; i++) {
+		if(i == 0 || i == segments) {
+			mesh->SetControlPointAt(FbxVector4(0.0, 0.0, i == 0 ? -radius : radius), v++);
+			continue;
+		}
+		latitude = M_PI*(-0.5 + 1.0*i/segments);
+		for(int j = 0; j < segments; j++) {
+			longitude = 2*M_PI*j/segments;
+			mesh->SetControlPointAt(FbxVector4(radius*cos(longitude)*cos(latitude), radius*sin(longitude)*cos(latitude), radius*sin(latitude)), v++);
+		}
+	}
+	arr[1]->InitControlPoints(segments*(segments-1)+2);
+	for(int i = 0; i < segments*(segments-1)+2; i++) {
+		arr[1]->SetControlPointAt(mesh->GetControlPointAt(i), i);
+	}
+	
+	int start;
+	for(int i = 0; i < segments-2; i++) {
+		start = i*segments+1;
+		for(int j = 0; j < segments; j++) {
+			mesh->BeginPolygon();
+			mesh->AddPolygon(start+j);
+			mesh->AddPolygon(start+(j+1)%segments);
+			mesh->AddPolygon(start+segments+j);
+			mesh->EndPolygon();
+
+			mesh->BeginPolygon();
+			mesh->AddPolygon(start+(j+1)%segments);
+			mesh->AddPolygon(start+segments+(j+1)%segments);
+			mesh->AddPolygon(start+segments+j);
+			mesh->EndPolygon();
+		}
+	}
+	for(int j = 0; j < segments; j++) {
+		mesh->BeginPolygon();
+		mesh->AddPolygon(0);
+		mesh->AddPolygon(1+(j+1)%segments);
+		mesh->AddPolygon(1+j);
+		mesh->EndPolygon();
+
+		mesh->BeginPolygon();
+		mesh->AddPolygon(1+segments*(segments-2)+j);
+		mesh->AddPolygon(1+segments*(segments-2)+(j+1)%segments);
+		mesh->AddPolygon(1+segments*(segments-1));
+		mesh->EndPolygon();
+	}
+	//add normals
+	mesh->GenerateNormals(true, false, false);
+	return arr;
+}
+
+FbxMesh** CreateCylinder(FbxScene* pScene, const char* pName, float radius, float height, int segments) {
+	FbxMesh **arr = new FbxMesh*[2], *mesh;
+	arr[0] = FbxMesh::Create(pScene, pName);
+	arr[1] = FbxMesh::Create(pScene, concat(2,pName,"_part1"));
+	mesh = arr[0];
 	mesh->InitControlPoints(2*(segments+1));
 	int v = 0;
 	for(int n = 0; n < 2; n++) {
@@ -352,6 +467,10 @@ FbxMesh* CreateCylinder(FbxScene* pScene, const char* pName, float radius, float
 		}
 		mesh->SetControlPointAt(FbxVector4((2*n-1) * height/2, 0.0, 0.0), v++);
 	}
+	arr[1]->InitControlPoints(2*(segments+1));
+	for(int i = 0; i < 2*(segments+1); i++)
+		arr[1]->SetControlPointAt(mesh->GetControlPointAt(i), i);
+
 	for(int i = 0; i < segments; i++) {
 		//bottom
 		mesh->BeginPolygon();
@@ -381,11 +500,14 @@ FbxMesh* CreateCylinder(FbxScene* pScene, const char* pName, float radius, float
 	
 	//add normals
 	mesh->GenerateNormals(true, false, false);
-	return mesh;
+	return arr;
 }
 
-FbxMesh* CreateHalfPipe(FbxScene* pScene, const char* pName, float radius, float height, float thickness, int segments) {
-	FbxMesh* mesh = FbxMesh::Create(pScene, pName);
+FbxMesh** CreateHalfPipe(FbxScene* pScene, const char* pName, float radius, float height, float thickness, int segments) {
+	FbxMesh **arr = new FbxMesh*[1+segments+4], *mesh;
+	arr[0] = FbxMesh::Create(pScene, pName);
+	mesh = arr[0];
+	//need 1 convex hull for each plane in the half-pipe, otherwise hull would exceed the object bounds
 	mesh->InitControlPoints(2*segments+4);
 	int v = 0;
 	double ang = -M_PI/2;
@@ -395,6 +517,45 @@ FbxMesh* CreateHalfPipe(FbxScene* pScene, const char* pName, float radius, float
 			mesh->SetControlPointAt(FbxVector4((2*n-1) * height/2, (radius-thickness) * cos(ang + 2*M_PI*i/segments), (radius - thickness) * sin(ang + 2*M_PI*i/segments)), v++);
 		}
 	}
+	//hulls for inner & outer bowls
+	int part = 1, start;
+	for(int n = 0; n < 2; n++) {
+		for(int i = 0; i < segments/2; i++) {
+			v = 0; start = 2*i + n;
+			std::stringstream ss; ss << part;
+			arr[part] = FbxMesh::Create(pScene, concat(3,pName,"_part",ss.str().c_str()));
+			arr[part]->InitControlPoints(4);
+			arr[part]->SetControlPointAt(mesh->GetControlPointAt(start), v++);
+			arr[part]->SetControlPointAt(mesh->GetControlPointAt(start+2), v++);
+			arr[part]->SetControlPointAt(mesh->GetControlPointAt(start+2+segments+2), v++);
+			arr[part]->SetControlPointAt(mesh->GetControlPointAt(start+segments+2), v++);
+			part++;
+		}
+	}
+	//hulls for left/right edges
+	for(int n = 0; n < 2; n++) {
+		v = 0; start = n*segments;
+		std::stringstream ss; ss << part;
+		arr[part] = FbxMesh::Create(pScene, concat(3,pName,"_part",ss.str().c_str()));
+		arr[part]->InitControlPoints(4);
+		arr[part]->SetControlPointAt(mesh->GetControlPointAt(start), v++);
+		arr[part]->SetControlPointAt(mesh->GetControlPointAt(start+1), v++);
+		arr[part]->SetControlPointAt(mesh->GetControlPointAt(start+1+segments+2), v++);
+		arr[part]->SetControlPointAt(mesh->GetControlPointAt(start+segments+2), v++);
+		part++;		
+	}
+	//hulls for semicircular ends
+	for(int n = 0; n < 2; n++) {
+		v = 0;
+		std::stringstream ss; ss << part;
+		arr[part] = FbxMesh::Create(pScene, concat(3,pName,"_part",ss.str().c_str()));
+		arr[part]->InitControlPoints(segments+2);
+		for(int i = 0; i < segments+2; i++) {
+			arr[part]->SetControlPointAt(mesh->GetControlPointAt(i + n*(segments+2)), v++);
+		}
+		part++;		
+	}
+		
 	int up = segments+2;
 	for(int i = 0; i < segments; i++) {
 		int next=i+2, across=i+1;
@@ -442,11 +603,14 @@ FbxMesh* CreateHalfPipe(FbxScene* pScene, const char* pName, float radius, float
 	
 	//add normals
 	mesh->GenerateNormals(true, false, false);
-	return mesh;
+	return arr;
 }
 
-FbxMesh* CreateBox(FbxScene* pScene, const char* pName, float length, float width, float height) {
-	FbxMesh* mesh = FbxMesh::Create(pScene, pName);
+FbxMesh** CreateBox(FbxScene* pScene, const char* pName, float length, float width, float height) {
+	FbxMesh **arr = new FbxMesh*[2], *mesh;
+	arr[0] = FbxMesh::Create(pScene, pName);
+	arr[1] = FbxMesh::Create(pScene, concat(2,pName,"_part1"));
+	mesh = arr[0];
 	//vertices
 	mesh->InitControlPoints(8);
 	int v = 0;
@@ -457,6 +621,8 @@ FbxMesh* CreateBox(FbxScene* pScene, const char* pName, float length, float widt
 			}
 		}
 	}
+	arr[1]->InitControlPoints(8);
+	for(int i = 0; i < 8; i++) arr[1]->SetControlPointAt(mesh->GetControlPointAt(i), i);
 	//faces
 	int next, prev, offset;
 	for(int i = 1; i <= 4; i*=2) {
@@ -480,6 +646,23 @@ FbxMesh* CreateBox(FbxScene* pScene, const char* pName, float length, float widt
 		}
 	}
 	mesh->GenerateNormals(true, false, false);
-	return mesh;
+	return arr;
+}
+
+char* concat(int n, ...)
+{
+	const char** strings = new const char*[n];
+	int length = 0;
+	va_list arguments;
+	va_start(arguments, n);
+	for(int i = 0; i < n; i++) {
+		strings[i] = (const char*) va_arg(arguments, const char*);
+		length += strlen(strings[i]);
+	}
+	char* dest = new char[length+1];
+	dest[0] = '\0';
+	for(int i = 0; i < n; i++) strcat(dest, strings[i]);
+	dest[length] = '\0';
+	return dest;
 }
 

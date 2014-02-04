@@ -6,7 +6,11 @@
 #include "MeshPart.h"
 #include "Bundle.h"
 #include "Terrain.h"
+#include "FileSystem.h"
 #include "BulletCollision/Gimpact/btGImpactShape.h"
+#include <cstring>
+#include <sstream>
+#include <cstdlib>
 
 #ifdef GAMEPLAY_MEM_LEAK_DETECTION
 #undef new
@@ -1090,127 +1094,145 @@ PhysicsCollisionShape* PhysicsController::createMesh(Mesh* mesh, const Vector3& 
         GP_ERROR("Cannot create mesh rigid body for mesh without valid URL.");
         return NULL;
     }
+    
+    btCompoundShape* btShape = bullet_new<btCompoundShape>();
+    const char *url = mesh->getUrl();
+    int len = strlen(url), part = 1;
+    char *filename = new char[len + 10];
+    strcpy(filename, url);
+    strcpy(filename+len, "_part1");
 
-    Bundle::MeshData* data = Bundle::readMeshData(mesh->getUrl());
-    if (data == NULL)
-    {
-        GP_ERROR("Failed to load mesh data from url '%s'.", mesh->getUrl());
-        return NULL;
-    }
+    while(FileSystem::fileExists(filename)) {
 
-    // Create mesh data to be populated and store in returned collision shape.
-    PhysicsCollisionShape::MeshData* shapeMeshData = new PhysicsCollisionShape::MeshData();
-    shapeMeshData->vertexData = NULL;
+cout << "Reading mesh part " << part << " from " << filename << endl;
+		Bundle::MeshData* data = Bundle::readMeshData(filename);
+		if (data == NULL)
+		{
+		    GP_ERROR("Failed to load mesh data from url '%s'.", filename);
+		    return NULL;
+		}
+		std::stringstream ss; ss << ++part;
+		strcpy(filename+len+5, ss.str().c_str());
 
-    // Copy the scaled vertex position data to the rigid body's local buffer.
-    Matrix m;
-    Matrix::createScale(scale, &m);
-    unsigned int vertexCount = data->vertexCount;
-    shapeMeshData->vertexData = new float[vertexCount * 3];
-    Vector3 v;
-    int vertexStride = data->vertexFormat.getVertexSize();
-    for (unsigned int i = 0; i < data->vertexCount; i++)
-    {
-        v.set(*((float*)&data->vertexData[i * vertexStride + 0 * sizeof(float)]),
-              *((float*)&data->vertexData[i * vertexStride + 1 * sizeof(float)]),
-              *((float*)&data->vertexData[i * vertexStride + 2 * sizeof(float)]));
-        v *= m;
-        memcpy(&(shapeMeshData->vertexData[i * 3]), &v, sizeof(float) * 3);
-    }
+		// Create mesh data to be populated and store in returned collision shape.
+		PhysicsCollisionShape::MeshData* shapeMeshData = new PhysicsCollisionShape::MeshData();
+		shapeMeshData->vertexData = NULL;
 
-    btTriangleIndexVertexArray* meshInterface = bullet_new<btTriangleIndexVertexArray>();
+		// Copy the scaled vertex position data to the rigid body's local buffer.
+		Matrix m;
+		Matrix::createScale(scale, &m);
+		unsigned int vertexCount = data->vertexCount;
+		shapeMeshData->vertexData = new float[vertexCount * 3];
+		btScalar *points = new btScalar[vertexCount*3];
+		Vector3 v;
+		int vertexStride = data->vertexFormat.getVertexSize();
+		for (unsigned int i = 0; i < data->vertexCount; i++)
+		{
+		    v.set(*((float*)&data->vertexData[i * vertexStride + 0 * sizeof(float)]),
+		          *((float*)&data->vertexData[i * vertexStride + 1 * sizeof(float)]),
+		          *((float*)&data->vertexData[i * vertexStride + 2 * sizeof(float)]));
+		    v *= m;
+		    memcpy(&(shapeMeshData->vertexData[i * 3]), &v, sizeof(float) * 3);
+		    points[i*3] = v.x; points[i*3+1] = v.y; points[i*3+2] = v.z;
+		}
+		
+		btConvexHullShape *hull = bullet_new<btConvexHullShape>(points, vertexCount);
+		btShape->addChildShape(btTransform::getIdentity(), hull);
 
-    size_t partCount = data->parts.size();
-    if (partCount > 0)
-    {
-        PHY_ScalarType indexType = PHY_UCHAR;
-        int indexStride = 0;
-        Bundle::MeshPartData* meshPart = NULL;
-        for (size_t i = 0; i < partCount; i++)
-        {
-            meshPart = data->parts[i];
-            GP_ASSERT(meshPart);
+/*		btTriangleIndexVertexArray* meshInterface = bullet_new<btTriangleIndexVertexArray>();
 
-            switch (meshPart->indexFormat)
-            {
-            case Mesh::INDEX8:
-                indexType = PHY_UCHAR;
-                indexStride = 1;
-                break;
-            case Mesh::INDEX16:
-                indexType = PHY_SHORT;
-                indexStride = 2;
-                break;
-            case Mesh::INDEX32:
-                indexType = PHY_INTEGER;
-                indexStride = 4;
-                break;
-            default:
-                GP_ERROR("Unsupported index format (%d).", meshPart->indexFormat);
-                SAFE_DELETE(meshInterface);
-                SAFE_DELETE_ARRAY(shapeMeshData->vertexData);
-                SAFE_DELETE(shapeMeshData);
-                SAFE_DELETE(data);
-                return NULL;
-            }
+		size_t partCount = data->parts.size();
+		if (partCount > 0)
+		{
+		    PHY_ScalarType indexType = PHY_UCHAR;
+		    int indexStride = 0;
+		    Bundle::MeshPartData* meshPart = NULL;
+		    for (size_t i = 0; i < partCount; i++)
+		    {
+		        meshPart = data->parts[i];
+		        GP_ASSERT(meshPart);
 
-            // Move the index data into the rigid body's local buffer.
-            // Set it to NULL in the MeshPartData so it is not released when the data is freed.
-            shapeMeshData->indexData.push_back(meshPart->indexData);
-            meshPart->indexData = NULL;
+		        switch (meshPart->indexFormat)
+		        {
+		        case Mesh::INDEX8:
+		            indexType = PHY_UCHAR;
+		            indexStride = 1;
+		            break;
+		        case Mesh::INDEX16:
+		            indexType = PHY_SHORT;
+		            indexStride = 2;
+		            break;
+		        case Mesh::INDEX32:
+		            indexType = PHY_INTEGER;
+		            indexStride = 4;
+		            break;
+		        default:
+		            GP_ERROR("Unsupported index format (%d).", meshPart->indexFormat);
+		            SAFE_DELETE(meshInterface);
+		            SAFE_DELETE_ARRAY(shapeMeshData->vertexData);
+		            SAFE_DELETE(shapeMeshData);
+		            SAFE_DELETE(data);
+		            return NULL;
+		        }
 
-            // Create a btIndexedMesh object for the current mesh part.
-            btIndexedMesh indexedMesh;
-            indexedMesh.m_indexType = indexType;
-            indexedMesh.m_numTriangles = meshPart->indexCount / 3; // assume TRIANGLES primitive type
-            indexedMesh.m_numVertices = vertexCount; //meshPart->indexCount;
-            indexedMesh.m_triangleIndexBase = (const unsigned char*)shapeMeshData->indexData[i];
-            indexedMesh.m_triangleIndexStride = indexStride*3;
-            indexedMesh.m_vertexBase = (const unsigned char*)shapeMeshData->vertexData;
-            indexedMesh.m_vertexStride = sizeof(float)*3;
-            indexedMesh.m_vertexType = PHY_FLOAT;
+		        // Move the index data into the rigid body's local buffer.
+		        // Set it to NULL in the MeshPartData so it is not released when the data is freed.
+		        shapeMeshData->indexData.push_back(meshPart->indexData);
+		        meshPart->indexData = NULL;
 
-            // Add the indexed mesh data to the mesh interface.
-            meshInterface->addIndexedMesh(indexedMesh, indexType);
-        }
-    }
-    else
-    {
-        // Generate index data for the mesh locally in the rigid body.
-        unsigned int* indexData = new unsigned int[data->vertexCount];
-        for (unsigned int i = 0; i < data->vertexCount; i++)
-        {
-            indexData[i] = i;
-        }
-        shapeMeshData->indexData.push_back((unsigned char*)indexData);
+		        // Create a btIndexedMesh object for the current mesh part.
+		        btIndexedMesh indexedMesh;
+		        indexedMesh.m_indexType = indexType;
+		        indexedMesh.m_numTriangles = meshPart->indexCount / 3; // assume TRIANGLES primitive type
+		        indexedMesh.m_numVertices = vertexCount; //meshPart->indexCount;
+		        indexedMesh.m_triangleIndexBase = (const unsigned char*)shapeMeshData->indexData[i];
+		        indexedMesh.m_triangleIndexStride = indexStride*3;
+		        indexedMesh.m_vertexBase = (const unsigned char*)shapeMeshData->vertexData;
+		        indexedMesh.m_vertexStride = sizeof(float)*3;
+		        indexedMesh.m_vertexType = PHY_FLOAT;
 
-        // Create a single btIndexedMesh object for the mesh interface.
-        btIndexedMesh indexedMesh;
-        indexedMesh.m_indexType = PHY_INTEGER;
-        indexedMesh.m_numTriangles = data->vertexCount / 3; // assume TRIANGLES primitive type
-        indexedMesh.m_numVertices = data->vertexCount;
-        indexedMesh.m_triangleIndexBase = shapeMeshData->indexData[0];
-        indexedMesh.m_triangleIndexStride = sizeof(unsigned int);
-        indexedMesh.m_vertexBase = (const unsigned char*)shapeMeshData->vertexData;
-        indexedMesh.m_vertexStride = sizeof(float)*3;
-        indexedMesh.m_vertexType = PHY_FLOAT;
+		        // Add the indexed mesh data to the mesh interface.
+		        meshInterface->addIndexedMesh(indexedMesh, indexType);
+		    }
+		}
+		else
+		{
+		    // Generate index data for the mesh locally in the rigid body.
+		    unsigned int* indexData = new unsigned int[data->vertexCount];
+		    for (unsigned int i = 0; i < data->vertexCount; i++)
+		    {
+		        indexData[i] = i;
+		    }
+		    shapeMeshData->indexData.push_back((unsigned char*)indexData);
 
-        // Set the data in the mesh interface.
-        meshInterface->addIndexedMesh(indexedMesh, indexedMesh.m_indexType);
-    }
+		    // Create a single btIndexedMesh object for the mesh interface.
+		    btIndexedMesh indexedMesh;
+		    indexedMesh.m_indexType = PHY_INTEGER;
+		    indexedMesh.m_numTriangles = data->vertexCount / 3; // assume TRIANGLES primitive type
+		    indexedMesh.m_numVertices = data->vertexCount;
+		    indexedMesh.m_triangleIndexBase = shapeMeshData->indexData[0];
+		    indexedMesh.m_triangleIndexStride = sizeof(unsigned int);
+		    indexedMesh.m_vertexBase = (const unsigned char*)shapeMeshData->vertexData;
+		    indexedMesh.m_vertexStride = sizeof(float)*3;
+		    indexedMesh.m_vertexType = PHY_FLOAT;
+
+		    // Set the data in the mesh interface.
+		    meshInterface->addIndexedMesh(indexedMesh, indexedMesh.m_indexType);
+		}//*/
+
+		// Free the temporary mesh data now that it's stored in physics system.
+		SAFE_DELETE(data);
+	}
 
     // Create our collision shape object and store shapeMeshData in it.
-    btGImpactMeshShape* btShape = bullet_new<btGImpactMeshShape>(meshInterface);
-    btShape->updateBound();
-    //bullet_new<btBvhTriangleMeshShape>(meshInterface, true)
+    //btGImpactMeshShape* btShape = bullet_new<btGImpactMeshShape>(meshInterface);
+    //btShape->updateBound();
+    //btBvhTriangleMeshShape* btShape = bullet_new<btBvhTriangleMeshShape>(meshInterface, true)
     PhysicsCollisionShape* shape =
-        new PhysicsCollisionShape(PhysicsCollisionShape::SHAPE_MESH, btShape, meshInterface);
-    shape->_shapeData.meshData = shapeMeshData;
+        new PhysicsCollisionShape(PhysicsCollisionShape::SHAPE_MESH, btShape); //, meshInterface);
+    //shape->_shapeData.meshData = shapeMeshData;
 
     _shapes.push_back(shape);
-
-    // Free the temporary mesh data now that it's stored in physics system.
-    SAFE_DELETE(data);
 
     return shape;
 }
