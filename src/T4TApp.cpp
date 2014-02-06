@@ -108,13 +108,15 @@ void T4TApp::initialize()
 
     Node *modelNode = _models->getFirstNode();
     while(modelNode) {
-		cout << "adding button for " << modelNode->getId() << endl;
-		loadNodeData(modelNode, modelNode->getId());
-		Button* itemButton = addButton <Button> (_itemContainer, modelNode->getId());
-		ImageControl* itemImage = addButton <ImageControl> (_componentMenu, concat(2, "comp_", modelNode->getId()));
-		itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
-		itemImage->setWidth(150.0f);
-		itemImage->setHeight(150.0f);
+    	if(strstr(modelNode->getId(), "_part") == NULL) {
+			cout << "adding button for " << modelNode->getId() << endl;
+			loadNodeData(modelNode, modelNode->getId());
+			Button* itemButton = addButton <Button> (_itemContainer, modelNode->getId());
+			ImageControl* itemImage = addButton <ImageControl> (_componentMenu, concat(2, "comp_", modelNode->getId()));
+			itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
+			itemImage->setWidth(150.0f);
+			itemImage->setHeight(150.0f);
+		}
 		modelNode->setTranslation(Vector3(1000.0f,0.0f,0.0f));
 		modelNode = modelNode->getNextSibling();
 	}
@@ -865,6 +867,7 @@ Node* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 
 void T4TApp::loadNodeData(Node *node, const char *type)
 {
+	if(strstr(type, "_part") != NULL) return;
 	char *filename = concat(3, "res/common/", type, ".node");
 	cout << "reading " << node->getId() << " from file " << filename << endl;
 	std::auto_ptr<Stream> stream(FileSystem::open(filename));

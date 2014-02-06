@@ -11,7 +11,20 @@ bool T4TApp::Lever::baseTouch(Touch::TouchEvent evt, int x, int y) {
 }
 
 bool T4TApp::Lever::armTouch(Touch::TouchEvent evt, int x, int y) {
-	PhysicsRigidBody* body = _allNodes[1]->getCollisionObject()->asRigidBody();
+	Ray ray;
+	Plane vertical(Vector3(0, 0, 1), 0);
+	_scene->getActiveCamera()->pickRay(app->getViewport(), x, y, &ray);
+	float distance = ray.intersects(vertical);
+	if(distance == Ray::INTERSECTS_NONE) return false;
+	float worldX = ray.getOrigin().x + ray.getDirection().x * distance;
+	Node *node = app->duplicateModelNode("sphere");
+	PhysicsRigidBody *body = node->getCollisionObject()->asRigidBody();
+	body->setEnabled(false);
+	node->setTranslation(worldX, 10.0f, 0.0f);
+	body->setEnabled(true);
+	_scene->addNode(node);
+	return false;
+/*	PhysicsRigidBody* body = _allNodes[1]->getCollisionObject()->asRigidBody();
 	body->setEnabled(false);
 	//body->setAngularVelocity(0.0f, 0.0f, 100.0f);
 	//_armConstraint->setEnabled(false);
@@ -26,10 +39,12 @@ bool T4TApp::Lever::armTouch(Touch::TouchEvent evt, int x, int y) {
 	cout << "arm now at " << app->printVector(vec) << ", base at " << app->printVector(vec2) << endl;
 	Quaternion rot = _allNodes[1]->getRotation();
 	cout << "rotation: " << app->printQuat(rot) << endl;
-	return false;
+	return false;//*/
 }
 
 void T4TApp::Lever::placeElement(Node *node) {
+	PhysicsRigidBody *body = node->getCollisionObject()->asRigidBody();
+	body->setEnabled(false);
 	switch(_currentElement) {
 		case 0: //base
 			node->setTranslation(Vector3(0.0f, 0.0f, 0.0f));
@@ -50,5 +65,6 @@ void T4TApp::Lever::placeElement(Node *node) {
 			);//*/
 			break;
 	}
+	body->setEnabled(true);
 }
 

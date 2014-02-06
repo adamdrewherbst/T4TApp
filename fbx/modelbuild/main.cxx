@@ -29,6 +29,7 @@
 
 #include <fbxsdk.h>
 #include <ios>
+#include <ostream>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -48,7 +49,7 @@
 
 #define PI 3.1415926535
 
-using std::cin; using std::cout; using std::endl; using std::ofstream; using std::ios;
+using std::cin; using std::cout; using std::endl; using std::ostream; using std::ofstream; using std::ios;
 
 // Function prototypes.
 bool CreateScene(FbxManager* pSdkManager, FbxScene* pScene);
@@ -63,10 +64,10 @@ FbxMesh** CreateSphere(FbxScene* pScene, const char* pName, float radius, int se
 
 char* concat(int n, ...);
 
-void printVector(ofstream& of, FbxVector4 vec) {
+void printVector(ostream& of, FbxVector4 vec) {
 	of << vec[0] << " " << vec[1] << " " << vec[2] << endl;
 }
-void printEdge(ofstream& of, int v1, int v2) {
+void printEdge(ostream& of, int v1, int v2) {
 	of << v1 << " " << v2 << endl;
 }
 
@@ -94,7 +95,7 @@ int main(int argc, char** argv)
         FBXSDK_printf("\n\nAn error occurred while creating the scene...\n");
         DestroySdkObjects(lSdkManager, lResult);
         return 0;
-    }
+    }//*/
     // Create the models.
     lResult = CreateModels(lSdkManager, lModels);
     if(lResult == false)
@@ -102,7 +103,7 @@ int main(int argc, char** argv)
         FBXSDK_printf("\n\nAn error occurred while creating the models...\n");
         DestroySdkObjects(lSdkManager, lResult);
         return 0;
-    }
+    }//*/
     // Create the vehicle.
     lResult = CreateVehicle(lSdkManager, lVehicle);
     if(lResult == false)
@@ -110,7 +111,7 @@ int main(int argc, char** argv)
         FBXSDK_printf("\n\nAn error occurred while creating the vehicle...\n");
         DestroySdkObjects(lSdkManager, lResult);
         return 0;
-    }
+    }//*/
 
     // Save the scene and models.
 
@@ -120,7 +121,7 @@ int main(int argc, char** argv)
         FBXSDK_printf("\n\nAn error occurred while saving the scene...\n");
         DestroySdkObjects(lSdkManager, lResult);
         return 0;
-    }
+    }//*/
 	lResult = SaveScene(lSdkManager, lModels, MODEL_FILENAME);
     if(lResult == false)
     {
@@ -134,7 +135,7 @@ int main(int argc, char** argv)
         FBXSDK_printf("\n\nAn error occurred while saving the vehicle...\n");
         DestroySdkObjects(lSdkManager, lResult);
         return 0;
-    }
+    }//*/
 
     // Destroy all objects created by the FBX SDK.
     DestroySdkObjects(lSdkManager, lResult);
@@ -190,24 +191,11 @@ bool CreateModels(FbxManager *pSdkManager, FbxScene* pScene)
     pScene->SetSceneInfo(sceneInfo);
 
     // Build the node tree.
-    FbxNode* lRootNode = pScene->GetRootNode();
     FbxNode** lPatch;
    	lPatch = CreateNode(pScene, "cylinder", "cylinder", 1.0, 3.0, 20);
-    for(int i = 0; i < sizeof(lPatch)/sizeof(FbxNode*); i++) {
-    	lRootNode->AddChild(lPatch[i]);
-    }
     lPatch = CreateNode(pScene, "box", "box", 2.0, 2.0, 2.0);
-    for(int i = 0; i < sizeof(lPatch)/sizeof(FbxNode*); i++) {
-    	lRootNode->AddChild(lPatch[i]);
-    }
     lPatch = CreateNode(pScene, "halfpipe", "halfpipe", 1.0, 3.0, 0.2, 20);
-    for(int i = 0; i < sizeof(lPatch)/sizeof(FbxNode*); i++) {
-    	lRootNode->AddChild(lPatch[i]);
-    }
     lPatch = CreateNode(pScene, "sphere", "sphere", 1.0, 6);
-    for(int i = 0; i < sizeof(lPatch)/sizeof(FbxNode*); i++) {
-    	lRootNode->AddChild(lPatch[i]);
-    }
 
     return true;
 }
@@ -285,6 +273,7 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
     //const char* filename = (std::string(APP_RESOURCE_DIRECTORY) + std::string(pName) + std::string(".node")).c_str();
     cout << "writing node file:\n" << filename << endl;
     ofstream out(filename, ios::out | ios::trunc);
+    int numParts = 2;
 
 	if(strcmp(type, "sphere") == 0) {
 		float radius = (float)va_arg(arguments, double);
@@ -335,6 +324,7 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		int segments = va_arg(arguments, int);
 		arr = CreateHalfPipe(pScene, pName, radius, height, thickness, segments);
 		mesh = arr[0];
+		numParts = 1+segments;
 		//write vertex/edge data
 		out << 2*segments+4 << endl;
 		for(int i = 0; i < 2*segments+4; i++) {
@@ -374,15 +364,16 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 
 	out.close();
 	
-    int numParts = sizeof(arr) / sizeof(FbxMesh*), n = 0;
+    int n = 0;
     FbxNode** nodes = new FbxNode*[numParts];
 
-	//create the node
-    FbxNode* lNode = FbxNode::Create(pScene,pName);
+	//create the node and its convex hull parts
+    FbxNode *lNode = FbxNode::Create(pScene,pName), *lRootNode = pScene->GetRootNode();
     FbxVector4 lR(0.0, 0.0, 0.0);
     lNode->LclRotation.Set(lR);
     lNode->SetNodeAttribute(mesh);
     nodes[n++] = lNode;
+    lRootNode->AddChild(lNode);
     //add the mesh parts as subnodes
     for(int i = 1; i < numParts; i++) {
     	std::stringstream ss;
@@ -390,6 +381,16 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
     	lNode = FbxNode::Create(pScene,concat(3,pName,"_part",ss.str().c_str()));
     	lNode->SetNodeAttribute(arr[i]);
     	nodes[n++] = lNode;
+    	lRootNode->AddChild(lNode);
+    	FbxMesh* mesh = lNode->GetMesh();
+    	cout << "POINTS FOR " << lNode->GetName() << endl;
+    	mesh->BeginPolygon();
+    	for(int j = 0; j < mesh->GetControlPointsCount(); j++) {
+    		mesh->AddPolygon(j);
+    		printVector(cout, mesh->GetControlPointAt(j));
+    	}
+    	mesh->EndPolygon();
+    	cout << endl;
     }
     
     return nodes;
@@ -467,9 +468,12 @@ FbxMesh** CreateCylinder(FbxScene* pScene, const char* pName, float radius, floa
 		}
 		mesh->SetControlPointAt(FbxVector4((2*n-1) * height/2, 0.0, 0.0), v++);
 	}
-	arr[1]->InitControlPoints(2*(segments+1));
-	for(int i = 0; i < 2*(segments+1); i++)
-		arr[1]->SetControlPointAt(mesh->GetControlPointAt(i), i);
+	//single convex hull
+	arr[1]->InitControlPoints(2*segments);
+	for(int i = 0; i < segments; i++) {
+		arr[1]->SetControlPointAt(mesh->GetControlPointAt(i), 2*i);
+		arr[1]->SetControlPointAt(mesh->GetControlPointAt(segments+1+i), 2*i+1);
+	}
 
 	for(int i = 0; i < segments; i++) {
 		//bottom
@@ -533,7 +537,7 @@ FbxMesh** CreateHalfPipe(FbxScene* pScene, const char* pName, float radius, floa
 		}
 	}
 	//hulls for left/right edges
-	for(int n = 0; n < 2; n++) {
+/*	for(int n = 0; n < 2; n++) {
 		v = 0; start = n*segments;
 		std::stringstream ss; ss << part;
 		arr[part] = FbxMesh::Create(pScene, concat(3,pName,"_part",ss.str().c_str()));
@@ -555,7 +559,7 @@ FbxMesh** CreateHalfPipe(FbxScene* pScene, const char* pName, float radius, floa
 		}
 		part++;		
 	}
-		
+//*/
 	int up = segments+2;
 	for(int i = 0; i < segments; i++) {
 		int next=i+2, across=i+1;
