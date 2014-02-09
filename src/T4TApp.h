@@ -92,9 +92,11 @@ public:
     //see if the current touch coordinates intersect a given model in the scene
     bool checkTouchModel(Node* node);
     bool checkTouchEdge(Node* node);
+    Node* getMouseNode(int x, int y, Vector3 *touch = NULL);
     
     //model factory functions
     void loadNodeData(Node *node, const char *type);
+    void updateNodeData(Node *node);
     char* concat(int n, ...);
     
     //UI factory functions
@@ -135,7 +137,7 @@ public:
     Scene *_activeScene;
 
     //user interface
-    Form *_mainMenu, *_sideMenu, *_itemContainer, *_machineContainer, *_modeContainer, *_componentMenu;
+    Form *_mainMenu, *_sideMenu, *_itemContainer, *_machineContainer, *_modeContainer, *_modePanel, *_componentMenu;
     std::vector<Form*> _submenus; //submenus
     Button *_itemButton, *_modeButton, *_machineButton; //submenu handles
     std::map<std::string, Form*> _modeOptions;
@@ -146,10 +148,18 @@ public:
     Theme *_theme;
     Theme::Style *_formStyle, *_buttonStyle, *_titleStyle, *_hiddenStyle;
     
+	//any data associated with a node
+	typedef struct {
+		std::vector<Vector3> vertices, worldVertices; //model space and world space coords
+		std::vector<std::vector<unsigned short>> edges; //vertex index pairs
+		std::vector<std::vector<unsigned short>> faces; //vertex indices of polygons (not triangles)
+		std::vector<std::vector<std::vector<unsigned short>>> triangles; //triangulation of each polygon
+		int typeCount; //number of clones of this model currently in the simulation
+	} nodeData;
+
     //use Control::Listener instances and enumerated lists of required components 
     //for progressing through standard project scripts
     class VehicleProject : public Button, Control::Listener {
-    
 public:
     	T4TApp *app;
     	Form *container;
@@ -230,6 +240,35 @@ public:
 		void placeElement(Node *node);
 	};
 	std::vector<ProjectComponent*> _machines;
+	
+	class Mode : public Button, Control::Listener
+	{
+public:
+		T4TApp *app;
+		Form *_container, *_controls;
+		bool _active;
+		
+		Mode(T4TApp *app_, const char* id, const char* filename = NULL);
+		
+		virtual bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) = 0;
+		virtual void controlEvent(Control *control, EventType evt) = 0;
+		virtual void setActive(bool active);
+	};
+	std::vector<Mode*> _modes;
+	
+	class SliceMode : public Mode
+	{
+public:
+		Node *_node; //the object to be sliced
+		Plane _slicePlane;
+		int _subMode; //0 = rotate, 1 = translate
+
+		SliceMode(T4TApp *app_);
+		void setActive(bool active);
+		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+		void controlEvent(Control *control, Control::Listener::EventType evt);
+		void setAxis(int axis);
+	};
 	
     class TouchPoint
     {

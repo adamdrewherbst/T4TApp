@@ -304,11 +304,9 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		arr = CreateCylinder(pScene, pName, radius, height, segments);
 		mesh = arr[0];
 		//write vertex/edge data
-		out << 2*segments << endl;
-		for(int i = 0; i < 2; i++) {
-			for(int j = 0; j < segments; j++) {
-				printVector(out, mesh->GetControlPointAt(i*(segments+1) + j));
-			}
+		out << 2*segments+2 << endl;
+		for(int i = 0; i < 2*segments+2; i++) {
+			printVector(out, mesh->GetControlPointAt(i));
 		}
 		out << 3*segments << endl;
 		for(int i = 0; i < segments; i++) {

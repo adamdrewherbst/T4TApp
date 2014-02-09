@@ -138,6 +138,8 @@ set(GAME_SRC
 	src/VehicleProject.cpp
 	src/ProjectComponent.cpp
 	src/Lever.cpp
+	src/Mode.cpp
+	src/SliceMode.cpp
 )
 
 add_executable(${GAME_NAME}

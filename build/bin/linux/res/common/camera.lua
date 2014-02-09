@@ -194,6 +194,12 @@ function camera_touchEvent(evt, x, y, contactIndex)
     end
 end
 
+function camera_rotateTo(yaw, pitch)
+	_pitch = pitch
+	_yaw = yaw
+	camera_setPosition()
+end
+
 --call when _pitch, _yaw, or _radius has been changed, to set the camera position accordingly
 function camera_setPosition()
 	-- Create lookAt matrix

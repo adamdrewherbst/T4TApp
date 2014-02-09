@@ -46,12 +46,4 @@ void addFace(short *indices, int ind, short v1, short v2, short v3);
 
 void setEdges(Node* node, const char* type, ...);
 
-//any data associated with a node - currently just the list of vertex index pairs forming the edges
-typedef struct {
-	unsigned short numVertices, numEdges;
-	float *vertices;
-	unsigned short *edges;
-	int typeCount;
-} nodeData;
-
 #endif

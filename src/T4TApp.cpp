@@ -82,6 +82,9 @@ void T4TApp::initialize()
 	
 	//root menu node for finding controls by ID
 	_mainMenu = Form::create("mainMenu", _formStyle, Layout::LAYOUT_ABSOLUTE);
+	_mainMenu->setWidth(getWidth());
+	_mainMenu->setHeight(getHeight());
+	_mainMenu->setVisible(false);
 	//main menu on left side [Note: this calls addRef() on formStyle's Theme, which we created above]
     _sideMenu = (Form*) addMenu(NULL, "sideMenu");
     //submenu for adding simple machines
@@ -92,7 +95,7 @@ void T4TApp::initialize()
     _modeContainer = addMenu(_sideMenu, "modeContainer");
     
     //popup menu to allow user to select a component
-    _componentMenu = Form::create("componentMenu", _formStyle, Layout::LAYOUT_VERTICAL);
+    _componentMenu = Form::create("componentMenu", _formStyle, Layout::LAYOUT_FLOW);
     _componentMenu->setPosition(_sideMenu->getX() + _sideMenu->getWidth() + 25.0f, 25.0f);
     _componentMenu->setWidth(getWidth() - _componentMenu->getX() - 25.0f);
     _componentMenu->setHeight(getHeight() - 50.0f);
@@ -164,8 +167,18 @@ void T4TApp::initialize()
 		}
 		options->setHeight(250.0f);
 		options->setVisible(true);
+		_sideMenu->removeControl(options);
 		_modeOptions[_modeNames[i]] = options;
 	}
+	
+	_modes.push_back(new SliceMode(this));
+	_modePanel = addPanel(_sideMenu, "container_modes");
+	for(size_t i = 0; i < _modes.size(); i++) {
+		const char *id = _modes[i]->getId();
+		Button *modeButton = addControl <Button> (_modePanel, id, _buttonStyle, id+5);
+	}
+	_modePanel->setHeight(100.0f);
+	_modePanel->setVisible(true);
 
 	_vehicleButton = addControl <Button> (_sideMenu, "buildVehicle", _buttonStyle, "Build Vehicle");
 	
@@ -177,7 +190,6 @@ void T4TApp::initialize()
 	_drawDebug = true;	
 	setMode("Rotate");
     _sideMenu->setState(Control::FOCUS);
-	//buildVehicle();
 	
 	_running = 0;
 }
@@ -280,8 +292,8 @@ Form* T4TApp::addPanel(Form *parent, const char *name)
 	container->setWidth(175);
 	container->setScroll(Container::SCROLL_NONE);
     container->setConsumeInputEvents(true);
-    parent->addControl(container);
     _mainMenu->addControl(container);
+    parent->addControl(container);
     return container;
 }
 
@@ -294,7 +306,7 @@ void T4TApp::finalize()
 int updateCount = 0;
 void T4TApp::update(float elapsedTime)
 {
-//    _mainMenu->update(elapsedTime);
+    _mainMenu->update(elapsedTime);
 	if(_carVehicle) _carVehicle->update(elapsedTime, _steering, _braking, _driving);
 /*	cout << "updating car [" << elapsedTime << "]: " << _driving << ", " << _braking << ", " << _steering << endl;
 	cout << "\tspeed now " << _carVehicle->getSpeedKph();
@@ -355,6 +367,9 @@ void T4TApp::render(float elapsedTime)
     	if(_submenus[i]->isVisible()) _submenus[i]->draw();
     if(_componentMenu->isVisible()) _componentMenu->draw();
 	if(_vehicleProject->container->isVisible()) _vehicleProject->container->draw();
+	for(size_t i = 0; i < _modes.size(); i++) {
+		if(_modes[i]->_active) _modes[i]->_container->draw();
+	}
 
     if(_lastBody) {
     	int activation = _lastBody->getActivation();
@@ -527,19 +542,16 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 		        //the vertex data is in a GL buffer, so to get it, we have to transform the model vertices
 		        nodeData *data = (nodeData*)node->getUserPointer();
 		        if(data != NULL) {
+			        updateNodeData(node);
 		        	cout << "finding closest edge" << endl;
-				    Matrix world = node->getWorldMatrix();
-				    Vector3 *vertices = new Vector3[data->numVertices];
-				    for(int i = 0; i < data->numVertices; i++)
-				    	world.transformVector(data->vertices[i*3], data->vertices[i*3+1], data->vertices[i*3+2], 1, &vertices[i]);
 				    //get the closest edge to the contact point by using the vertex coords obtained above
 				    Vector3 v, w, projection;
 				    float t, distance, minDistance = 999999;
 				    int minEdge;
-				    for(int i = 0; i < data->numEdges; i++) {
+				    for(int i = 0; i < data->edges.size(); i++) {
 				    	//cout << "testing " << i << ": " << data->edges[i*2] << "-" << data->edges[i*2+1] << endl;
-				    	v = vertices[data->edges[i*2]];
-				    	w = vertices[data->edges[i*2+1]];
+				    	v = data->worldVertices[data->edges[i][0]];
+				    	w = data->worldVertices[data->edges[i][1]];
 					    const float l2 = (v - w).lengthSquared();
 						const float t = (p - v).dot(w - v) / l2;
 						if (t < 0.0) distance = p.distance(v);       // Beyond the 'v' end of the segment
@@ -553,7 +565,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 							minEdge = i;
 						}
 				    }
-				    cout << "closest edge at distance " << minDistance << ": (<" << vertices[data->edges[minEdge*2]].x << "," << vertices[data->edges[minEdge*2]].y << "," << vertices[data->edges[minEdge*2]].z << ">, <" << vertices[data->edges[minEdge*2+1]].x << "," << vertices[data->edges[minEdge*2+1]].y << "," << vertices[data->edges[minEdge*2+1]].z << ">)" << endl;
+				    cout << "closest edge at distance " << minDistance << ": (" << printVector(data->worldVertices[data->edges[minEdge][0]]) << ", " << printVector(data->worldVertices[data->edges[minEdge][1]]) << ")" << endl;
 				    
 				    if(_constraintNodes[0] == NULL || _constraintNodes[0] == node) { //if this is the first edge, highlight it
 				    	_constraintNodes[0] = node;
@@ -578,7 +590,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 				    	for(int i = 0; i < 2; i++) {
 				    		for(int j = 0; j < 2; j++) {
 				    			int v = dataArr[i]->edges[_constraintEdges[i]*2 + j];
-				    			localEdge[j] = Vector3(dataArr[i]->vertices[v*3], dataArr[i]->vertices[v*3+1], dataArr[i]->vertices[v*3+2]);
+				    			localEdge[j] = dataArr[i]->vertices[v];
 				    		}
 				    		cout << "edge on " << _constraintNodes[i]->getId() << ": (" << printVector(localEdge[0]) << ", " << printVector(localEdge[1]) << ")" << endl;
 				    		localTrans[i] = (localEdge[0] + localEdge[1]) / 2.0f;
@@ -596,8 +608,8 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 				    	//transform the edges' vertices to world space
 				    	for(int i = 0; i < 2; i++) {
 							int v = dataArr[0]->edges[_constraintEdges[0]*2+i];
-							_constraintNodes[0]->getWorldMatrix().transformVector(dataArr[0]->vertices[v*3], dataArr[0]->vertices[v*3+1], dataArr[0]->vertices[v*3+2], 1, &vert[0][i]);
-				    		vert[1][i] = vertices[data->edges[minEdge*2 + i]];
+							_constraintNodes[0]->getWorldMatrix().transformVector(dataArr[0]->vertices[v], &vert[0][i]);
+				    		vert[1][i] = data->worldVertices[data->edges[minEdge][i]];
 				    	}
 				    	for(int i = 0; i < 2; i++) edgeDir[i] = vert[i][1] - vert[i][0];
 
@@ -618,7 +630,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 				    	//recalculate the edge coords
 				    	for(int i = 0; i < 2; i++) {
 				    		int v = dataArr[1]->edges[_constraintEdges[1]*2+i];
-				    		_constraintNodes[1]->getWorldMatrix().transformVector(dataArr[1]->vertices[v*3], dataArr[1]->vertices[v*3+1], dataArr[1]->vertices[v*3+2], 1, &vert[1][i]);
+				    		_constraintNodes[1]->getWorldMatrix().transformVector(dataArr[1]->vertices[v], &vert[1][i]);
 				    	}
 				    	for(int i = 0; i < 2; i++) {
 				    		edgeMid[i] = (vert[i][0] + vert[i][1]) / 2.0f;
@@ -642,7 +654,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 				    	//recalculate the edge coords
 				    	for(int i = 0; i < 2; i++) {
 				    		int v = dataArr[1]->edges[_constraintEdges[1]*2+i];
-				    		_constraintNodes[1]->getWorldMatrix().transformVector(dataArr[1]->vertices[v*3], dataArr[1]->vertices[v*3+1], dataArr[1]->vertices[v*3+2], 1, &vert[1][i]);
+				    		_constraintNodes[1]->getWorldMatrix().transformVector(dataArr[1]->vertices[v], &vert[1][i]);
 				    	}
 				    	edgeMid[1] = (vert[1][0] + vert[1][1]) / 2.0f;
 
@@ -718,6 +730,16 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
     if(rotate) getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", evt, x, y, contactIndex);
 }
 
+Node* T4TApp::getMouseNode(int x, int y, Vector3 *touch) {
+	Camera* camera = _scene->getActiveCamera();
+	Ray ray;
+	camera->pickRay(getViewport(), x, y, &ray);
+	PhysicsController::HitResult hitResult;
+	if(!getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) return NULL;
+	if(touch) touch->set(hitResult.point);
+	return hitResult.object->getNode();
+}
+
 //see if the current touch location intersects the bottom face of the given object
 bool T4TApp::checkTouchModel(Node* node)
 {
@@ -752,8 +774,7 @@ bool T4TApp::checkTouchModel(Node* node)
 bool T4TApp::checkTouchEdge(Node* node)
 {
 	nodeData* data = (nodeData*)node->getUserPointer();
-	unsigned short* edges = data->edges;
-	for(int i = 0; i < data->numEdges; i++) {
+	for(int i = 0; i < data->edges.size(); i++) {
 		//get starting point and direction vector of camera sight, and edge
 	}
 	return false;
@@ -794,6 +815,14 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 		for(size_t i = 0; i < _machines.size(); i++) {
 			if(strcmp(_machines[i]->getId(), controlID) == 0) {
 				_machines[i]->setActive(true);
+			}
+		}
+	}
+	else if(_modePanel->getControl(controlID) == control) {
+		for(size_t i = 0; i < _modes.size(); i++) {
+			if(strcmp(_modes[i]->getId(), controlID) == 0) {
+				cout << "setting " << _modes[i]->getId() << " active" << endl;
+				_modes[i]->setActive(true);
 			}
 		}
 	}
@@ -885,25 +914,37 @@ void T4TApp::loadNodeData(Node *node, const char *type)
     str = stream->readLine(line, 2048);
     int nv = atoi(str), v = 0;
     cout << nv << " vertices" << endl;
-    data->numVertices = nv;
-    data->vertices = (float*) malloc(3 * nv * sizeof(float));
+    float x, y, z;
     for(int i = 0; i < nv; i++) {
     	str = stream->readLine(line, 2048);
     	in.str(str);
-    	in >> data->vertices[v++] >> data->vertices[v++] >> data->vertices[v++];
+    	in >> x >> y >> z;
+    	data->vertices.push_back(Vector3(x, y, z));
     }
+    data->worldVertices.resize(nv);
     str = stream->readLine(line, 2048);
     int ne = atoi(str), e = 0;
     cout << ne << " edges" << endl;
-    data->numEdges = ne;
-    data->edges = (unsigned short*) malloc(2* ne * sizeof(unsigned short));
+    unsigned short v1, v2;
+    std::vector<unsigned short> edge(2);
     for(int i = 0; i < ne; i++) {
     	str = stream->readLine(line, 2048);
     	in.str(str);
-    	in >> data->edges[e++] >> data->edges[e++];
+    	in >> v1 >> v2;
+    	edge[0] = v1; edge[1] = v2;
+    	data->edges.push_back(edge);
     }
 	node->setUserPointer(data);
     stream->close();//*/
+}
+
+void T4TApp::updateNodeData(Node *node) {
+	nodeData *data = (nodeData*)node->getUserPointer();
+	if(data == NULL) return;
+	Matrix world = node->getWorldMatrix();
+	for(int i = 0; i < data->vertices.size(); i++) {
+		world.transformVector(data->vertices[i], &data->worldVertices[i]);
+	}
 }
 
 //place the selected object at the given xz-coords and set its y-coord so it is on top of any objects it would otherwise intersect

@@ -59,4 +59,11 @@ Test:
 		-freefall
 
 Sample projects:
-	
+
+
+
+Logs:
+-flow layout not registering clicks for item catalog
+	Control::touchEvent/mouseEvent/gamepadEvent, Button::touchEvent/gamepadEvent/keyEvent
+	+-Control::notifyListeners
+	 +-Control::controlEvent
