@@ -11,12 +11,11 @@
 #include "MeshBatch.h"
 #include "HeightField.h"
 #include "ScriptTarget.h"
-//#include "../../projects/t4tapp/src/T4TApp.h"
+#include "Node.h"
 
 namespace gameplay
 {
 
-//class T4TApp;
 class ScriptListener;
 
 /**
@@ -437,7 +436,7 @@ private:
     PhysicsCollisionShape* createHeightfield(Node* node, HeightField* heightfield, Vector3* centerOfMassOffset);
 
     // Creates a triangle mesh collision shape.
-    PhysicsCollisionShape* createMesh(Mesh* mesh, const Vector3& scale);
+    PhysicsCollisionShape* createMesh(Mesh* mesh, const Vector3& scale, Node::nodeData *data = NULL);
 
     // Destroys a collision shape created through PhysicsController
     void destroyShape(PhysicsCollisionShape* shape);

@@ -309,7 +309,7 @@ Bundle::Reference* Bundle::seekTo(const char* id, unsigned int type)
     Reference* ref = find(id);
     if (ref == NULL)
     {
-        GP_ERROR("No object with name '%s' in bundle '%s'.", id, _path.c_str());
+        //GP_ERROR("No object with name '%s' in bundle '%s'.", id, _path.c_str());
         return NULL;
     }
 
@@ -1597,7 +1597,7 @@ Bundle::MeshData* Bundle::readMeshData(const char* url)
     Reference* ref = bundle->seekTo(id.c_str(), BUNDLE_TYPE_MESH);
     if (ref == NULL)
     {
-        GP_ERROR("Failed to load ref from bundle '%s' for mesh with id '%s'.", file.c_str(), id.c_str());
+        //GP_ERROR("Failed to load ref from bundle '%s' for mesh with id '%s'.", file.c_str(), id.c_str());
         return NULL;
     }
 

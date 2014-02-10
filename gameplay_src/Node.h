@@ -11,6 +11,9 @@
 #include "PhysicsCollisionObject.h"
 #include "BoundingBox.h"
 #include "AIAgent.h"
+#include "FileSystem.h"
+#include <cstdarg>
+#include <vector>
 
 namespace gameplay
 {
@@ -649,6 +652,24 @@ public:
      * @script{create}
      */
     Node* clone() const;
+
+   	//any data associated with a node
+	struct nodeData {
+		std::vector<Vector3> vertices, worldVertices; //model space and world space coords
+		std::vector<std::vector<unsigned short> > edges; //vertex index pairs
+		std::vector<std::vector<unsigned short> > faces; //vertex indices of polygons (not triangles)
+		std::vector<std::vector<std::vector<unsigned short> > > triangles; //triangulation of each polygon
+		const char *type;
+		int typeCount; //number of clones of this model currently in the simulation
+	};
+	
+	static nodeData* readData(char *filename);
+	static void writeData(nodeData *data, char *filename);
+	void updateData();
+	void reloadFromData(char *filename);
+	
+	static float gv(Vector3 *v, int dim);
+    char* concat(int n, ...);
 
 protected:
 

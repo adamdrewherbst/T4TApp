@@ -113,7 +113,7 @@ void T4TApp::initialize()
     while(modelNode) {
     	if(strstr(modelNode->getId(), "_part") == NULL) {
 			cout << "adding button for " << modelNode->getId() << endl;
-			loadNodeData(modelNode, modelNode->getId());
+			modelNode->loadData(concat(3, "res/common/", modelNode->getId(), ".node"));
 			Button* itemButton = addButton <Button> (_itemContainer, modelNode->getId());
 			ImageControl* itemImage = addButton <ImageControl> (_componentMenu, concat(2, "comp_", modelNode->getId()));
 			itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
@@ -542,7 +542,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 		        //the vertex data is in a GL buffer, so to get it, we have to transform the model vertices
 		        nodeData *data = (nodeData*)node->getUserPointer();
 		        if(data != NULL) {
-			        updateNodeData(node);
+			        node->updateData();
 		        	cout << "finding closest edge" << endl;
 				    //get the closest edge to the contact point by using the vertex coords obtained above
 				    Vector3 v, w, projection;
@@ -894,58 +894,6 @@ Node* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 	return node;
 }
 
-void T4TApp::loadNodeData(Node *node, const char *type)
-{
-	if(strstr(type, "_part") != NULL) return;
-	char *filename = concat(3, "res/common/", type, ".node");
-	cout << "reading " << node->getId() << " from file " << filename << endl;
-	std::auto_ptr<Stream> stream(FileSystem::open(filename));
-	if (stream.get() == NULL)
-	{
-		GP_ERROR("Failed to open file '%s'.", filename);
-		return;
-	}
-	
-	nodeData* data = new nodeData();
-	data->typeCount = 0;
-
-	char *str, line[2048];
-	istringstream in;
-    str = stream->readLine(line, 2048);
-    int nv = atoi(str), v = 0;
-    cout << nv << " vertices" << endl;
-    float x, y, z;
-    for(int i = 0; i < nv; i++) {
-    	str = stream->readLine(line, 2048);
-    	in.str(str);
-    	in >> x >> y >> z;
-    	data->vertices.push_back(Vector3(x, y, z));
-    }
-    data->worldVertices.resize(nv);
-    str = stream->readLine(line, 2048);
-    int ne = atoi(str), e = 0;
-    cout << ne << " edges" << endl;
-    unsigned short v1, v2;
-    std::vector<unsigned short> edge(2);
-    for(int i = 0; i < ne; i++) {
-    	str = stream->readLine(line, 2048);
-    	in.str(str);
-    	in >> v1 >> v2;
-    	edge[0] = v1; edge[1] = v2;
-    	data->edges.push_back(edge);
-    }
-	node->setUserPointer(data);
-    stream->close();//*/
-}
-
-void T4TApp::updateNodeData(Node *node) {
-	nodeData *data = (nodeData*)node->getUserPointer();
-	if(data == NULL) return;
-	Matrix world = node->getWorldMatrix();
-	for(int i = 0; i < data->vertices.size(); i++) {
-		world.transformVector(data->vertices[i], &data->worldVertices[i]);
-	}
-}
 
 //place the selected object at the given xz-coords and set its y-coord so it is on top of any objects it would otherwise intersect
 void T4TApp::placeSelected(float x, float z)
@@ -1046,23 +994,6 @@ void T4TApp::buildVehicle() {
 
 Node* T4TApp::promptComponent() {
 	_componentMenu->setVisible(true);
-}
-
-char* T4TApp::concat(int n, ...)
-{
-	const char** strings = new const char*[n];
-	int length = 0;
-	va_list arguments;
-	va_start(arguments, n);
-	for(int i = 0; i < n; i++) {
-		strings[i] = (const char*) va_arg(arguments, const char*);
-		length += strlen(strings[i]);
-	}
-	char* dest = new char[length+1];
-	dest[0] = '\0';
-	for(int i = 0; i < n; i++) strcat(dest, strings[i]);
-	dest[length] = '\0';
-	return dest;
 }
 
 void T4TApp::collisionEvent(PhysicsCollisionObject::CollisionListener::EventType type, 

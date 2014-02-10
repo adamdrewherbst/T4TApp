@@ -10,6 +10,8 @@ using namespace gameplay;
 
 using std::cout;
 using std::endl;
+using Node::nodeData;
+using Node::concat;
 
 /**
  * Main game class.
@@ -29,6 +31,8 @@ public:
     void changeNodeModel(Node *node, const char* type);
     bool printNode(Node *node);
     bool prepareNode(Node *node);
+    void writeNode(nodeData *data, char *filename);
+    void loadNode(Node *node, char *filename);
     //misc functions
     const std::string printVector(Vector3& v);
     const std::string printVector2(Vector2& v);
@@ -95,9 +99,8 @@ public:
     Node* getMouseNode(int x, int y, Vector3 *touch = NULL);
     
     //model factory functions
-    void loadNodeData(Node *node, const char *type);
+    void loadNodeData(Node *node, const char *type, bool isFilename = false);
     void updateNodeData(Node *node);
-    char* concat(int n, ...);
     
     //UI factory functions
     Form* addMenu(Form *parent, const char *name);
@@ -148,15 +151,6 @@ public:
     Theme *_theme;
     Theme::Style *_formStyle, *_buttonStyle, *_titleStyle, *_hiddenStyle;
     
-	//any data associated with a node
-	typedef struct {
-		std::vector<Vector3> vertices, worldVertices; //model space and world space coords
-		std::vector<std::vector<unsigned short>> edges; //vertex index pairs
-		std::vector<std::vector<unsigned short>> faces; //vertex indices of polygons (not triangles)
-		std::vector<std::vector<std::vector<unsigned short>>> triangles; //triangulation of each polygon
-		int typeCount; //number of clones of this model currently in the simulation
-	} nodeData;
-
     //use Control::Listener instances and enumerated lists of required components 
     //for progressing through standard project scripts
     class VehicleProject : public Button, Control::Listener {

@@ -1272,6 +1272,224 @@ void Node::setAgent(AIAgent* agent)
     }
 }
 
+float Node::gv(Vector3 *v, int dim) {
+	switch(dim) {
+		case 0: return v.x;
+		case 1: return v.y;
+		case 2: return v.z;
+	}
+	return 0;
+}
+
+Node::nodeData* Node::readData(char *filename)
+{
+	cout << "reading " << node->getId() << " from file " << filename << endl;
+	std::auto_ptr<Stream> stream(FileSystem::open(filename));
+	if (stream.get() == NULL)
+	{
+		GP_ERROR("Failed to open file '%s'.", filename);
+		return;
+	}
+	
+	nodeData* data = new nodeData();
+	data->type = type;
+	data->typeCount = 0;
+
+	char *str, line[2048];
+	istringstream in;
+    str = stream->readLine(line, 2048);
+    int nv = atoi(str), v = 0;
+    cout << nv << " vertices" << endl;
+    float x, y, z;
+    for(int i = 0; i < nv; i++) {
+    	str = stream->readLine(line, 2048);
+    	in.str(str);
+    	in >> x >> y >> z;
+    	data->vertices.push_back(Vector3(x, y, z));
+    }
+    data->worldVertices.resize(nv);
+    str = stream->readLine(line, 2048);
+    int ne = atoi(str), e = 0;
+    cout << ne << " edges" << endl;
+    unsigned short v1, v2, v3;
+    std::vector<unsigned short> edge(2);
+    for(int i = 0; i < ne; i++) {
+    	str = stream->readLine(line, 2048);
+    	in.str(str);
+    	in >> v1 >> v2;
+    	edge[0] = v1; edge[1] = v2;
+    	data->edges.push_back(edge);
+    }
+    str = stream->readLine(line, 2048);
+    int nf = atoi(str), faceSize, numTriangles;
+    std::vector<unsigned short> triangle(3), face;
+    data->triangles.resize(nf);
+    for(int i = 0; i < nf; i++) {
+    	str = stream->readLine(line, 2048);
+    	faceSize = atoi(str);
+    	face.clear();
+    	str = stream->readLine(line, 2048);
+    	in.str(str);
+    	for(int j = 0; j < faceSize; j++) {
+    		in >> v1;
+    		face.push_back(v1);
+    	}
+    	data->faces.push_back(face);
+    	str = stream->readLine(line, 2048);
+    	numTriangles = atoi(str);
+    	str = stream->readLine(line, 2048);
+    	in.str(str);
+    	for(int j = 0; j < numTriangles; j++) {
+			str = stream->readLine(line, 2048);
+			in.str(str);
+			for(int k = 0; k < 3; k++) {
+	    		in >> v1;
+	    		triangle[k] = v1;
+	    	}
+	    	data->triangles[i].push_back(triangle);
+    	}
+    }
+    str = stream->readLine(line, 2048);
+    int nh = atoi(str), hullSize;
+    data->hulls.resize(nh);
+    for(int i = 0; i < nh; i++) {
+	    str = stream->readLine(line, 2048);
+	    hullSize = atoi(str);
+	    str = stream->readLine(line, 2048);
+	    in.str(str);
+    	for(int j = 0; j < hullSize; j++) {
+    		in >> v1;
+    		data->hulls[i].push_back(v1);
+    	}
+    }
+    stream->close();
+    return data;
+}
+
+void Node::writeData(Node::nodeData *data, char *filename) {
+	std::auto_ptr<Stream> stream(FileSystem::open(filename, FileSystem::WRITE));
+	if (stream.get() == NULL)
+	{
+		GP_ERROR("Failed to open file '%s'.", filename);
+		return;
+	}
+	std::string line;
+	std::ostringstream os;
+	os << data->vertices.size() << endl;
+	for(int i = 0; i < data->vertices.size(); i++) {
+		for(int j = 0; j < 3; j++) os << gv(data->vertices[i],j) << "\t";
+		os << endl;
+	}
+	line = os.str();
+	stream.write(line.c_str(), sizeof(char), line.length());
+	os.str("");
+	os << data->edges.size() << endl;
+	for(int i = 0; i < data->edges.size(); i++) {
+		for(int j = 0; j < 2; j++) os << data->edges[i][j] << "\t";
+		os << endl;
+	}
+	line = os.str();
+	stream.write(line.c_str(), sizeof(char), line.length());
+	os.str("");
+	os << data->faces.size() << endl;
+	for(int i = 0; i < data->faces.size(); i++) {
+		os << data->faces[i].size() << endl;
+		for(int j = 0; j < data->faces[i].size(); j++) os << data->faces[i][j] << "\t";
+		os << endl << data->triangles[i].size() << endl;
+		for(int j = 0; j < data->triangles[i].size(); j++) {
+			for(int k = 0; k < 3; k++) os << data->triangles[i][j][k] << "\t";
+			os << endl;
+		}
+	}
+	line = os.str();
+	stream.write(line.c_str(), sizeof(char), line.length());
+	os.str("");
+	os << data->hulls.size() << endl;
+	for(int i = 0; i < data->hulls.size(); i++) {
+		os << data->hulls[i].size() << endl;
+		for(int j = 0; j < data->hulls[i].size(); j++) os << data->hulls[i][j] << "\t";
+		os << endl;
+	}
+	line = os.str();
+	stream.write(line.c_str(), sizeof(char), line.length());
+	os.str("");
+	stream.close();
+}
+
+void Node::loadData(char *filename) {
+	setUserPointer(readData(filename));
+}
+
+void Node::updateData() {
+	nodeData *data = (nodeData*)getUserPointer();
+	if(data == NULL) return;
+	Matrix world = getWorldMatrix();
+	for(int i = 0; i < data->vertices.size(); i++) {
+		world.transformVector(data->vertices[i], &data->worldVertices[i]);
+	}
+}
+
+void Node::reloadFromData(char *filename) {
+	loadData(filename);
+	nodeData *data = (nodeData*)getUserPointer();
+	//update the mesh to contain the new coordinates
+	float *vertices;
+	unsigned short *triangles;
+	int numVertices, numTriangles, v = 0, t = 0, f = 0;
+	for(int i = 0; i < data->faces.size(); i++) {
+		numVertices += data->faces[i].size();
+		numTriangles += data->triangles[i].size();
+	}
+	vertices = new float[numVertices*6];
+	triangles = new unsigned short[numTriangles*3];
+	std::vector<Vector3> v(3), normal(data->faces.size());
+	for(int i = 0; i < data->faces.size(); i++) {
+		for(int j = 0; j < 3; j++) v[j].set(data->vertices[data->faces[i][j]]);
+		v[0].set(v[1]-v[0]);
+		v[1].set(v[2]-v[1]);
+		normal[i].set(v[0].cross(v[1]));
+		for(int j = 0; j < data->faces[i].size(); j++) {
+			for(int k = 0; k < 3; k++) vertices[v++] = data->vertices[data->faces[i][j]][k];
+			for(int k = 0; k < 3; k++) vertices[v++] = normal[i][k];
+		}
+		for(int j = 0; j < data->triangles[i].size(); j++) {
+			for(int k = 0; k < 3; k++) triangles[t++] = f + data->triangles[i][j][k];
+		}
+		f += data->faces[i].size();
+	}
+	VertexFormat::Element elements[] =
+	{
+		VertexFormat::Element(VertexFormat::POSITION, 3),
+		VertexFormat::Element(VertexFormat::NORMAL, 3)
+	};
+	Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), numVertices, false);
+	mesh->setVertexData(&vertices[0], 0, numVertices);
+	MeshPart *part = mesh->addPart(Mesh::TRIANGLES, Mesh::INDEX16, numTriangles*3);
+	part->setIndexData(indices, 0, numTriangles*3);
+	//load the compound convex hull collision object
+	setMesh(mesh);
+	PhysicsRigidBody::Parameters params;
+	gridParams.mass = 10.0f;
+	setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::mesh(mesh), &params);
+}
+
+char* Node::concat(int n, ...)
+{
+	const char** strings = new const char*[n];
+	int length = 0;
+	va_list arguments;
+	va_start(arguments, n);
+	for(int i = 0; i < n; i++) {
+		strings[i] = (const char*) va_arg(arguments, const char*);
+		length += strlen(strings[i]);
+	}
+	char* dest = new char[length+1];
+	dest[0] = '\0';
+	for(int i = 0; i < n; i++) strcat(dest, strings[i]);
+	dest[length] = '\0';
+	return dest;
+}
+
 NodeCloneContext::NodeCloneContext()
 {
 }
