@@ -62,44 +62,50 @@ void T4TApp::SliceMode::controlEvent(Control *control, Control::Listener::EventT
 	else if(strcmp(controlID, "translate") == 0) _subMode = 1;
 	else if(strcmp(controlID, "doSlice") == 0) {
 		sliceNode();
+		setActive(false);
 	}
 }
 
 void T4TApp::SliceMode::sliceNode() {
 
-	app->updateNodeData(_node); //make sure the world coords are up to date
-	T4TApp::nodeData *data = (T4TApp::nodeData*)_node->getUserPointer();
+	_node->updateData(); //make sure the world coords are up to date
+	Node::nodeData *data = (Node::nodeData*)_node->getUserPointer();
 	unsigned short e1, e2, numKeep = 0;
 	Vector3 v1, v2, planeOrigin = _slicePlane.getDistance() * _slicePlane.getNormal();
 
 	//put the vertices that will be kept into a new nodeData struct
-	nodeData newData;
-	unsigned short keep = new unsigned short[data->vertices.size()], //index in the new vertex list or -1 if discarding
-		replace = new unsigned short[data->vertices.size()]; //index of the new vertex that is replacing this one
+	Node::nodeData newData;
+	newData.type = data->type;
+	short *keep = new short[data->vertices.size()], //index in the new vertex list or -1 if discarding
+		*replace = new short[data->vertices.size()]; //index of the new vertex that is replacing this one
 	for(int i = 0; i < data->vertices.size(); i++) {
 		keep[i] = -1;
 		replace[i] = -1;
 		float dot = (data->worldVertices[i] - planeOrigin).dot(_slicePlane.getNormal());
 		if(dot > 0) continue;
 		keep[i] = numKeep++;
-		newData.vertices.push_back(Vector3(v1));
+		newData.vertices.push_back(data->vertices[i]);
 	}
 
 	//get all intersections between edges of this mesh and the slice plane
 	Ray edge;
-	std::map<unsigned short, std::map<unsigned short,unsigned short>> intersections;
+	Vector3 edgeVec, intersect;
+	float distance, dot;
+	std::map<unsigned short, std::map<unsigned short,unsigned short> > intersections;
 	std::vector<unsigned short> newEdge(2);
 	for(int i = 0; i < data->edges.size(); i++) {
 		//see if this edge intersects the slice plane
 		e1 = data->edges[i][0];
 		e2 = data->edges[i][1];
-		edge.set(data->worldVertices[e1], data->worldVertices[e2]);
-		float distance = _slicePlane.intersects(edge);
-		if(distance == Ray::INTERSECTS_NONE) continue;
-		Vector3 intersect = edge.getOrigin() + edge.getDirection()*distance;
-		float dot = (intersect - data->worldVertices[e1]).dot(data->worldVertices[e2] - data->worldVertices[e1]);
-		if(dot < 0 || dot > 1) { //no intersection, so we are either keeping or discarding this edge
-			if(keep[e1] && keep[e2]) newData.edges.push_back(data->edges[i]);
+		edgeVec.set(data->worldVertices[e2] - data->worldVertices[e1]);
+		edge.set(data->worldVertices[e1], edgeVec);
+		distance = edge.intersects(_slicePlane);
+		if(distance != Ray::INTERSECTS_NONE) {
+			intersect.set(edge.getOrigin() + edge.getDirection()*distance);
+			dot = (intersect - data->worldVertices[e1]).dot(edgeVec) / edgeVec.lengthSquared();
+		}
+		if((distance == Ray::INTERSECTS_NONE) || dot < 0 || dot > 1) { //no intersection, so we are either keeping or discarding this edge
+			if(keep[e1] >= 0 && keep[e2] >= 0) newData.edges.push_back(data->edges[i]);
 			continue;
 		}
 		//add the new vertex at the intersection point
@@ -118,9 +124,9 @@ void T4TApp::SliceMode::sliceNode() {
 
 	//modify each polygon according to its intersections
 	std::vector<unsigned short> newFace, newTriangle(3);
-	std::vector<std::vector<unsigned short>> newTriangles, newEdges;
+	std::vector<std::vector<unsigned short> > newTriangles, newEdges;
 	bool faceAltered, keepTriangle;
-	unsigned short usedNew;
+	short usedNew;
 	for(int i = 0; i < data->faces.size(); i++) {
 		newFace.clear();
 		faceAltered = false;
@@ -130,7 +136,7 @@ void T4TApp::SliceMode::sliceNode() {
 			e2 = data->faces[i][(j+1)%data->faces[i].size()];
 			if(keep[e1] >= 0) newFace.push_back(keep[e1]);
 			else faceAltered = true;
-			if(intersections.find(e1) == std::map::end || intersections[e1].find(e2) == std::map::end) continue;
+			if(intersections.find(e1) == intersections.end() || intersections[e1].find(e2) == intersections[e1].end()) continue;
 			newFace.push_back(intersections[e1][e2]);
 			if(usedNew >= 0) { //we have a new edge formed by the 2 new vertices just added to this face
 				//add them in reverse order so the new face on the slice plane has the right orientation
@@ -169,9 +175,10 @@ void T4TApp::SliceMode::sliceNode() {
 	newFace.clear();
 	while(newEdges.size() > 0) {
 		if(newFace.empty()) {
-			newEdge = newEdges.pop_back();
+			newEdge = newEdges.back();
 			newFace.push_back(newEdge[0]);
 			newFace.push_back(newEdge[1]);
+			newEdges.pop_back();
 			continue;
 		}
 		unsigned short lastPoint = newFace[newFace.size()-1];
@@ -181,7 +188,7 @@ void T4TApp::SliceMode::sliceNode() {
 			for(int j = 0; j < 2; j++) {
 				if(newEdges[i][j] == lastPoint) {
 					newEdge = newEdges[i];
-					newEdges.erase(i);
+					newEdges.erase(newEdges.begin()+i);
 					found = true;
 					done = newEdge[(j+1)%2] == newFace[0];
 					newFace.push_back(newEdge[(j+1)%2]);
@@ -209,28 +216,36 @@ void T4TApp::SliceMode::sliceNode() {
 	
 	//update or discard all the old convex hulls
 	std::vector<unsigned short> newHull;
+	short *inHull = new short[newData.vertices.size()];
+	for(int i = 0; i < newData.vertices.size(); i++) inHull[i] = false;
 	for(int i = 0; i < data->hulls.size(); i++) {
 		newHull.clear();
 		for(int j = 0; j < data->hulls[i].size(); j++) {
 			e1 = data->hulls[i][j];
-			if(keep[e1] >= 0) newHull.push_back(keep[e1]);
-			else if(replace[e1] >= 0) newHull.push_back(replace[e1]);
+			usedNew = keep[e1];
+			if(usedNew < 0) usedNew = replace[e1];
+			if(usedNew < 0) continue;
+			newHull.push_back(usedNew);
+			inHull[usedNew] = true;
 		}
 		if(newHull.size() > 0) newData.hulls.push_back(newHull);
 	}
-	//add 1 convex hull for each slice plane polygon
+	//add 1 convex hull for each slice plane polygon if it has any vertices that aren't already in a hull
 	for(int i = newFaceStart; i < newData.faces.size(); i++) {
-		newData.hulls.push_back(newData.faces[i]);
+		bool needHull = false;
+		for(int j = 0; j < newData.faces[i].size() && !needHull; j++) needHull = !inHull[newData.faces[i][j]];
+		if(needHull) newData.hulls.push_back(newData.faces[i]);
 	}
 	
 	//write the new node data to a file with suffix '_slice' and read it back in
 	char filename[100];
+	for(int i = 0; i < 100; i++) filename[i] = '\0';
 	int count = 1;
 	do {
 		sprintf(filename, "res/common/%s_slice%d.node", data->type, count++);
-	}while(FileSystem::fileExists((const char*)filename));
-	Node::writeData(&newData, (const char*)filename);
-	_node->reloadFromData((const char*)filename);
+	}while(FileSystem::fileExists(filename));
+	Node::writeData(&newData, filename);
+	_node->reloadFromData(filename);
 }
 
 

@@ -119,6 +119,8 @@ void T4TApp::initialize()
 			itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
 			itemImage->setWidth(150.0f);
 			itemImage->setHeight(150.0f);
+			Node::nodeData *data = (Node::nodeData*)modelNode->getUserPointer();
+			data->type = modelNode->getId();
 		}
 		modelNode->setTranslation(Vector3(1000.0f,0.0f,0.0f));
 		modelNode = modelNode->getNextSibling();
@@ -540,7 +542,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 		        Vector3 p = hitResult.point;
 		        cout << "hit " << node->getId() << " at " << p.x << "," << p.y << "," << p.z << endl;
 		        //the vertex data is in a GL buffer, so to get it, we have to transform the model vertices
-		        nodeData *data = (nodeData*)node->getUserPointer();
+		        Node::nodeData *data = (Node::nodeData*)node->getUserPointer();
 		        if(data != NULL) {
 			        node->updateData();
 		        	cout << "finding closest edge" << endl;
@@ -575,8 +577,8 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 				    	_constraintEdges[1] = minEdge;
 
 				    	//node/edge data
-				    	nodeData *dataArr[2];
-				    	dataArr[0] = (nodeData*)_constraintNodes[0]->getUserPointer();
+				    	Node::nodeData *dataArr[2];
+				    	dataArr[0] = (Node::nodeData*)_constraintNodes[0]->getUserPointer();
 				    	dataArr[1] = data;
 				    	Vector3 vert[2][2], edgeDir[2], edgeMid[2], bodyCenter[2];
 				    	//for calculations
@@ -589,7 +591,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 				    	Vector3 localTrans[2], localEdge[2], localEdgeDir[2], localZ = Vector3(0.0f, 0.0f, 1.0f);
 				    	for(int i = 0; i < 2; i++) {
 				    		for(int j = 0; j < 2; j++) {
-				    			int v = dataArr[i]->edges[_constraintEdges[i]*2 + j];
+				    			int v = dataArr[i]->edges[_constraintEdges[i]][j];
 				    			localEdge[j] = dataArr[i]->vertices[v];
 				    		}
 				    		cout << "edge on " << _constraintNodes[i]->getId() << ": (" << printVector(localEdge[0]) << ", " << printVector(localEdge[1]) << ")" << endl;
@@ -607,7 +609,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 
 				    	//transform the edges' vertices to world space
 				    	for(int i = 0; i < 2; i++) {
-							int v = dataArr[0]->edges[_constraintEdges[0]*2+i];
+							int v = dataArr[0]->edges[_constraintEdges[0]][i];
 							_constraintNodes[0]->getWorldMatrix().transformVector(dataArr[0]->vertices[v], &vert[0][i]);
 				    		vert[1][i] = data->worldVertices[data->edges[minEdge][i]];
 				    	}
@@ -629,7 +631,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 				    	
 				    	//recalculate the edge coords
 				    	for(int i = 0; i < 2; i++) {
-				    		int v = dataArr[1]->edges[_constraintEdges[1]*2+i];
+				    		int v = dataArr[1]->edges[_constraintEdges[1]][i];
 				    		_constraintNodes[1]->getWorldMatrix().transformVector(dataArr[1]->vertices[v], &vert[1][i]);
 				    	}
 				    	for(int i = 0; i < 2; i++) {
@@ -653,7 +655,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 				    	
 				    	//recalculate the edge coords
 				    	for(int i = 0; i < 2; i++) {
-				    		int v = dataArr[1]->edges[_constraintEdges[1]*2+i];
+				    		int v = dataArr[1]->edges[_constraintEdges[1]][i];
 				    		_constraintNodes[1]->getWorldMatrix().transformVector(dataArr[1]->vertices[v], &vert[1][i]);
 				    	}
 				    	edgeMid[1] = (vert[1][0] + vert[1][1]) / 2.0f;
@@ -773,7 +775,7 @@ bool T4TApp::checkTouchModel(Node* node)
 //find the closest edge on this model to the touch point in 3D space - if it is the closest so far, store edge and distance
 bool T4TApp::checkTouchEdge(Node* node)
 {
-	nodeData* data = (nodeData*)node->getUserPointer();
+	Node::nodeData* data = (Node::nodeData*)node->getUserPointer();
 	for(int i = 0; i < data->edges.size(); i++) {
 		//get starting point and direction vector of camera sight, and edge
 	}
@@ -870,7 +872,7 @@ void T4TApp::changeNodeModel(Node *node, const char* type)
 	node->setModel(model);
 //	node->setScale(modelNode->getScale());
 //	node->setRotation(modelNode->getRotation());
-	nodeData *data = (nodeData*) modelNode->getUserPointer();
+	Node::nodeData *data = (Node::nodeData*) modelNode->getUserPointer();
 	node->setUserPointer(data);
 	clone->release();
 }
@@ -881,7 +883,7 @@ Node* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 	if(modelNode == NULL) return NULL;
 	Node *node = modelNode->clone();
 	node->setTranslation(Vector3(0.0f, node->getModel()->getMesh()->getBoundingBox().max.y/2.0f, 0.0f));
-	nodeData *data = (nodeData*) modelNode->getUserPointer();
+	Node::nodeData *data = (Node::nodeData*) modelNode->getUserPointer();
 	const char count[2] = {(char)(++data->typeCount + 48), '\0'};
 	node->setId(concat(2, modelNode->getId(), count));
 	node->setUserPointer(data);

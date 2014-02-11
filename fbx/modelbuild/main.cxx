@@ -275,6 +275,8 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
     ofstream out(filename, ios::out | ios::trunc);
     int numParts = 2;
 
+	//each mesh creation function, eg. CreateSphere, returns an array:
+	// the entire mesh with its polygonal faces, where each face is followed by its constituent triangles
 	if(strcmp(type, "sphere") == 0) {
 		float radius = (float)va_arg(arguments, double);
 		int segments = va_arg(arguments, int);
@@ -296,6 +298,34 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 				else printEdge(out, start+j, segments*(segments-1)+1);
 			}
 		}
+		//faces/triangles
+		out << segments*segments << endl;
+		for(int i = 0; i < segments; i++) {
+			start = 1+(i-1)*segments;
+			for(int j = 0; j < segments; j++) {
+				if(i > 0 && i < segments-1) {
+					out << 4 << endl;
+					out << start+j << "\t" << start+(j+1)%segments << "\t" << start+segments+(j+1)%segments << "\t" << start+segments+j << endl;
+					out << 2 << endl;
+					out << 0 << "\t" << 1 << "\t" << 2 << endl;
+					out << 0 << "\t" << 2 << "\t" << 3 << endl;
+				} else if(i == 0) {
+					out << 3 << endl;
+					out << 0 << "\t" << start+(j+1)%segments << "\t" << start+j << endl;
+					out << 1 << endl;
+					out << 0 << "\t" << 1 << "\t" << 2 << endl;
+				} else if(i == segments-1) {
+					out << 3 << endl;
+					out << start+j << "\t" << start+(j+1)%segments << "\t" << 1+segments*(segments-1) << endl;
+					out << 1 << endl;
+					out << 0 << "\t" << 1 << "\t" << 2 << endl;
+				}
+			}
+		}
+		//convex hulls
+		out << 1 << endl << segments*(segments-1)+2 << endl;
+		for(int i = 0; i < segments*(segments-1)+2; i++) out << i << "\t";
+		out << endl;
 	}
 	if(strcmp(type, "cylinder") == 0) {
 		float radius = (float)va_arg(arguments, double);
@@ -311,9 +341,31 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		out << 3*segments << endl;
 		for(int i = 0; i < segments; i++) {
 			printEdge(out, i, (i+1)%segments);
-			printEdge(out, segments + i, segments + (i+1)%segments);
-			printEdge(out, i, segments + i);
+			printEdge(out, segments+1 + i, segments+1 + (i+1)%segments);
+			printEdge(out, i, segments+1 + i);
 		}
+		//faces/triangles
+		out << segments+2 << endl;
+		for(int i = 0; i < segments; i++) {
+			out << 4 << endl;
+			out << i << "\t" << (i+1)%segments << "\t" << segments+1 + (i+1)%segments << "\t" << segments+1 + i << endl;
+			out << 2 << endl;
+			out << 0 << "\t" << 1 << "\t" << 2 << endl;
+			out << 0 << "\t" << 2 << "\t" << 3 << endl;
+		}
+		for(int n = 0; n < 2; n++) {
+			out << segments << endl;
+			for(int i = 0; i < segments; i++) out << i+n*(segments+1) << "\t";
+			out << endl;
+			out << segments << endl;
+			for(int i = 0; i < segments; i++) {
+				out << i+n*(segments+1) << "\t" << (i+1)%segments + n*(segments+1) << "\t" << (n+1)*(segments+1)-1 << endl;
+			}
+		}
+		//convex hulls
+		out << 1 << endl << 2*segments+2 << endl;
+		for(int i = 0; i < 2*segments+2; i++) out << i << "\t";
+		out << endl;
 	}
 	else if(strcmp(type, "halfpipe") == 0) {
 		float radius = (float)va_arg(arguments, double);
@@ -340,6 +392,46 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		printEdge(out, segments+2 + segments, segments+2 + segments + 1);
 		printEdge(out, segments, segments+2 + segments);
 		printEdge(out, segments+1, segments+2 + segments+1);
+		//faces/triangles
+		out << 2*segments+2 << endl;
+		for(int n = 0; n < 4; n++) {
+			for(int i = 0; i < segments/2; i++) {
+				out << 4 << endl;
+				switch(n) { //outside, inside, top, bottom
+				case 0: out << 2*i << "\t" << 2*i+2 << "\t" << segments+2+2*i+2 << "\t" << segments+2+2*i << endl; break;
+				case 1: out << 2*i+1 << "\t" << segments+2+2*i+1 << "\t" << segments+2+2*i+3 << "\t" << 2*i+3 << endl; break;
+				case 2: out << segments+2+2*i << "\t" << segments+2+2*i+2 << "\t" << segments+2+2*i+3 << "\t" << segments+2+2*i+1 << endl; break;
+				case 3: out << 2*i << "\t" << 2*i+1 << "\t" << 2*i+3 << "\t" << 2*i+2 << endl; break;
+				}
+				out << 2 << endl;
+				out << 0 << "\t" << 1 << "\t" << 2 << endl;
+				out << 0 << "\t" << 2 << "\t" << 3 << endl;
+			}
+		}
+		for(int i = 0; i < 2; i++) {
+			out << 4 << endl;
+			if(i == 0) out << 0 << "\t" << 1 << "\t" << segments+2+1 << "\t" << segments+2 << endl;
+			else out << segments+1 << "\t" << segments << "\t" << segments+2+segments << "\t" << segments+2+segments+1 << endl;
+			out << 2 << endl;
+			out << 0 << "\t" << 1 << "\t" << 2 << endl;
+			out << 0 << "\t" << 2 << "\t" << 3 << endl;
+		}
+		//convex hulls
+		out << segments+4 << endl;
+		for(int n = 0; n < 2; n++) {
+			for(int i = 0; i < segments/2; i++) {
+				out << 4 << endl;
+				switch(n) { //outside, inside, top, bottom
+				case 0: out << 2*i << "\t" << 2*i+2 << "\t" << segments+2+2*i+2 << "\t" << segments+2+2*i << endl; break;
+				case 1: out << 2*i+1 << "\t" << segments+2+2*i+1 << "\t" << segments+2+2*i+3 << "\t" << 2*i+3 << endl; break;
+				}
+			}
+			out << segments+2 << endl;
+			for(int i = 0; i < segments+2; i++) out << i+n*(segments+2) << "\t";
+			out << endl;
+			out << 4 << endl;
+			out << n*segments << "\t" << n*segments+1 << "\t" << segments+2+n*segments << "\t" << segments+2+n*segments+1 << endl;
+		}
 	}
 	else if(strcmp(type, "box") == 0) {
 		float length = (float)va_arg(arguments, double);
@@ -358,6 +450,23 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 				if(i%(j*2) < j && i+j < 12) printEdge(out, i, i+j);
 			}
 		}
+		//faces/triangles
+		out << 6 << endl;
+		int dir[] = {1,2,4}, d1, d2, d3, start;
+		for(int i = 0; i < 6; i++) {
+			out << 4 << endl;
+			d1 = dir[(i/2 + 1 - i%2) % 3];
+			d2 = dir[(i/2 + 1 - (1-i%2)) % 3];
+			start = (i%2) * dir[(i/2 + 2) % 3];
+			out << start << "\t" << start+d1 << "\t" << start+d1+d2 << "\t" << start+d2 << endl;
+			out << 2 << endl;
+			out << 0 << "\t" << 1 << "\t" << 2 << endl;
+			out << 0 << "\t" << 2 << "\t" << 3 << endl;
+		}
+		//convex hulls
+		out << 1 << endl << 6 << endl;
+		for(int i = 0; i < 6; i++) out << i << "\t";
+		out << endl;
 	}
 
 	out.close();

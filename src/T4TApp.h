@@ -10,8 +10,6 @@ using namespace gameplay;
 
 using std::cout;
 using std::endl;
-using Node::nodeData;
-using Node::concat;
 
 /**
  * Main game class.
@@ -31,8 +29,6 @@ public:
     void changeNodeModel(Node *node, const char* type);
     bool printNode(Node *node);
     bool prepareNode(Node *node);
-    void writeNode(nodeData *data, char *filename);
-    void loadNode(Node *node, char *filename);
     //misc functions
     const std::string printVector(Vector3& v);
     const std::string printVector2(Vector2& v);
@@ -97,10 +93,6 @@ public:
     bool checkTouchModel(Node* node);
     bool checkTouchEdge(Node* node);
     Node* getMouseNode(int x, int y, Vector3 *touch = NULL);
-    
-    //model factory functions
-    void loadNodeData(Node *node, const char *type, bool isFilename = false);
-    void updateNodeData(Node *node);
     
     //UI factory functions
     Form* addMenu(Form *parent, const char *name);
@@ -262,6 +254,7 @@ public:
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
 		void setAxis(int axis);
+		void sliceNode();
 	};
 	
     class TouchPoint
