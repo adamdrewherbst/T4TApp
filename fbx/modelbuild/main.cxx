@@ -105,7 +105,7 @@ int main(int argc, char** argv)
         return 0;
     }//*/
     // Create the vehicle.
-    lResult = CreateVehicle(lSdkManager, lVehicle);
+    /*lResult = CreateVehicle(lSdkManager, lVehicle);
     if(lResult == false)
     {
         FBXSDK_printf("\n\nAn error occurred while creating the vehicle...\n");
@@ -129,7 +129,7 @@ int main(int argc, char** argv)
         DestroySdkObjects(lSdkManager, lResult);
         return 0;
     }
-	lResult = SaveScene(lSdkManager, lVehicle, VEHICLE_FILENAME);
+	/*lResult = SaveScene(lSdkManager, lVehicle, VEHICLE_FILENAME);
     if(lResult == false)
     {
         FBXSDK_printf("\n\nAn error occurred while saving the vehicle...\n");
@@ -311,7 +311,7 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 					out << 0 << "\t" << 2 << "\t" << 3 << endl;
 				} else if(i == 0) {
 					out << 3 << endl;
-					out << 0 << "\t" << start+(j+1)%segments << "\t" << start+j << endl;
+					out << 0 << "\t" << 1+(j+1)%segments << "\t" << 1+j << endl;
 					out << 1 << endl;
 					out << 0 << "\t" << 1 << "\t" << 2 << endl;
 				} else if(i == segments-1) {
@@ -355,11 +355,11 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		}
 		for(int n = 0; n < 2; n++) {
 			out << segments << endl;
-			for(int i = 0; i < segments; i++) out << i+n*(segments+1) << "\t";
+			for(int i = 0; i < segments; i++) out << n*(segments+1) + (n == 0 ? segments-1-i : i) << "\t";
 			out << endl;
 			out << segments << endl;
 			for(int i = 0; i < segments; i++) {
-				out << i+n*(segments+1) << "\t" << (i+1)%segments + n*(segments+1) << "\t" << (n+1)*(segments+1)-1 << endl;
+				out << i << "\t" << (i+1)%segments << "\t" << segments << endl;
 			}
 		}
 		//convex hulls
@@ -410,28 +410,29 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		}
 		for(int i = 0; i < 2; i++) {
 			out << 4 << endl;
-			if(i == 0) out << 0 << "\t" << 1 << "\t" << segments+2+1 << "\t" << segments+2 << endl;
-			else out << segments+1 << "\t" << segments << "\t" << segments+2+segments << "\t" << segments+2+segments+1 << endl;
+			if(i == 0) out << 0 << "\t" << segments+2 << "\t" << segments+2+1 << "\t" << 1 << endl;
+			else out << segments+1 << "\t" << segments+2+segments+1 << "\t" << segments+2+segments << "\t" << segments << endl;
 			out << 2 << endl;
 			out << 0 << "\t" << 1 << "\t" << 2 << endl;
 			out << 0 << "\t" << 2 << "\t" << 3 << endl;
 		}
 		//convex hulls
-		out << segments+4 << endl;
-		for(int n = 0; n < 2; n++) {
+		out << 2*segments+2 << endl;
+		for(int n = 0; n < 4; n++) {
 			for(int i = 0; i < segments/2; i++) {
 				out << 4 << endl;
 				switch(n) { //outside, inside, top, bottom
 				case 0: out << 2*i << "\t" << 2*i+2 << "\t" << segments+2+2*i+2 << "\t" << segments+2+2*i << endl; break;
 				case 1: out << 2*i+1 << "\t" << segments+2+2*i+1 << "\t" << segments+2+2*i+3 << "\t" << 2*i+3 << endl; break;
+				case 2: out << segments+2+2*i << "\t" << segments+2+2*i+2 << "\t" << segments+2+2*i+3 << "\t" << segments+2+2*i+1 << endl; break;
+				case 3: out << 2*i << "\t" << 2*i+1 << "\t" << 2*i+3 << "\t" << 2*i+2 << endl; break;
 				}
 			}
-			out << segments+2 << endl;
-			for(int i = 0; i < segments+2; i++) out << i+n*(segments+2) << "\t";
-			out << endl;
-			out << 4 << endl;
-			out << n*segments << "\t" << n*segments+1 << "\t" << segments+2+n*segments << "\t" << segments+2+n*segments+1 << endl;
 		}
+		out << 4 << endl;
+		out << 0 << "\t" << 1 << "\t" << segments+2+1 << "\t" << segments+2 << endl;
+		out << 4 << endl;
+		out << segments << "\t" << segments+1 << "\t" << segments+2+segments+1 << "\t" << segments+2+segments << endl;
 	}
 	else if(strcmp(type, "box") == 0) {
 		float length = (float)va_arg(arguments, double);
@@ -455,8 +456,8 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		int dir[] = {1,2,4}, d1, d2, d3, start;
 		for(int i = 0; i < 6; i++) {
 			out << 4 << endl;
-			d1 = dir[(i/2 + 1 - i%2) % 3];
-			d2 = dir[(i/2 + 1 - (1-i%2)) % 3];
+			d1 = dir[(i/2 + 1 - (1-i%2)) % 3];
+			d2 = dir[(i/2 + 1 - i%2) % 3];
 			start = (i%2) * dir[(i/2 + 2) % 3];
 			out << start << "\t" << start+d1 << "\t" << start+d1+d2 << "\t" << start+d2 << endl;
 			out << 2 << endl;

@@ -33,10 +33,6 @@ void T4TApp::initialize()
 
     loadScene();
     
-    // populate catalog of items
-    _models = Scene::load("res/common/models.scene");
-    _models->setId("models");
-
 	getPhysicsController()->setGravity(Vector3(0.0f, -10.0f, 0.0f));
 
 	/*Node* carNode = _vehicle->findNode("carbody");
@@ -106,6 +102,15 @@ void T4TApp::initialize()
 
     _theme->release();   // So we can release it once we're done creating forms with it.
     
+	// populate catalog of items
+	_models = Scene::load("res/common/models.scene");
+	_models->setId("models");
+	/*_models = Scene::create("models");
+	_models->addNode("sphere");
+	_models->addNode("cylinder");
+	_models->addNode("halfpipe");
+	_models->addNode("box");//*/
+
 	//populate item submenu
 	_itemButton = addButton <Button> (_sideMenu, "parent_itemContainer", "Add Object >>"); //dropdown menu for object catalog
 
@@ -114,6 +119,7 @@ void T4TApp::initialize()
     	if(strstr(modelNode->getId(), "_part") == NULL) {
 			cout << "adding button for " << modelNode->getId() << endl;
 			modelNode->loadData(concat(3, "res/common/", modelNode->getId(), ".node"));
+			//modelNode->reloadFromData(concat(3, "res/common/", modelNode->getId(), ".node"), false);
 			Button* itemButton = addButton <Button> (_itemContainer, modelNode->getId());
 			ImageControl* itemImage = addButton <ImageControl> (_componentMenu, concat(2, "comp_", modelNode->getId()));
 			itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
@@ -887,15 +893,19 @@ Node* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 	const char count[2] = {(char)(++data->typeCount + 48), '\0'};
 	node->setId(concat(2, modelNode->getId(), count));
 	node->setUserPointer(data);
+
+	/*PhysicsRigidBody::Parameters params;
+	params.mass = isStatic ? 0.0f : 10.0f;
+	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::mesh(node->getModel()->getMesh()), &params);
+//*/
 	if(isStatic) node->setCollisionObject(concat(2, "res/common/models.physics#static", modelNode->getId()));
 	else node->setCollisionObject(concat(2, "res/common/models.physics#", modelNode->getId()));
 	PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
 	body->addCollisionListener(this);
 	body->_body->setSleepingThresholds(0.1f, 0.1f);
-	body->setActivation(ACTIVE_TAG);
+	body->setActivation(ACTIVE_TAG);//*/
 	return node;
 }
-
 
 //place the selected object at the given xz-coords and set its y-coord so it is on top of any objects it would otherwise intersect
 void T4TApp::placeSelected(float x, float z)
@@ -912,16 +922,18 @@ void T4TApp::setSelected(Node* node)
 	if(node != NULL)
 	{
 		if(strcmp(node->getId(), "grid") == 0) return;
-		if(node->getCollisionObject() == NULL) return; //shouldn't select a non-physical object (like the floor grid)
+		//if(node->getCollisionObject() == NULL) return; //shouldn't select a non-physical object (like the floor grid)
 		cout << "selecting " << node->getId() << endl;
-		PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
-		body->setEnabled(false); //turn off physics on this body while dragging it around
 		_selectedBox = &(node->getModel()->getMesh()->getBoundingBox());
+		if(node->getCollisionObject() != NULL) {
+			PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
+			body->setEnabled(false); //turn off physics on this body while dragging it around
+		}
 	}
 	else
 	{
 		cout << "selecting NULL" << endl;
-		if(_selectedNode) {
+		if(_selectedNode && _selectedNode->getCollisionObject() != NULL) {
 			PhysicsRigidBody* body = _selectedNode->getCollisionObject()->asRigidBody();
 			body->setEnabled(true); //turn off physics on this body while dragging it around
 		}

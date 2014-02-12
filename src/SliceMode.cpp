@@ -84,7 +84,7 @@ void T4TApp::SliceMode::sliceNode() {
 		float dot = (data->worldVertices[i] - planeOrigin).dot(_slicePlane.getNormal());
 		if(dot > 0) continue;
 		keep[i] = numKeep++;
-		newData.vertices.push_back(data->vertices[i]);
+		newData.vertices.push_back(data->worldVertices[i]);
 	}
 
 	//get all intersections between edges of this mesh and the slice plane
@@ -235,6 +235,13 @@ void T4TApp::SliceMode::sliceNode() {
 		bool needHull = false;
 		for(int j = 0; j < newData.faces[i].size() && !needHull; j++) needHull = !inHull[newData.faces[i][j]];
 		if(needHull) newData.hulls.push_back(newData.faces[i]);
+	}
+	
+	//transform the new vertices back to model space before saving the data
+	Matrix worldModel;
+	_node->getWorldMatrix().invert(&worldModel);
+	for(int i = 0; i < newData.vertices.size(); i++) {
+		worldModel.transformVector(&newData.vertices[i]);
 	}
 	
 	//write the new node data to a file with suffix '_slice' and read it back in

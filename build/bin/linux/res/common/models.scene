@@ -1,10 +1,10 @@
 scene {
 
 	path = res/common/models.gpb
-	
+
 	node sphere {
 		url = sphere
-		material = res/common/sample.material#cylinder
+		material = res/common/models.material#sphere
 		translate = 0, 0, 0
 		rotate = 0, 0, 1, 0
 		scale = 0.5, 0.5, 0.5
@@ -13,7 +13,7 @@ scene {
 
 	node cylinder {
 		url = cylinder
-		material = res/common/sample.material#cylinder
+		material = res/common/models.material#cylinder
 		translate = 0, 0, 0
 		rotate = 0, 0, 1, 0
 		scale = 1, 1, 1
@@ -22,7 +22,7 @@ scene {
 
 	node halfpipe {
 		url = halfpipe
-		material = res/common/sample.material#halfpipe
+		material = res/common/models.material#halfpipe
 		translate = 0, 0, 0
 		rotate = 0, 0, 1, 180
 		scale = 4, 1, 1
@@ -31,7 +31,7 @@ scene {
 
 	node box {
 		url = box
-		material = res/common/sample.material#box
+		material = res/common/models.material#box
 		translate = 0, 0, 0
 		scale = 3, 1, 2
 		//collisionObject = res/common/models.physics#box

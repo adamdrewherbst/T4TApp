@@ -111,6 +111,7 @@ public:
     
     //T4T objects for modeling
     Scene *_models;
+    std::vector<std::string> _modelNames;
     PhysicsVehicle *_carVehicle;
     float _steering, _braking, _driving;
     
