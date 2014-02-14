@@ -745,7 +745,9 @@ Node* T4TApp::getMouseNode(int x, int y, Vector3 *touch) {
 	PhysicsController::HitResult hitResult;
 	if(!getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) return NULL;
 	if(touch) touch->set(hitResult.point);
-	return hitResult.object->getNode();
+	Node *node = hitResult.object->getNode();
+	if(node == NULL || strcmp(node->getId(), "grid") == 0) return NULL;
+	return node;
 }
 
 //see if the current touch location intersects the bottom face of the given object

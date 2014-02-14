@@ -5,33 +5,84 @@ T4TApp::SliceMode::SliceMode(T4TApp *app_)
 	_subMode = 0;
 	_node = NULL;
 	_slicePlane.set(Vector3(1, 0, 0), 0);
+	//create the knife node
+	float spacing = 0.5f, radius = 3.25f, distance, color[3] = {1.0f, 1.0f, 1.0f}, vec[2];
+	int v = 0, numLines = (int)(radius/spacing), vertexCount = 4*(2*numLines+1)*6;
+	std::vector<float> vertices(vertexCount);
+	for(int i = -numLines; i <= numLines; i++) {
+		for(int j = 0; j < 2; j++) {
+			for(int k = 0; k < 2; k++) {
+				vec[j] = i*spacing;
+				vec[1-j] = (2*k-1) * sqrt(radius*radius - vec[j]*vec[j]);
+				vertices[v++] = vec[0];
+				vertices[v++] = vec[1];
+				vertices[v++] = 0;
+				for(int i = 0; i < 3; i++) vertices[v++] = color[i];
+			}
+		}
+	}
+	VertexFormat::Element elements[] = {
+		VertexFormat::Element(VertexFormat::POSITION, 3),
+		VertexFormat::Element(VertexFormat::COLOR, 3)
+	};
+	Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), v/6, false);
+	mesh->setPrimitiveType(Mesh::LINES);
+	mesh->setVertexData(&vertices[0], 0, v/6);
+	Model *model = Model::create(mesh);
+	mesh->release();
+	model->setMaterial("res/common/grid.material");
+	_knife = Node::create("knife");
+	_knife->setModel(model);
+	model->release();
+	//app->_scene->addNode(_knife);
+	//_knife->setActive(false);
 }
 
 void T4TApp::SliceMode::setActive(bool active) {
 	Mode::setActive(active);
-	_node = NULL;
+	setNode(NULL);
+}
+
+void T4TApp::SliceMode::setNode(Node *node) {
+	_node = node;
+	app->getScriptController()->executeFunction<void>("camera_setNode", "s", _node != NULL ? _node->getId() : NULL);
+	if(_node != NULL) {
+		setAxis(0);
+		app->_scene->addNode(_knife);
+	} else {
+		app->_scene->removeNode(_knife);
+	}
 }
 
 void T4TApp::SliceMode::setAxis(int axis) {
+	//translate the camera to look at the center of the node
+	//and face along the <axis> direction in its model space
 	float yaw = 0, pitch = 0;
-	Vector3 normal;
+	Vector3 normal, translation(_node->getTranslationWorld());
+	Matrix rotation;
+	_node->getRotation(&rotation);
+	_knife->setRotation(rotation);
 	switch(axis) {
 		case 0: //x
 			yaw = 0;
-			pitch = 0;
+			pitch = M_PI/2 - 0.1f;
 			normal.set(1, 0, 0);
+			_knife->rotateY(M_PI/2);
 			break;
 		case 1: //y
-			yaw = 0;
-			pitch = M_PI/2;
+			yaw = M_PI/2 - 0.1f;
+			pitch = 0;
 			normal.set(0, 1, 0);
+			_knife->rotateX(M_PI/2);
 			break;
 		case 2: //z
-			yaw = M_PI/2;
+			yaw = 0.1f;
 			pitch = 0;
 			normal.set(0, 0, 1);
 			break;
 	}
+	_knife->setTranslation(translation);
+	rotation.transformVector(&normal);
 	_slicePlane.setNormal(normal);
 	app->getScriptController()->executeFunction<void>("camera_rotateTo", "ff", yaw, pitch);
 }
@@ -40,14 +91,13 @@ bool T4TApp::SliceMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned
 	switch(evt) {
 		case Touch::TOUCH_PRESS:
 			if(_node == NULL) {
-				_node = app->getMouseNode(x, y);
-				if(_node) {
-					cout << "going to slice " << _node->getId() << endl;
-					setAxis(0);
-				}
+				setNode(app->getMouseNode(x, y));
+				if(_node) cout << "going to slice " << _node->getId() << endl;
 			}
 			else switch(_subMode) {
 				case 0: //rotate
+					break;
+				case 1: //translate
 					break;
 			}
 			break;
@@ -58,7 +108,18 @@ void T4TApp::SliceMode::controlEvent(Control *control, Control::Listener::EventT
 	cout << "slice mode clicked " << control->getId() << endl;
 	const char *controlID = control->getId();
 
-	if(strcmp(controlID, "rotate") == 0) _subMode = 0;
+	if(strcmp(controlID, "axis") == 0 && _node != NULL) {
+		const char *_axes[3] = {"X", "Y", "Z"};
+		for(int i = 0; i < 3; i++) {
+			if(strcmp(((Button*)control)->getText(), _axes[i]) == 0) {
+				setAxis(i);
+				((Button*)control)->setText(_axes[(i+1)%3]);
+				cout << "set axis to " << _axes[i] << endl;
+				break;
+			}
+		}
+	}
+	else if(strcmp(controlID, "rotate") == 0) _subMode = 0;
 	else if(strcmp(controlID, "translate") == 0) _subMode = 1;
 	else if(strcmp(controlID, "doSlice") == 0) {
 		sliceNode();
@@ -66,7 +127,7 @@ void T4TApp::SliceMode::controlEvent(Control *control, Control::Listener::EventT
 	}
 }
 
-void T4TApp::SliceMode::sliceNode() {
+bool T4TApp::SliceMode::sliceNode() {
 
 	_node->updateData(); //make sure the world coords are up to date
 	Node::nodeData *data = (Node::nodeData*)_node->getUserPointer();
@@ -86,6 +147,7 @@ void T4TApp::SliceMode::sliceNode() {
 		keep[i] = numKeep++;
 		newData.vertices.push_back(data->worldVertices[i]);
 	}
+	if(numKeep == 0) return false;
 
 	//get all intersections between edges of this mesh and the slice plane
 	Ray edge;
@@ -94,19 +156,30 @@ void T4TApp::SliceMode::sliceNode() {
 	std::map<unsigned short, std::map<unsigned short,unsigned short> > intersections;
 	std::vector<unsigned short> newEdge(2);
 	for(int i = 0; i < data->edges.size(); i++) {
-		//see if this edge intersects the slice plane
 		e1 = data->edges[i][0];
 		e2 = data->edges[i][1];
+		//if both endpoints are on the same side of the slice plane, decide whether to keep the edge and move on
+		if(keep[e1] >= 0 && keep[e2] >= 0) {
+			newData.edges.push_back(data->edges[i]);
+			continue;
+		}
+		if(keep[e1] < 0 && keep[e2] < 0) continue;
+		//otherwise this edge must intersect the slice plane
 		edgeVec.set(data->worldVertices[e2] - data->worldVertices[e1]);
+		edgeVec.normalize(&edgeVec);
 		edge.set(data->worldVertices[e1], edgeVec);
 		distance = edge.intersects(_slicePlane);
 		if(distance != Ray::INTERSECTS_NONE) {
 			intersect.set(edge.getOrigin() + edge.getDirection()*distance);
-			dot = (intersect - data->worldVertices[e1]).dot(edgeVec) / edgeVec.lengthSquared();
+			dot = (intersect - data->worldVertices[e1]).dot(edgeVec);
 		}
-		if((distance == Ray::INTERSECTS_NONE) || dot < 0 || dot > 1) { //no intersection, so we are either keeping or discarding this edge
-			if(keep[e1] >= 0 && keep[e2] >= 0) newData.edges.push_back(data->edges[i]);
-			continue;
+		//limit the intersection point to the edge endpoints, in case computational geometry puts it outside the edge
+		if(distance == Ray::INTERSECTS_NONE || dot <= 0 || dot >= 1) {
+			//see if the entire edge is really on the keep side of the plane
+			if(distance == Ray::INTERSECTS_NONE || (dot <= 0 && keep[e2] >= 0) || (dot >= 1 && keep[e1] >= 0))
+				intersect.set(data->worldVertices[keep[e1] >= 0 ? e2 : e1]);
+			//otherwise keep a tiny fraction of the edge so that we don't lose its direction vector
+			else intersect.set(data->worldVertices[keep[e1] >= 0 ? e1 : e2] + (keep[e1] >= 0 ? 1 : -1)*0.01f*edgeVec);
 		}
 		//add the new vertex at the intersection point
 		newData.vertices.push_back(intersect);
@@ -140,8 +213,8 @@ void T4TApp::SliceMode::sliceNode() {
 			newFace.push_back(intersections[e1][e2]);
 			if(usedNew >= 0) { //we have a new edge formed by the 2 new vertices just added to this face
 				//add them in reverse order so the new face on the slice plane has the right orientation
-				newEdge[0] = intersections[e1][e2];
-				newEdge[1] = usedNew;
+				newEdge[1] = intersections[e1][e2];
+				newEdge[0] = usedNew;
 				newData.edges.push_back(newEdge);
 				newEdges.push_back(newEdge);
 			}
@@ -191,7 +264,7 @@ void T4TApp::SliceMode::sliceNode() {
 					newEdges.erase(newEdges.begin()+i);
 					found = true;
 					done = newEdge[(j+1)%2] == newFace[0];
-					newFace.push_back(newEdge[(j+1)%2]);
+					if(!done) newFace.push_back(newEdge[(j+1)%2]);
 					break;
 				}
 			}
@@ -240,8 +313,10 @@ void T4TApp::SliceMode::sliceNode() {
 	//transform the new vertices back to model space before saving the data
 	Matrix worldModel;
 	_node->getWorldMatrix().invert(&worldModel);
+	Vector3 translation(_node->getTranslationWorld());
 	for(int i = 0; i < newData.vertices.size(); i++) {
 		worldModel.transformVector(&newData.vertices[i]);
+		newData.vertices[i] -= translation;
 	}
 	
 	//write the new node data to a file with suffix '_slice' and read it back in
@@ -253,6 +328,7 @@ void T4TApp::SliceMode::sliceNode() {
 	}while(FileSystem::fileExists(filename));
 	Node::writeData(&newData, filename);
 	_node->reloadFromData(filename);
+	return true;
 }
 
 

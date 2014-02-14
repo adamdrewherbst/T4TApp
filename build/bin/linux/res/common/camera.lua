@@ -29,6 +29,10 @@ _translation = Vector3.new()
 _rotation = Quaternion.new()
 _scale = Vector3.new()
 
+_node = nil
+_nodeRotation = Matrix.new()
+_nodeTranslation = Vector3.new()
+
 function camera_setActive(flag)
 	--print("Lua setting camera active")
     _useScriptCamera = flag
@@ -194,6 +198,14 @@ function camera_touchEvent(evt, x, y, contactIndex)
     end
 end
 
+function camera_setNode(nodeID)
+	if nodeID == nil then
+		_node = nil
+	else
+		_node = _scene:findNode(nodeID)
+	end
+end
+
 function camera_rotateTo(yaw, pitch)
 	_pitch = pitch
 	_yaw = yaw
@@ -206,6 +218,18 @@ function camera_setPosition()
 	_eye:set(_radius*math.cos(_yaw)*math.cos(_pitch), _radius*math.sin(_pitch), _radius*math.sin(_yaw)*math.cos(_pitch))
 	_target:set(0.0, 0.0, 0.0)
 	_up:set(0.0, 1.0, 0.0)
+	if(_node ~= nil) then
+		_node:getRotation(_nodeRotation)
+		_nodeTranslation:set(_node:getTranslationWorld())
+		_nodeRotation:transformVector(_eye)
+		_nodeRotation:transformVector(_up)
+		_eye:add(_nodeTranslation)
+		_target:add(_nodeTranslation)
+	end
+	camera_set()
+end
+
+function camera_set()
 	Matrix.createLookAt(_eye, _target, _up, _eyeMatrix)
 	_eyeMatrix:invert();
 

@@ -248,14 +248,16 @@ public:
 public:
 		Node *_node; //the object to be sliced
 		Plane _slicePlane;
+		Node *_knife; //to display the slice plane to the user
 		int _subMode; //0 = rotate, 1 = translate
 
 		SliceMode(T4TApp *app_);
 		void setActive(bool active);
+		void setNode(Node *node);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
 		void setAxis(int axis);
-		void sliceNode();
+		bool sliceNode();
 	};
 	
     class TouchPoint
