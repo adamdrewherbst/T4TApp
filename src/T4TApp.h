@@ -30,8 +30,8 @@ public:
     bool printNode(Node *node);
     bool prepareNode(Node *node);
     //misc functions
-    const std::string printVector(Vector3& v);
-    const std::string printVector2(Vector2& v);
+    const std::string printVector(const Vector3& v);
+    const std::string printVector2(const Vector2& v);
     const std::string printQuat(Quaternion& q);
 	void loadScene();
 	void releaseScene();
@@ -247,9 +247,12 @@ public:
 	{
 public:
 		Node *_node; //the object to be sliced
-		Plane _slicePlane;
+		Plane _slicePlane, _viewPlane;
+		Vector3 _touchStart, _touchPoint, _viewPlaneOrigin;
 		Node *_knife; //to display the slice plane to the user
+		Quaternion _knifeBaseRotation;
 		int _subMode; //0 = rotate, 1 = translate
+		bool _touching;
 
 		SliceMode(T4TApp *app_);
 		void setActive(bool active);
@@ -257,6 +260,7 @@ public:
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
 		void setAxis(int axis);
+		void setView();
 		bool sliceNode();
 	};
 	

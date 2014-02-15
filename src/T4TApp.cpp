@@ -376,7 +376,7 @@ void T4TApp::render(float elapsedTime)
     if(_componentMenu->isVisible()) _componentMenu->draw();
 	if(_vehicleProject->container->isVisible()) _vehicleProject->container->draw();
 	for(size_t i = 0; i < _modes.size(); i++) {
-		if(_modes[i]->_active) _modes[i]->_container->draw();
+		if(_modes[i]->_active) _modes[i]->_controls->draw();
 	}
 
     if(_lastBody) {
@@ -982,13 +982,13 @@ void T4TApp::enableScriptCamera(bool enable)
 	getScriptController()->executeFunction<void>("camera_setActive", "b", enable);
 }
 
-const std::string T4TApp::printVector(Vector3& v) {
+const std::string T4TApp::printVector(const Vector3& v) {
 	std::ostringstream os;
 	os << "<" << v.x << "," << v.y << "," << v.z << ">";
 	return os.str();
 }
 
-const std::string T4TApp::printVector2(Vector2& v) {
+const std::string T4TApp::printVector2(const Vector2& v) {
 	std::ostringstream os;
 	os << "<" << v.x << "," << v.y << ">";
 	return os.str();

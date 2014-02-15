@@ -4,7 +4,8 @@ T4TApp::SliceMode::SliceMode(T4TApp *app_)
   : T4TApp::Mode::Mode(app_, "mode_Slice", "res/common/slice.form") {
 	_subMode = 0;
 	_node = NULL;
-	_slicePlane.set(Vector3(1, 0, 0), 0);
+	_touching = false;
+	_slicePlane.set(Vector3(0, 0, 1), 0);
 	//create the knife node
 	float spacing = 0.5f, radius = 3.25f, distance, color[3] = {1.0f, 1.0f, 1.0f}, vec[2];
 	int v = 0, numLines = (int)(radius/spacing), vertexCount = 4*(2*numLines+1)*6;
@@ -41,6 +42,7 @@ T4TApp::SliceMode::SliceMode(T4TApp *app_)
 void T4TApp::SliceMode::setActive(bool active) {
 	Mode::setActive(active);
 	setNode(NULL);
+	_touching = false;
 }
 
 void T4TApp::SliceMode::setNode(Node *node) {
@@ -58,7 +60,7 @@ void T4TApp::SliceMode::setAxis(int axis) {
 	//translate the camera to look at the center of the node
 	//and face along the <axis> direction in its model space
 	float yaw = 0, pitch = 0;
-	Vector3 normal, translation(_node->getTranslationWorld());
+	Vector3 sliceNormal, viewNormal, translation(_node->getTranslationWorld());
 	Matrix rotation;
 	_node->getRotation(&rotation);
 	_knife->setRotation(rotation);
@@ -66,40 +68,91 @@ void T4TApp::SliceMode::setAxis(int axis) {
 		case 0: //x
 			yaw = 0;
 			pitch = M_PI/2 - 0.1f;
-			normal.set(1, 0, 0);
+			sliceNormal.set(1, 0, 0);
+			viewNormal.set(0, -1, 0);
 			_knife->rotateY(M_PI/2);
 			break;
 		case 1: //y
-			yaw = M_PI/2 - 0.1f;
-			pitch = 0;
-			normal.set(0, 1, 0);
+			yaw = M_PI/2;
+			pitch = 0.1f;
+			sliceNormal.set(0, 1, 0);
+			viewNormal.set(0, 0, -1);
 			_knife->rotateX(M_PI/2);
 			break;
 		case 2: //z
 			yaw = 0.1f;
 			pitch = 0;
-			normal.set(0, 0, 1);
+			sliceNormal.set(0, 0, 1);
+			viewNormal.set(-1, 0, 0);
 			break;
 	}
 	_knife->setTranslation(translation);
-	rotation.transformVector(&normal);
-	_slicePlane.setNormal(normal);
+	_knifeBaseRotation = _knife->getRotation();
+	rotation.transformVector(&sliceNormal);
+	_slicePlane.setNormal(sliceNormal);
+	rotation.transformVector(&viewNormal);
+	_viewPlane.setNormal(viewNormal);
 	app->getScriptController()->executeFunction<void>("camera_rotateTo", "ff", yaw, pitch);
+	setView();
+}
+
+void T4TApp::SliceMode::setView() {
+	Vector3 cam(app->_activeScene->getActiveCamera()->getNode()->getTranslationWorld());
+	Ray camToNode(cam, _node->getTranslationWorld() - cam);
+	float distance = camToNode.intersects(_viewPlane);
+	_viewPlaneOrigin.set(camToNode.getOrigin() + distance * camToNode.getDirection());
 }
 
 bool T4TApp::SliceMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
 	switch(evt) {
-		case Touch::TOUCH_PRESS:
+		case Touch::TOUCH_PRESS: {
 			if(_node == NULL) {
 				setNode(app->getMouseNode(x, y));
 				if(_node) cout << "going to slice " << _node->getId() << endl;
 			}
-			else switch(_subMode) {
-				case 0: //rotate
-					break;
-				case 1: //translate
-					break;
+			else {
+				Ray ray;
+				app->_activeScene->getActiveCamera()->pickRay(app->getViewport(), x, y, &ray);
+				float distance = ray.intersects(_viewPlane);
+				if(distance != Ray::INTERSECTS_NONE) {
+					_touchStart.set(ray.getOrigin() + distance * ray.getDirection());
+					_touching = true;
+					_knifeBaseRotation = _knife->getRotation();
+				}
 			}
+			break;
+		}
+		case Touch::TOUCH_MOVE: {
+			if(_node == NULL || !_touching) break;
+			Ray ray;
+			app->_activeScene->getActiveCamera()->pickRay(app->getViewport(), x, y, &ray);
+			float distance = ray.intersects(_viewPlane);
+			if(distance != Ray::INTERSECTS_NONE) {
+				_touchPoint.set(ray.getOrigin() + distance * ray.getDirection());
+				switch(_subMode) {
+					case 0: //rotate
+					{
+						Vector3 v1(_touchStart - _viewPlaneOrigin), v2(_touchPoint - _viewPlaneOrigin);
+						v1.normalize();
+						v2.normalize();
+						float cosAng = v1.dot(v2);
+						v1.cross(v2);
+						float sinAng = v1.dot(_viewPlane.getNormal());
+						float angle = atan2(sinAng, cosAng);
+						Quaternion rotation;
+						Quaternion::createFromAxisAngle(_viewPlane.getNormal(), angle, &rotation);
+						_knife->setRotation(rotation * _knifeBaseRotation);
+						break;
+					}
+					case 1: //translate
+						_knife->setTranslation(_node->getTranslationWorld() + _touchPoint-_touchStart);
+						break;
+				}
+			}
+			break;
+		}
+		case Touch::TOUCH_RELEASE:
+			_touching = false;
 			break;
 	}
 }
@@ -130,6 +183,12 @@ void T4TApp::SliceMode::controlEvent(Control *control, Control::Listener::EventT
 bool T4TApp::SliceMode::sliceNode() {
 
 	_node->updateData(); //make sure the world coords are up to date
+	_slicePlane.set(Vector3(0, 0, 1), 0);
+	Matrix trans;
+	Matrix::createRotation(_knife->getRotation(), &trans);
+	trans.translate(_knife->getTranslationWorld());
+	_slicePlane.transform(trans);
+	cout << "slicing " << _node->getId() << " at " << app->printVector(_slicePlane.getNormal()) << " => " << _slicePlane.getDistance() << endl;
 	Node::nodeData *data = (Node::nodeData*)_node->getUserPointer();
 	unsigned short e1, e2, numKeep = 0;
 	Vector3 v1, v2, planeOrigin = _slicePlane.getDistance() * _slicePlane.getNormal();
@@ -137,8 +196,8 @@ bool T4TApp::SliceMode::sliceNode() {
 	//put the vertices that will be kept into a new nodeData struct
 	Node::nodeData newData;
 	newData.type = data->type;
-	short *keep = new short[data->vertices.size()], //index in the new vertex list or -1 if discarding
-		*replace = new short[data->vertices.size()]; //index of the new vertex that is replacing this one
+	std::vector<short> keep(data->vertices.size()), //index in the new vertex list or -1 if discarding
+		replace(data->vertices.size()); //index of the new vertex that is replacing this one
 	for(int i = 0; i < data->vertices.size(); i++) {
 		keep[i] = -1;
 		replace[i] = -1;
@@ -151,7 +210,7 @@ bool T4TApp::SliceMode::sliceNode() {
 
 	//get all intersections between edges of this mesh and the slice plane
 	Ray edge;
-	Vector3 edgeVec, intersect;
+	Vector3 edgeVec, intersect, newEdgeVec;
 	float distance, dot;
 	std::map<unsigned short, std::map<unsigned short,unsigned short> > intersections;
 	std::vector<unsigned short> newEdge(2);
@@ -166,12 +225,12 @@ bool T4TApp::SliceMode::sliceNode() {
 		if(keep[e1] < 0 && keep[e2] < 0) continue;
 		//otherwise this edge must intersect the slice plane
 		edgeVec.set(data->worldVertices[e2] - data->worldVertices[e1]);
-		edgeVec.normalize(&edgeVec);
 		edge.set(data->worldVertices[e1], edgeVec);
 		distance = edge.intersects(_slicePlane);
 		if(distance != Ray::INTERSECTS_NONE) {
 			intersect.set(edge.getOrigin() + edge.getDirection()*distance);
-			dot = (intersect - data->worldVertices[e1]).dot(edgeVec);
+			newEdgeVec.set(intersect - data->worldVertices[e1]);
+			dot = newEdgeVec.dot(edgeVec) / edgeVec.lengthSquared();
 		}
 		//limit the intersection point to the edge endpoints, in case computational geometry puts it outside the edge
 		if(distance == Ray::INTERSECTS_NONE || dot <= 0 || dot >= 1) {
@@ -213,8 +272,8 @@ bool T4TApp::SliceMode::sliceNode() {
 			newFace.push_back(intersections[e1][e2]);
 			if(usedNew >= 0) { //we have a new edge formed by the 2 new vertices just added to this face
 				//add them in reverse order so the new face on the slice plane has the right orientation
-				newEdge[1] = intersections[e1][e2];
-				newEdge[0] = usedNew;
+				newEdge[0] = intersections[e1][e2];
+				newEdge[1] = usedNew;
 				newData.edges.push_back(newEdge);
 				newEdges.push_back(newEdge);
 			}
