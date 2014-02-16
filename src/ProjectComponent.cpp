@@ -3,6 +3,7 @@
 T4TApp::ProjectComponent::ProjectComponent(T4TApp *app_, const char* filename, const char* id, Theme::Style* buttonStyle, Theme::Style* formStyle) : app(app_) {
 
 	_currentElement = 0;
+	_typeCount = -1;
 
 	_sceneFile = filename;
 
@@ -58,13 +59,27 @@ bool T4TApp::ProjectComponent::touchEvent(Touch::TouchEvent evt, int x, int y, u
 }
 
 void T4TApp::ProjectComponent::finishComponent() {
+	//can't deep copy nodes to the app scene, so must write them out and read them in
+	std::vector<std::string> nodes;
+	for(int i = 0; i < _allNodes.size(); i++) {
+		_allNodes[i]->writeMyData();
+		nodes.push_back(std::string(_allNodes[i]->getId()));
+	}
 	setActive(false);
+	for(int i = 0; i < nodes.size(); i++) app->loadNodeFromData(nodes[i]);
 }
 
 void T4TApp::ProjectComponent::addElement(const char *name, T4TApp::ProjectComponent::TouchCallback touchCallback, bool isStatic) {
 	_elementNames.push_back(std::string(name));
 	_elementCallbacks.push_back(touchCallback);
 	_isStatic.push_back(isStatic);
+	//determine the count of this component type based on the highest index for this element in the scene or in saved files
+	if(_typeCount > 0) return;
+	_typeCount = 0;
+	char *elementID = (char*)calloc(100, sizeof(char));
+	do {
+		sprintf(elementID, "%s%d_%s", _id, ++_typeCount, name);
+	} while(app->_scene->findNode(elementID) != NULL || FileSystem::fileExists(app->concat(3, "res/common/", elementID, ".node")));
 }
 
 void T4TApp::ProjectComponent::setActive(bool active) {
@@ -111,4 +126,3 @@ void T4TApp::ProjectComponent::loadScene() {
 void T4TApp::ProjectComponent::releaseScene() {
 	SAFE_RELEASE(_scene);
 }
-

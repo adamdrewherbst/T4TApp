@@ -1274,33 +1274,40 @@ void Node::setAgent(AIAgent* agent)
 
 float Node::gv(Vector3 *v, int dim) {
 	switch(dim) {
-		case 0: return v.x;
-		case 1: return v.y;
-		case 2: return v.z;
+		case 0: return v->x;
+		case 1: return v->y;
+		case 2: return v->z;
 	}
 	return 0;
 }
 
+void Node::sv(Vector3 *v, int dim, float val) {
+	switch(dim) {
+		case 0: v->x = val; break;
+		case 1: v->y = val; break;
+		case 2: v->z = val; break;
+	}
+}
+
 Node::nodeData* Node::readData(char *filename)
 {
-	cout << "reading " << node->getId() << " from file " << filename << endl;
 	std::auto_ptr<Stream> stream(FileSystem::open(filename));
 	if (stream.get() == NULL)
 	{
 		GP_ERROR("Failed to open file '%s'.", filename);
-		return;
+		return NULL;
 	}
+	stream->rewind();
 	
 	nodeData* data = new nodeData();
-	data->type = type;
 	data->typeCount = 0;
 
 	char *str, line[2048];
-	istringstream in;
+	std::istringstream in;
     str = stream->readLine(line, 2048);
     int nv = atoi(str), v = 0;
     cout << nv << " vertices" << endl;
-    float x, y, z;
+    float x, y, z, w;
     for(int i = 0; i < nv; i++) {
     	str = stream->readLine(line, 2048);
     	in.str(str);
@@ -1337,8 +1344,6 @@ Node::nodeData* Node::readData(char *filename)
     	data->faces.push_back(face);
     	str = stream->readLine(line, 2048);
     	numTriangles = atoi(str);
-    	str = stream->readLine(line, 2048);
-    	in.str(str);
     	for(int j = 0; j < numTriangles; j++) {
 			str = stream->readLine(line, 2048);
 			in.str(str);
@@ -1362,6 +1367,23 @@ Node::nodeData* Node::readData(char *filename)
     		data->hulls[i].push_back(v1);
     	}
     }
+    str = stream->readLine(line, 2048);
+    int nc = atoi(str);
+    data->constraints.resize(nh);
+    std::string word;
+    for(int i = 0; i < nc; i++) {
+    	data->constraints[i] = new nodeConstraint();
+	    str = stream->readLine(line, 2048);
+	    in.str(str);
+	    in >> word;
+	    data->constraints[i]->type = word.c_str();
+	    in >> word;
+	    data->constraints[i]->other = word.c_str();
+    	in >> x >> y >> z >> w;
+    	data->constraints[i]->rotation.set(x, y, z, w);
+    	in >> x >> y >> z;
+    	data->constraints[i]->translation.set(x, y, z);
+    }
     stream->close();
     return data;
 }
@@ -1377,11 +1399,11 @@ void Node::writeData(Node::nodeData *data, char *filename) {
 	std::ostringstream os;
 	os << data->vertices.size() << endl;
 	for(int i = 0; i < data->vertices.size(); i++) {
-		for(int j = 0; j < 3; j++) os << gv(data->vertices[i],j) << "\t";
+		for(int j = 0; j < 3; j++) os << gv(&data->vertices[i],j) << "\t";
 		os << endl;
 	}
 	line = os.str();
-	stream.write(line.c_str(), sizeof(char), line.length());
+	stream->write(line.c_str(), sizeof(char), line.length());
 	os.str("");
 	os << data->edges.size() << endl;
 	for(int i = 0; i < data->edges.size(); i++) {
@@ -1389,7 +1411,7 @@ void Node::writeData(Node::nodeData *data, char *filename) {
 		os << endl;
 	}
 	line = os.str();
-	stream.write(line.c_str(), sizeof(char), line.length());
+	stream->write(line.c_str(), sizeof(char), line.length());
 	os.str("");
 	os << data->faces.size() << endl;
 	for(int i = 0; i < data->faces.size(); i++) {
@@ -1402,7 +1424,7 @@ void Node::writeData(Node::nodeData *data, char *filename) {
 		}
 	}
 	line = os.str();
-	stream.write(line.c_str(), sizeof(char), line.length());
+	stream->write(line.c_str(), sizeof(char), line.length());
 	os.str("");
 	os << data->hulls.size() << endl;
 	for(int i = 0; i < data->hulls.size(); i++) {
@@ -1411,46 +1433,80 @@ void Node::writeData(Node::nodeData *data, char *filename) {
 		os << endl;
 	}
 	line = os.str();
-	stream.write(line.c_str(), sizeof(char), line.length());
+	stream->write(line.c_str(), sizeof(char), line.length());
 	os.str("");
-	stream.close();
+	os << data->constraints.size() << endl;
+	for(int i = 0; i < data->constraints.size(); i++) {
+		os << data->constraints[i]->type << "\t" << data->constraints[i]->other << "\t";
+		os << data->constraints[i]->rotation.x << "\t";
+		os << data->constraints[i]->rotation.y << "\t";
+		os << data->constraints[i]->rotation.z << "\t";
+		os << data->constraints[i]->rotation.w << "\t";
+		os << data->constraints[i]->translation.x << "\t";
+		os << data->constraints[i]->translation.y << "\t";
+		os << data->constraints[i]->translation.z << endl;
+	}
+	line = os.str();
+	stream->write(line.c_str(), sizeof(char), line.length());
+	os.str("");
+	stream->close();
 }
 
-void Node::loadData(char *filename) {
-	setUserPointer(readData(filename));
+void Node::writeMyData(char *filename) {
+	if(filename == NULL) filename = Game::getInstance()->concat("res/common/", getId(), ".node");
+	writeData((nodeData*)getUserPointer(), filename);
+}
+
+void Node::loadData(char *filename, Scene *scene) {
+	nodeData *data = readData(filename);
+	setUserPointer(data);
 }
 
 void Node::updateData() {
 	nodeData *data = (nodeData*)getUserPointer();
 	if(data == NULL) return;
 	Matrix world = getWorldMatrix();
+	Vector3 translation = getTranslationWorld();
 	for(int i = 0; i < data->vertices.size(); i++) {
 		world.transformVector(data->vertices[i], &data->worldVertices[i]);
+		data->worldVertices[i] += translation;
 	}
 }
 
-void Node::reloadFromData(char *filename) {
+void Node::reloadFromData(char *filename, bool addPhysics) {
+	nodeData *curData = (nodeData*)getUserPointer();
+	const char *type;
+	if(curData != NULL) type = curData->type;
 	loadData(filename);
 	nodeData *data = (nodeData*)getUserPointer();
+	if(type != NULL) data->type = type;
 	//update the mesh to contain the new coordinates
-	float *vertices;
+	float *vertices, radius = 0;
 	unsigned short *triangles;
-	int numVertices, numTriangles, v = 0, t = 0, f = 0;
+	int numVertices = 0, numTriangles = 0, v = 0, t = 0, f = 0;
+	Vector3 min(1000,1000,1000), max(-1000,-1000,-1000);
 	for(int i = 0; i < data->faces.size(); i++) {
 		numVertices += data->faces[i].size();
 		numTriangles += data->triangles[i].size();
 	}
 	vertices = new float[numVertices*6];
 	triangles = new unsigned short[numTriangles*3];
-	std::vector<Vector3> v(3), normal(data->faces.size());
+	std::vector<Vector3> vec(3), normal(data->faces.size());
+	cout << "making node " << filename << " with " << numVertices << " vertices, " << numTriangles << " triangles, and "
+		<< data->faces.size() << " faces" << endl;
 	for(int i = 0; i < data->faces.size(); i++) {
-		for(int j = 0; j < 3; j++) v[j].set(data->vertices[data->faces[i][j]]);
-		v[0].set(v[1]-v[0]);
-		v[1].set(v[2]-v[1]);
-		normal[i].set(v[0].cross(v[1]));
+		for(int j = 0; j < 3; j++) vec[j].set(data->vertices[data->faces[i][j]]);
+		normal[i].set(vec[1] - vec[0]);
+		normal[i].cross(vec[2] - vec[1]);
+		normal[i].normalize(&normal[i]);
 		for(int j = 0; j < data->faces[i].size(); j++) {
-			for(int k = 0; k < 3; k++) vertices[v++] = data->vertices[data->faces[i][j]][k];
-			for(int k = 0; k < 3; k++) vertices[v++] = normal[i][k];
+			for(int k = 0; k < 3; k++) {
+				radius = fmaxf(radius, data->vertices[data->faces[i][j]].length());
+				vertices[v++] = gv(&data->vertices[data->faces[i][j]],k);
+				if(vertices[v-1] < gv(&min, k)) sv(&min, k, vertices[v-1]);
+				if(vertices[v-1] > gv(&max, k)) sv(&max, k, vertices[v-1]);
+			}
+			for(int k = 0; k < 3; k++) vertices[v++] = gv(&normal[i],k);
 		}
 		for(int j = 0; j < data->triangles[i].size(); j++) {
 			for(int k = 0; k < 3; k++) triangles[t++] = f + data->triangles[i][j][k];
@@ -1465,29 +1521,20 @@ void Node::reloadFromData(char *filename) {
 	Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), numVertices, false);
 	mesh->setVertexData(&vertices[0], 0, numVertices);
 	MeshPart *part = mesh->addPart(Mesh::TRIANGLES, Mesh::INDEX16, numTriangles*3);
-	part->setIndexData(indices, 0, numTriangles*3);
-	//load the compound convex hull collision object
-	setMesh(mesh);
-	PhysicsRigidBody::Parameters params;
-	gridParams.mass = 10.0f;
-	setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::mesh(mesh), &params);
-}
-
-char* Node::concat(int n, ...)
-{
-	const char** strings = new const char*[n];
-	int length = 0;
-	va_list arguments;
-	va_start(arguments, n);
-	for(int i = 0; i < n; i++) {
-		strings[i] = (const char*) va_arg(arguments, const char*);
-		length += strlen(strings[i]);
+	part->setIndexData(triangles, 0, numTriangles*3);
+	mesh->setBoundingBox(BoundingBox(min, max));
+	mesh->setBoundingSphere(BoundingSphere(Vector3::zero(), radius));
+	Model *model = Model::create(mesh);
+	mesh->release();
+	model->setMaterial(Game::getInstance()->concat(2, "res/common/sample.material#", data->type));
+	setModel(model);
+	model->release();
+	if(addPhysics) {
+		//load the compound convex hull collision object
+		PhysicsRigidBody::Parameters params;
+		params.mass = 10.0f;
+		setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::mesh(mesh), &params);
 	}
-	char* dest = new char[length+1];
-	dest[0] = '\0';
-	for(int i = 0; i < n; i++) strcat(dest, strings[i]);
-	dest[length] = '\0';
-	return dest;
 }
 
 NodeCloneContext::NodeCloneContext()

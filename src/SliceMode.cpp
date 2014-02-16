@@ -257,23 +257,27 @@ bool T4TApp::SliceMode::sliceNode() {
 	//modify each polygon according to its intersections
 	std::vector<unsigned short> newFace, newTriangle(3);
 	std::vector<std::vector<unsigned short> > newTriangles, newEdges;
-	bool faceAltered, keepTriangle;
+	bool faceAltered, keepTriangle, intervening;
 	short usedNew;
 	for(int i = 0; i < data->faces.size(); i++) {
 		newFace.clear();
 		faceAltered = false;
+		intervening = false;
 		usedNew = -1;
 		for(int j = 0; j < data->faces[i].size(); j++) { //for each old polygon...
 			e1 = data->faces[i][j];
 			e2 = data->faces[i][(j+1)%data->faces[i].size()];
-			if(keep[e1] >= 0) newFace.push_back(keep[e1]);
+			if(keep[e1] >= 0) {
+				newFace.push_back(keep[e1]);
+				if(usedNew >= 0) intervening = true;
+			}
 			else faceAltered = true;
 			if(intersections.find(e1) == intersections.end() || intersections[e1].find(e2) == intersections[e1].end()) continue;
 			newFace.push_back(intersections[e1][e2]);
 			if(usedNew >= 0) { //we have a new edge formed by the 2 new vertices just added to this face
 				//add them in reverse order so the new face on the slice plane has the right orientation
-				newEdge[0] = intersections[e1][e2];
-				newEdge[1] = usedNew;
+				newEdge[intervening ? 1 : 0] = intersections[e1][e2];
+				newEdge[intervening ? 0 : 1] = usedNew;
 				newData.edges.push_back(newEdge);
 				newEdges.push_back(newEdge);
 			}

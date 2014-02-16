@@ -891,7 +891,7 @@ PhysicsCollisionShape* PhysicsController::createShape(Node* node, const PhysicsC
     case PhysicsCollisionShape::SHAPE_MESH:
         {
             // Build mesh from passed in shape.
-            collisionShape = createMesh(shape.data.mesh, scale);
+            collisionShape = createMesh(shape.data.mesh, scale, (Node::nodeData*)node->getUserPointer());
         }
         break;
 
@@ -1059,7 +1059,7 @@ PhysicsCollisionShape* PhysicsController::createHeightfield(Node* node, HeightFi
     return shape;
 }
 
-PhysicsCollisionShape* PhysicsController::createMesh(Mesh* mesh, const Vector3& scale, char *filename)
+PhysicsCollisionShape* PhysicsController::createMesh(Mesh* mesh, const Vector3& scale, Node::nodeData *data)
 {
     GP_ASSERT(mesh);
 
@@ -1086,22 +1086,22 @@ PhysicsCollisionShape* PhysicsController::createMesh(Mesh* mesh, const Vector3& 
         GP_ERROR("Mesh rigid bodies are currently only supported on meshes with TRIANGLES primitive type.");
         return NULL;
     }
-
-    // The mesh must have a valid URL (i.e. it must have been loaded from a Bundle)
-    // in order to fetch mesh data for computing mesh rigid body.
-    if (strlen(mesh->getUrl()) == 0)
-    {
-        GP_ERROR("Cannot create mesh rigid body for mesh without valid URL.");
-        return NULL;
-    }
     
     btCompoundShape* btShape = bullet_new<btCompoundShape>();
     if(data == NULL) {
+		if (strlen(mesh->getUrl()) == 0)
+		{
+		    GP_ERROR("Cannot create mesh rigid body for mesh without valid URL.");
+		    return NULL;
+		}
 	    const char *url = mesh->getUrl();
-   		char *nodeID = strstr(url, "#") + sizeof(char);
-	    filename = new char[11 + strlen(nodeID) + 5];
-	    sprintf(filename, "res/common/%s.node", nodeID);
+   		const char *nodeID = strstr(url, "#") + sizeof(char);
+	    char *filename = new char[11 + strlen(nodeID) + 1];
+	    sprintf(filename, "res/common/%s", nodeID);
+	    //replace the _Mesh suffix with the .node extension
+	    strcpy(filename + (11 + strlen(nodeID) - 5)*sizeof(char), ".node");
 	    data = Node::readData(filename);
+	    cout << "read node data from " << filename << endl;
 	}
 
 	// Copy the scaled vertex position data to the rigid body's local buffer.

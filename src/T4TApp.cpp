@@ -1022,3 +1022,52 @@ void T4TApp::collisionEvent(PhysicsCollisionObject::CollisionListener::EventType
             pair.objectB->getNode()->getId(), pointB.x, pointB.y, pointB.z);
 }
 
+PhysicsConstraint* T4TApp::addConstraint(Node *n1, Node *n2, const char *type, ...) {
+	va_list arguments;
+	va_start(arguments, type);
+	Node *node[2];
+	PhysicsConstraint *ret;
+	for(int i = 0; i < 2; i++) node[i] = i == 0 ? n1 : n2;
+	if(strcmp(type, "hinge") == 0) {
+		Quaternion rot[2];
+		Vector3 trans[2];
+		PhysicsRigidBody *body[2];
+		for(int i = 0; i < 2; i++) {
+			rot[i] = (Quaternion) va_arg(arguments, Quaternion);
+			trans[i] = (Vector3) va_arg(arguments, Vector3);
+			body[i] = node[i]->getCollisionObject()->asRigidBody();
+			Node::nodeConstraint constraint;
+			constraint.other = node[(i+1)%2]->getId();
+			constraint.type = "hinge";
+			constraint.rotation = rot[i];
+			constraint.translation = trans[i];
+			Node::nodeData *data = (Node::nodeData*)node[i]->getUserPointer();
+			data->constraints.push_back(&constraint);
+		}
+		ret = getPhysicsController()->createHingeConstraint(body[0], rot[0], trans[0], body[1], rot[1], trans[1]);
+	}
+	va_end(arguments);
+	return ret;
+}
+
+Node* T4TApp::loadNodeFromData(const char *nodeID) {
+	Node *node = _scene->addNode(nodeID);
+	char *filename = concat(3, "res/common/", nodeID, ".node");
+	node->reloadFromData(filename, true);
+	Node::nodeData *data = (Node::nodeData*)node->getUserPointer();
+	for(int i = 0; i < data->constraints.size(); i++) {
+		Node *other = _scene->findNode(data->constraints[i]->other);
+		if(other == NULL) continue;
+		const char *type = data->constraints[i]->type;
+		Node::nodeData *otherData = (Node::nodeData*)other->getUserPointer();
+		for(int j = 0; j < otherData->constraints.size(); j++) {
+			if(strcmp(otherData->constraints[j]->other, node->getId()) == 0
+				&& strcmp(otherData->constraints[j]->type, type) == 0) {
+				addConstraint(node, other, type, data->constraints[i]->rotation, data->constraints[i]->translation,
+					otherData->constraints[j]->rotation, otherData->constraints[j]->translation);
+			}
+		}
+	}
+}
+
+

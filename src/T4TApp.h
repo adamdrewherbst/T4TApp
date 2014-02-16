@@ -26,9 +26,11 @@ public:
     T4TApp* getInstance();
     
     Node* duplicateModelNode(const char* type, bool isStatic = false);
+	Node* loadNodeFromData(const char *nodeID);
     void changeNodeModel(Node *node, const char* type);
     bool printNode(Node *node);
     bool prepareNode(Node *node);
+    PhysicsConstraint* addConstraint(Node *n1, Node *n2, const char *type, ...);
     //misc functions
     const std::string printVector(const Vector3& v);
     const std::string printVector2(const Vector2& v);
@@ -193,7 +195,7 @@ public:
     	Form *_container; //wrapper for the full-screen button that handles touch events for this component
     	//component is divided into elements, eg. a lever has a base and arm
     	std::vector<std::string> _elementNames;
-    	int _currentElement;
+    	int _currentElement, _typeCount;
     	std::vector<bool> _isStatic; //whether this element should be immovable
     	//blank scene onto which to build the component
     	std::string _sceneFile;

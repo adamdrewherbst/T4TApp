@@ -640,5 +640,23 @@ void Game::ShutdownListener::timeEvent(long timeDiff, void* cookie)
 	Game::getInstance()->shutdown();
 }
 
+char* Game::concat(int n, ...)
+{
+	const char** strings = new const char*[n];
+	int length = 0;
+	va_list arguments;
+	va_start(arguments, n);
+	for(int i = 0; i < n; i++) {
+		strings[i] = (const char*) va_arg(arguments, const char*);
+		length += strlen(strings[i]);
+	}
+	va_end(arguments);
+	char* dest = new char[length+1];
+	dest[0] = '\0';
+	for(int i = 0; i < n; i++) strcat(dest, strings[i]);
+	dest[length] = '\0';
+	return dest;
+}
+
 }
 

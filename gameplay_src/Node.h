@@ -4,6 +4,7 @@
 #include "Transform.h"
 #include "Camera.h"
 #include "Light.h"
+#include "MeshPart.h"
 #include "Model.h"
 #include "Form.h"
 #include "ParticleEmitter.h"
@@ -12,6 +13,7 @@
 #include "BoundingBox.h"
 #include "AIAgent.h"
 #include "FileSystem.h"
+#include <sstream>
 #include <cstdarg>
 #include <vector>
 
@@ -652,6 +654,13 @@ public:
      * @script{create}
      */
     Node* clone() const;
+    
+    struct nodeConstraint {
+    	const char *other; //id of the node to which this one is constrained
+    	const char *type; //one of: hinge, spring, fixed, socket
+    	Vector3 translation; //offset of the constraint point from my origin
+    	Quaternion rotation; //rotation offset of the constraint point
+    };
 
    	//any data associated with a node
 	struct nodeData {
@@ -659,17 +668,21 @@ public:
 		std::vector<std::vector<unsigned short> > edges; //vertex index pairs
 		std::vector<std::vector<unsigned short> > faces; //vertex indices of polygons (not triangles)
 		std::vector<std::vector<std::vector<unsigned short> > > triangles; //triangulation of each polygon
+		std::vector<std::vector<unsigned short> > hulls; //vertex indices of convex hulls
+		std::vector<nodeConstraint*> constraints;
 		const char *type;
 		int typeCount; //number of clones of this model currently in the simulation
 	};
 	
 	static nodeData* readData(char *filename);
 	static void writeData(nodeData *data, char *filename);
+	void writeMyData(char *filename = NULL);
+	void loadData(char *filename = NULL);
 	void updateData();
-	void reloadFromData(char *filename);
+	void reloadFromData(char *filename, bool addPhysics = true);
 	
 	static float gv(Vector3 *v, int dim);
-    char* concat(int n, ...);
+	static void sv(Vector3 *v, int dim, float val);
 
 protected:
 

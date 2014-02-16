@@ -587,6 +587,8 @@ public:
      * @return True if URL was opened successfully, false otherwise.
      */
     bool launchURL(const char *url) const;
+    
+	char* concat(int n, ...);
 
 protected:
 

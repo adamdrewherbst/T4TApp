@@ -11,7 +11,8 @@ bool T4TApp::Lever::baseTouch(Touch::TouchEvent evt, int x, int y) {
 }
 
 bool T4TApp::Lever::armTouch(Touch::TouchEvent evt, int x, int y) {
-	Ray ray;
+	return true;
+/*	Ray ray;
 	Plane vertical(Vector3(0, 0, 1), 0);
 	_scene->getActiveCamera()->pickRay(app->getViewport(), x, y, &ray);
 	float distance = ray.intersects(vertical);
@@ -55,14 +56,8 @@ void T4TApp::Lever::placeElement(Node *node) {
 			Quaternion::createFromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), (float)(0.0f), &rot1);
 			Quaternion::createFromAxisAngle(Vector3(1.0f, 0.0f, 0.0f), (float)(0.0f), &rot2);
 			//add the hinge constraint between the base and arm
-			_armConstraint = app->getPhysicsController()->createHingeConstraint(
-				_allNodes[0]->getCollisionObject()->asRigidBody(),
-				rot1,
-				Vector3(0.0f, 4.0f, 0.0f),
-				_allNodes[1]->getCollisionObject()->asRigidBody(),
-				rot2,
-				Vector3(0.0f, 0.0f, 0.0f)
-			);//*/
+			_armConstraint = (PhysicsHingeConstraint*) app->addConstraint(_allNodes[0], _allNodes[1], "hinge",
+				rot1, Vector3(0.0f, 4.0f, 0.0f), rot2, Vector3(0.0f, 0.0f, 0.0f));
 			break;
 	}
 	body->setEnabled(true);
