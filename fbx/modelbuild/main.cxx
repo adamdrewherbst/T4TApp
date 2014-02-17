@@ -273,6 +273,7 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
     //const char* filename = (std::string(APP_RESOURCE_DIRECTORY) + std::string(pName) + std::string(".node")).c_str();
     cout << "writing node file:\n" << filename << endl;
     ofstream out(filename, ios::out | ios::trunc);
+    out << type << endl;
     int numParts = 2;
 
 	//each mesh creation function, eg. CreateSphere, returns an array:
@@ -469,6 +470,9 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		for(int i = 0; i < 6; i++) out << i << "\t";
 		out << endl;
 	}
+	
+	//no physics constraints when node is first written - may be added by app users
+	out << 0 << endl;
 
 	out.close();
 	

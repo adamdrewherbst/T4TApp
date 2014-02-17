@@ -30,11 +30,13 @@ void T4TApp::ProjectComponent::controlEvent(Control *control, EventType evt) {
 	if(strncmp(controlID, "comp_", 5) != 0) return;
 	Node *node = app->duplicateModelNode(controlID+5, _isStatic[_currentElement]);
 	node->getCollisionObject()->setEnabled(true);
-	node->setId(_elementNames[_currentElement].c_str());
+	std::stringstream ss;
+	ss << _id << _typeCount << "_" << _elementNames[_currentElement];
+	const std::string nodeID = ss.str();
+	node->setId(nodeID.c_str());
 	_scene->addNode(node);
 	_allNodes.push_back(node);
 	placeElement(node);
-cout << "added element " << _elementNames[_currentElement] << " static=" << _isStatic[_currentElement] << endl;
 	app->_componentMenu->setVisible(false);
 	_container->setVisible(true);
 	addListener(this, Control::Listener::CLICK);
@@ -66,34 +68,36 @@ void T4TApp::ProjectComponent::finishComponent() {
 		nodes.push_back(std::string(_allNodes[i]->getId()));
 	}
 	setActive(false);
-	for(int i = 0; i < nodes.size(); i++) app->loadNodeFromData(nodes[i]);
+	for(int i = 0; i < nodes.size(); i++) app->loadNodeFromData(nodes[i].c_str());
 }
 
 void T4TApp::ProjectComponent::addElement(const char *name, T4TApp::ProjectComponent::TouchCallback touchCallback, bool isStatic) {
 	_elementNames.push_back(std::string(name));
 	_elementCallbacks.push_back(touchCallback);
 	_isStatic.push_back(isStatic);
-	//determine the count of this component type based on the highest index for this element in the scene or in saved files
-	if(_typeCount > 0) return;
-	_typeCount = 0;
-	char *elementID = (char*)calloc(100, sizeof(char));
-	do {
-		sprintf(elementID, "%s%d_%s", _id, ++_typeCount, name);
-	} while(app->_scene->findNode(elementID) != NULL || FileSystem::fileExists(app->concat(3, "res/common/", elementID, ".node")));
 }
 
 void T4TApp::ProjectComponent::setActive(bool active) {
 	app->_componentMenu->setVisible(active);
 	if(active) {
-		app->releaseScene();
+		app->hideScene();
 		loadScene();
 		app->setActiveScene(this->_scene);
 		app->_componentMenu->setState(Control::FOCUS);
 		app->_mainMenu->addListener(this, Control::Listener::CLICK);
 		app->_componentMenu->addListener(this, Control::Listener::CLICK);
+		//determine the count of this component type based on the highest index for this element in the scene or in saved files
+		_typeCount = 0;
+		std::string elementID;
+		do {
+			std::stringstream ss;
+			ss << _id << ++_typeCount << "_" << _elementNames[0];
+			elementID = ss.str();
+		} while(app->_scene->findNode(elementID.c_str()) != NULL
+			|| FileSystem::fileExists(("res/common/" + elementID + ".node").c_str()));
 	}else {
 		releaseScene();
-		app->loadScene();
+		app->showScene();
 		app->_componentMenu->setState(Control::NORMAL);
 		app->_mainMenu->removeListener(this);
 		app->_componentMenu->removeListener(this);
@@ -124,5 +128,6 @@ void T4TApp::ProjectComponent::loadScene() {
 }
 
 void T4TApp::ProjectComponent::releaseScene() {
+	_scene->visit(app, &T4TApp::hideNode);
 	SAFE_RELEASE(_scene);
 }

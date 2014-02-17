@@ -387,7 +387,7 @@ bool T4TApp::SliceMode::sliceNode() {
 	for(int i = 0; i < 100; i++) filename[i] = '\0';
 	int count = 1;
 	do {
-		sprintf(filename, "res/common/%s_slice%d.node", data->type, count++);
+		sprintf(filename, "res/common/%s_slice%d.node", data->type.c_str(), count++);
 	}while(FileSystem::fileExists(filename));
 	Node::writeData(&newData, filename);
 	_node->reloadFromData(filename);

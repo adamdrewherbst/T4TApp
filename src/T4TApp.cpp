@@ -1,7 +1,6 @@
 #include "T4TApp.h"
 #include "Grid.h"
 #include <cmath>
-#include <stdlib.h>
 #include <sstream>
 
 using std::istringstream;
@@ -247,6 +246,27 @@ void T4TApp::releaseScene()
 	_carVehicle = NULL;
 	//enableScriptCamera(false);
 	SAFE_RELEASE(_scene);
+}
+
+void T4TApp::hideScene() {
+	_scene->visit(this, &T4TApp::hideNode);
+}
+
+void T4TApp::showScene() {
+	_scene->visit(this, &T4TApp::showNode);
+	_activeScene = _scene;
+}
+
+bool T4TApp::hideNode(Node *node) {
+	PhysicsCollisionObject *obj = node->getCollisionObject();
+	if(obj)	obj->setEnabled(false);
+	return true;
+}
+
+bool T4TApp::showNode(Node *node) {
+	PhysicsCollisionObject *obj = node->getCollisionObject();
+	if(obj) obj->setEnabled(true);
+	return true;
 }
 
 template <class ButtonType> ButtonType* T4TApp::addButton(Form *menu, const char *id, const char *text)
@@ -1033,16 +1053,23 @@ PhysicsConstraint* T4TApp::addConstraint(Node *n1, Node *n2, const char *type, .
 		Vector3 trans[2];
 		PhysicsRigidBody *body[2];
 		for(int i = 0; i < 2; i++) {
-			rot[i] = (Quaternion) va_arg(arguments, Quaternion);
-			trans[i] = (Vector3) va_arg(arguments, Vector3);
+			rot[i] = *((Quaternion*) va_arg(arguments, Quaternion*));
+			trans[i] = *((Vector3*) va_arg(arguments, Vector3*));
 			body[i] = node[i]->getCollisionObject()->asRigidBody();
-			Node::nodeConstraint constraint;
-			constraint.other = node[(i+1)%2]->getId();
-			constraint.type = "hinge";
-			constraint.rotation = rot[i];
-			constraint.translation = trans[i];
 			Node::nodeData *data = (Node::nodeData*)node[i]->getUserPointer();
-			data->constraints.push_back(&constraint);
+			int ind = data->constraints.size();
+			bool exists = false; //see if this constraint is already in the node data
+			for(int j = 0; j < ind; j++) {
+				if(data->constraints[j]->other.compare(node[(i+1)%2]->getId()) == 0
+					&& data->constraints[j]->type.compare(type) == 0) exists = true;
+			}
+			if(!exists) {
+				data->constraints.push_back(new Node::nodeConstraint());
+				data->constraints[ind]->other = node[(i+1)%2]->getId();
+				data->constraints[ind]->type = type;
+				data->constraints[ind]->rotation = rot[i];
+				data->constraints[ind]->translation = trans[i];
+			}
 		}
 		ret = getPhysicsController()->createHingeConstraint(body[0], rot[0], trans[0], body[1], rot[1], trans[1]);
 	}
@@ -1056,15 +1083,15 @@ Node* T4TApp::loadNodeFromData(const char *nodeID) {
 	node->reloadFromData(filename, true);
 	Node::nodeData *data = (Node::nodeData*)node->getUserPointer();
 	for(int i = 0; i < data->constraints.size(); i++) {
-		Node *other = _scene->findNode(data->constraints[i]->other);
+		Node *other = _scene->findNode(data->constraints[i]->other.c_str());
 		if(other == NULL) continue;
-		const char *type = data->constraints[i]->type;
+		std::string type = data->constraints[i]->type;
 		Node::nodeData *otherData = (Node::nodeData*)other->getUserPointer();
 		for(int j = 0; j < otherData->constraints.size(); j++) {
-			if(strcmp(otherData->constraints[j]->other, node->getId()) == 0
-				&& strcmp(otherData->constraints[j]->type, type) == 0) {
-				addConstraint(node, other, type, data->constraints[i]->rotation, data->constraints[i]->translation,
-					otherData->constraints[j]->rotation, otherData->constraints[j]->translation);
+			if(otherData->constraints[j]->other.compare(node->getId()) == 0
+				&& otherData->constraints[j]->type.compare(type) == 0) {
+				addConstraint(node, other, type.c_str(), &data->constraints[i]->rotation, &data->constraints[i]->translation,
+					&otherData->constraints[j]->rotation, &otherData->constraints[j]->translation);
 			}
 		}
 	}

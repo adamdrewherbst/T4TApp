@@ -5,6 +5,7 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdarg>
+#include <stdlib.h>
 
 using namespace gameplay;
 
@@ -37,6 +38,10 @@ public:
     const std::string printQuat(Quaternion& q);
 	void loadScene();
 	void releaseScene();
+	void hideScene();
+	void showScene();
+	bool hideNode(Node *node);
+	bool showNode(Node *node);
     void setActiveScene(Scene *scene);
     
     /**

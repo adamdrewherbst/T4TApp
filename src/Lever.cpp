@@ -55,9 +55,10 @@ void T4TApp::Lever::placeElement(Node *node) {
 			Quaternion rot1, rot2;
 			Quaternion::createFromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), (float)(0.0f), &rot1);
 			Quaternion::createFromAxisAngle(Vector3(1.0f, 0.0f, 0.0f), (float)(0.0f), &rot2);
+			Vector3 trans1(0.0f, 4.0f, 0.0f), trans2(0.0f, 0.0f, 0.0f);
 			//add the hinge constraint between the base and arm
 			_armConstraint = (PhysicsHingeConstraint*) app->addConstraint(_allNodes[0], _allNodes[1], "hinge",
-				rot1, Vector3(0.0f, 4.0f, 0.0f), rot2, Vector3(0.0f, 0.0f, 0.0f));
+				&rot1, &trans1, &rot2, &trans2);
 			break;
 	}
 	body->setEnabled(true);
