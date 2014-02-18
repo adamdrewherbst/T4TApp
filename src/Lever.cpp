@@ -44,14 +44,24 @@ bool T4TApp::Lever::armTouch(Touch::TouchEvent evt, int x, int y) {
 }
 
 void T4TApp::Lever::placeElement(Node *node) {
-	PhysicsRigidBody *body = node->getCollisionObject()->asRigidBody();
-	body->setEnabled(false);
+	BoundingBox box = node->getModel()->getMesh()->getBoundingBox();
+	float x, y;
 	switch(_currentElement) {
 		case 0: //base
-			node->setTranslation(Vector3(0.0f, 0.0f, 0.0f));
+			y = (box.max.y - box.min.y) / 2.0f;
+			node->setTranslation(Vector3(0.0f, y, 0.0f));
 			break;
 		case 1: //lever arm
-			node->setTranslation(Vector3(0.0f, 4.0f, 0.0f));
+			node->setTranslation(_allNodes[0]->getTranslationWorld() + Vector3(0.0f, 4.0f, 0.0f));
+			break;
+	}
+}
+
+void T4TApp::Lever::finishElement(Node *node) {
+	switch(_currentElement) {
+		case 0:
+			break;
+		case 1:
 			Quaternion rot1, rot2;
 			Quaternion::createFromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), (float)(0.0f), &rot1);
 			Quaternion::createFromAxisAngle(Vector3(1.0f, 0.0f, 0.0f), (float)(0.0f), &rot2);
@@ -61,6 +71,9 @@ void T4TApp::Lever::placeElement(Node *node) {
 				&rot1, &trans1, &rot2, &trans2);
 			break;
 	}
-	body->setEnabled(true);
 }
 
+void T4TApp::Lever::releaseScene() {
+	ProjectComponent::releaseScene();
+	app->getPhysicsController()->removeConstraint(_armConstraint);
+}

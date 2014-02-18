@@ -274,6 +274,10 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
     cout << "writing node file:\n" << filename << endl;
     ofstream out(filename, ios::out | ios::trunc);
     out << type << endl;
+    //rotation, translation, scale
+    out << "1\t0\t0\t0" << endl;
+    out << "0\t0\t0" << endl;
+    out << "1\t1\t1" << endl;
     int numParts = 2;
 
 	//each mesh creation function, eg. CreateSphere, returns an array:
@@ -323,6 +327,8 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 				}
 			}
 		}
+		//physics object
+		out << "sphere" << endl;
 		//convex hulls
 		out << 1 << endl << segments*(segments-1)+2 << endl;
 		for(int i = 0; i < segments*(segments-1)+2; i++) out << i << "\t";
@@ -363,6 +369,8 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 				out << i << "\t" << (i+1)%segments << "\t" << segments << endl;
 			}
 		}
+		//physics object
+		out << "mesh" << endl;
 		//convex hulls
 		out << 1 << endl << 2*segments+2 << endl;
 		for(int i = 0; i < 2*segments+2; i++) out << i << "\t";
@@ -417,6 +425,8 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 			out << 0 << "\t" << 1 << "\t" << 2 << endl;
 			out << 0 << "\t" << 2 << "\t" << 3 << endl;
 		}
+		//physics object
+		out << "mesh" << endl;
 		//convex hulls
 		out << 2*segments+2 << endl;
 		for(int n = 0; n < 4; n++) {
@@ -465,14 +475,18 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 			out << 0 << "\t" << 1 << "\t" << 2 << endl;
 			out << 0 << "\t" << 2 << "\t" << 3 << endl;
 		}
+		//physics object
+		out << "box" << endl;
 		//convex hulls
-		out << 1 << endl << 6 << endl;
-		for(int i = 0; i < 6; i++) out << i << "\t";
+		out << 1 << endl << 8 << endl;
+		for(int i = 0; i < 8; i++) out << i << "\t";
 		out << endl;
 	}
 	
 	//no physics constraints when node is first written - may be added by app users
 	out << 0 << endl;
+	//mass is 10 by default
+	out << 10 << endl;
 
 	out.close();
 	

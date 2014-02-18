@@ -196,6 +196,10 @@ bool T4TApp::SliceMode::sliceNode() {
 	//put the vertices that will be kept into a new nodeData struct
 	Node::nodeData newData;
 	newData.type = data->type;
+	newData.objType = "mesh"; //can't keep sphere/box collision object once it is deformed!
+	newData.rotation = data->rotation;
+	newData.translation = data->translation;
+	newData.scale = data->scale;
 	std::vector<short> keep(data->vertices.size()), //index in the new vertex list or -1 if discarding
 		replace(data->vertices.size()); //index of the new vertex that is replacing this one
 	for(int i = 0; i < data->vertices.size(); i++) {
@@ -374,12 +378,15 @@ bool T4TApp::SliceMode::sliceNode() {
 	}
 	
 	//transform the new vertices back to model space before saving the data
-	Matrix worldModel;
+	Matrix worldModel, transInv;
 	_node->getWorldMatrix().invert(&worldModel);
+	data->initTrans.invert(&transInv);
 	Vector3 translation(_node->getTranslationWorld());
 	for(int i = 0; i < newData.vertices.size(); i++) {
 		worldModel.transformVector(&newData.vertices[i]);
 		newData.vertices[i] -= translation;
+		transInv.transformVector(&newData.vertices[i]);
+		newData.vertices[i] -= data->translation;
 	}
 	
 	//write the new node data to a file with suffix '_slice' and read it back in

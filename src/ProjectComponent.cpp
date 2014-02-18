@@ -29,7 +29,6 @@ void T4TApp::ProjectComponent::controlEvent(Control *control, EventType evt) {
 	const char *controlID = control->getId();
 	if(strncmp(controlID, "comp_", 5) != 0) return;
 	Node *node = app->duplicateModelNode(controlID+5, _isStatic[_currentElement]);
-	node->getCollisionObject()->setEnabled(true);
 	std::stringstream ss;
 	ss << _id << _typeCount << "_" << _elementNames[_currentElement];
 	const std::string nodeID = ss.str();
@@ -37,6 +36,9 @@ void T4TApp::ProjectComponent::controlEvent(Control *control, EventType evt) {
 	_scene->addNode(node);
 	_allNodes.push_back(node);
 	placeElement(node);
+	app->addCollisionObject(node);
+	finishElement(node);
+	node->getCollisionObject()->setEnabled(true);
 	app->_componentMenu->setVisible(false);
 	_container->setVisible(true);
 	addListener(this, Control::Listener::CLICK);
@@ -64,6 +66,8 @@ void T4TApp::ProjectComponent::finishComponent() {
 	//can't deep copy nodes to the app scene, so must write them out and read them in
 	std::vector<std::string> nodes;
 	for(int i = 0; i < _allNodes.size(); i++) {
+		Node::nodeData *data = (Node::nodeData*)_allNodes[i]->getUserPointer();
+		data->translation.set(_allNodes[i]->getTranslationWorld());
 		_allNodes[i]->writeMyData();
 		nodes.push_back(std::string(_allNodes[i]->getId()));
 	}
@@ -131,3 +135,4 @@ void T4TApp::ProjectComponent::releaseScene() {
 	_scene->visit(app, &T4TApp::hideNode);
 	SAFE_RELEASE(_scene);
 }
+

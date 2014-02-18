@@ -102,9 +102,9 @@ void T4TApp::initialize()
     _theme->release();   // So we can release it once we're done creating forms with it.
     
 	// populate catalog of items
-	_models = Scene::load("res/common/models.scene");
-	_models->setId("models");
-	/*_models = Scene::create("models");
+	//_models = Scene::load("res/common/models.scene");
+	//_models->setId("models");
+	_models = Scene::create("models");
 	_models->addNode("sphere");
 	_models->addNode("cylinder");
 	_models->addNode("halfpipe");
@@ -117,8 +117,8 @@ void T4TApp::initialize()
     while(modelNode) {
     	if(strstr(modelNode->getId(), "_part") == NULL) {
 			cout << "adding button for " << modelNode->getId() << endl;
-			modelNode->loadData(concat(3, "res/common/", modelNode->getId(), ".node"));
-			//modelNode->reloadFromData(concat(3, "res/common/", modelNode->getId(), ".node"), false);
+			//modelNode->loadData(concat(3, "res/common/", modelNode->getId(), ".node"));
+			modelNode->reloadFromData(concat(3, "res/common/", modelNode->getId(), ".node"), false);
 			Button* itemButton = addButton <Button> (_itemContainer, modelNode->getId());
 			ImageControl* itemImage = addButton <ImageControl> (_componentMenu, concat(2, "comp_", modelNode->getId()));
 			itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
@@ -145,6 +145,7 @@ void T4TApp::initialize()
     _modeNames.push_back("Rotate");
     _modeNames.push_back("Select");
     _modeNames.push_back("Constraint");
+    _modeNames.push_back("Ball Drop");
 	for(size_t i = 0; i < _modeNames.size(); i++) {
 		RadioButton* modeButton = addButton <RadioButton> (_modeContainer, _modeNames[i].c_str());
 		modeButton->setGroupId("interactionMode");
@@ -711,6 +712,22 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 			rotate = true;
 			break;
 		}
+		else if(_mode.compare("Ball Drop") == 0) {
+			Ray ray;
+			Plane vertical(Vector3(0, 0, 1), 0);
+			_scene->getActiveCamera()->pickRay(getViewport(), x, y, &ray);
+			float distance = ray.intersects(vertical);
+			if(distance != Ray::INTERSECTS_NONE) {
+				float worldX = ray.getOrigin().x + ray.getDirection().x * distance;
+				Node *node = duplicateModelNode("sphere");
+				addCollisionObject(node);
+				PhysicsRigidBody *body = node->getCollisionObject()->asRigidBody();
+				body->setEnabled(false);
+				node->setTranslation(worldX, 10.0f, 0.0f);
+				body->setEnabled(true);
+				_scene->addNode(node);
+			}
+		}
 	    _debugFlag = false;
 	    break;
     case Touch::TOUCH_MOVE:
@@ -862,6 +879,7 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	}
 	else if(_itemContainer->getControl(controlID) == control) {
 		Node *node = duplicateModelNode(controlID);
+		addCollisionObject(node);
 		_scene->addNode(node);
 		Node *curSelected = _selectedNode;
 		setSelected(node);
@@ -910,23 +928,40 @@ Node* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 	Node *modelNode = _models->findNode(type);
 	if(modelNode == NULL) return NULL;
 	Node *node = modelNode->clone();
-	node->setTranslation(Vector3(0.0f, node->getModel()->getMesh()->getBoundingBox().max.y/2.0f, 0.0f));
+	BoundingBox box = node->getModel()->getMesh()->getBoundingBox();
+	node->setTranslation(Vector3(0.0f, (box.max.y - box.min.y)/2.0f, 0.0f));
 	Node::nodeData *data = (Node::nodeData*) modelNode->getUserPointer();
 	const char count[2] = {(char)(++data->typeCount + 48), '\0'};
 	node->setId(concat(2, modelNode->getId(), count));
-	node->setUserPointer(data);
+	node->loadData(concat(3, "res/common/", type, ".node"));
+	node->updateData();
+	data = (Node::nodeData*)node->getUserPointer();
+	if(isStatic) data->mass = 0;
 
 	/*PhysicsRigidBody::Parameters params;
 	params.mass = isStatic ? 0.0f : 10.0f;
 	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::mesh(node->getModel()->getMesh()), &params);
 //*/
-	if(isStatic) node->setCollisionObject(concat(2, "res/common/models.physics#static", modelNode->getId()));
+	/*if(isStatic) node->setCollisionObject(concat(2, "res/common/models.physics#static", modelNode->getId()));
 	else node->setCollisionObject(concat(2, "res/common/models.physics#", modelNode->getId()));
 	PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
 	body->addCollisionListener(this);
 	body->_body->setSleepingThresholds(0.1f, 0.1f);
 	body->setActivation(ACTIVE_TAG);//*/
 	return node;
+}
+
+void T4TApp::addCollisionObject(Node *node) {
+	Node::nodeData *data = (Node::nodeData*)node->getUserPointer();
+	PhysicsRigidBody::Parameters params;
+	params.mass = data->mass;
+	if(data->objType.compare("mesh") == 0) {
+		node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::mesh(node->getModel()->getMesh()), &params);
+	} else if(data->objType.compare("box") == 0) {
+		node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &params);
+	} else if(data->objType.compare("sphere") == 0) {
+		node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::sphere(), &params);
+	}
 }
 
 //place the selected object at the given xz-coords and set its y-coord so it is on top of any objects it would otherwise intersect
@@ -954,7 +989,7 @@ void T4TApp::setSelected(Node* node)
 	}
 	else
 	{
-		cout << "selecting NULL" << endl;
+		//cout << "selecting NULL" << endl;
 		if(_selectedNode && _selectedNode->getCollisionObject() != NULL) {
 			PhysicsRigidBody* body = _selectedNode->getCollisionObject()->asRigidBody();
 			body->setEnabled(true); //turn off physics on this body while dragging it around

@@ -27,6 +27,7 @@ public:
     T4TApp* getInstance();
     
     Node* duplicateModelNode(const char* type, bool isStatic = false);
+    void addCollisionObject(Node *node);
 	Node* loadNodeFromData(const char *nodeID);
     void changeNodeModel(Node *node, const char* type);
     bool printNode(Node *node);
@@ -215,11 +216,12 @@ public:
 
 		void setActive(bool active);
 		void loadScene();
-		void releaseScene();
+		virtual void releaseScene();
 		void addElement(const char *name, bool (T4TApp::ProjectComponent::*)(Touch::TouchEvent evt, int x, int y),
 				bool isStatic = false);
 		void controlEvent(Control *control, EventType evt);
-		virtual void placeElement(Node *node){}
+		virtual void placeElement(Node *node) = 0; //position the element in space before it has physics attached
+		virtual void finishElement(Node *node) = 0; //post processing once the collision object is attached
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void finishComponent();
 	};
@@ -232,6 +234,8 @@ public:
 		bool baseTouch(Touch::TouchEvent evt, int x, int y);
 		bool armTouch(Touch::TouchEvent evt, int x, int y);
 		void placeElement(Node *node);
+		void finishElement(Node *node);
+		void releaseScene();
 	};
 	std::vector<ProjectComponent*> _machines;
 	
