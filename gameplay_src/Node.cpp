@@ -1303,11 +1303,28 @@ Node::nodeData* Node::readData(char *filename)
 	data->typeCount = 0;
 
 	char *str, line[2048];
+    float x, y, z, w;
 	std::istringstream in;
+	str = stream->readLine(line, 2048);
+	in.str(str);
+	std::string type;
+	in >> type;
+	data->type = type;
+    str = stream->readLine(line, 2048);
+    in.str(str);
+    in >> x >> y >> z >> w;
+    data->rotation.set(Vector3(x, y, z), (float)(w*M_PI/180.0));
+    str = stream->readLine(line, 2048);
+    in.str(str);
+    in >> x >> y >> z;
+    data->translation.set(x, y, z);
+    str = stream->readLine(line, 2048);
+    in.str(str);
+    in >> x >> y >> z;
+    data->scale.set(x, y, z);
     str = stream->readLine(line, 2048);
     int nv = atoi(str), v = 0;
     cout << nv << " vertices" << endl;
-    float x, y, z, w;
     for(int i = 0; i < nv; i++) {
     	str = stream->readLine(line, 2048);
     	in.str(str);
@@ -1354,6 +1371,19 @@ Node::nodeData* Node::readData(char *filename)
 	    	data->triangles[i].push_back(triangle);
     	}
     }
+    //set the vertices according to the initial rotation, translation, & scale
+/*    data->initTrans = Matrix::identity();
+    data->initTrans.rotate(data->rotation);
+    data->initTrans.scale(data->scale);
+    for(int i = 0; i < data->vertices.size(); i++) {
+    	data->initTrans.transformVector(data->vertices[i], &data->worldVertices[i]);
+    	data->worldVertices[i] += data->translation;
+    }//*/
+    //physics
+    str = stream->readLine(line, 2048);
+	in.str(str);
+	in >> type;
+	data->objType = type;
     str = stream->readLine(line, 2048);
     int nh = atoi(str), hullSize;
     data->hulls.resize(nh);
@@ -1369,7 +1399,7 @@ Node::nodeData* Node::readData(char *filename)
     }
     str = stream->readLine(line, 2048);
     int nc = atoi(str);
-    data->constraints.resize(nh);
+    data->constraints.resize(nc);
     std::string word;
     for(int i = 0; i < nc; i++) {
     	data->constraints[i] = new nodeConstraint();
@@ -1384,11 +1414,13 @@ Node::nodeData* Node::readData(char *filename)
     	in >> x >> y >> z;
     	data->constraints[i]->translation.set(x, y, z);
     }
+    str = stream->readLine(line, 2048);
+    data->mass = atof(str);
     stream->close();
     return data;
 }
 
-void Node::writeData(Node::nodeData *data, char *filename) {
+void Node::writeData(Node::nodeData *data, char *filename, Node *node) {
 	std::auto_ptr<Stream> stream(FileSystem::open(filename, FileSystem::WRITE));
 	if (stream.get() == NULL)
 	{
@@ -1397,6 +1429,12 @@ void Node::writeData(Node::nodeData *data, char *filename) {
 	}
 	std::string line;
 	std::ostringstream os;
+	os << data->type << endl;
+	Vector3 axis;
+	float angle = data->rotation.toAxisAngle(&axis) * 180.0f/M_PI;
+	os << axis.x << "\t" << axis.y << "\t" << axis.z << "\t" << angle << endl;
+	os << data->translation.x << "\t" << data->translation.y << "\t" << data->translation.z << endl;
+	os << data->scale.x << "\t" << data->scale.y << "\t" << data->scale.z << endl;
 	os << data->vertices.size() << endl;
 	for(int i = 0; i < data->vertices.size(); i++) {
 		for(int j = 0; j < 3; j++) os << gv(&data->vertices[i],j) << "\t";
@@ -1426,6 +1464,7 @@ void Node::writeData(Node::nodeData *data, char *filename) {
 	line = os.str();
 	stream->write(line.c_str(), sizeof(char), line.length());
 	os.str("");
+	os << data->objType << endl;
 	os << data->hulls.size() << endl;
 	for(int i = 0; i < data->hulls.size(); i++) {
 		os << data->hulls[i].size() << endl;
@@ -1446,6 +1485,8 @@ void Node::writeData(Node::nodeData *data, char *filename) {
 		os << data->constraints[i]->translation.y << "\t";
 		os << data->constraints[i]->translation.z << endl;
 	}
+	float mass = (node != NULL) ? node->getCollisionObject()->asRigidBody()->getMass() : data->mass;
+	os << mass << endl;
 	line = os.str();
 	stream->write(line.c_str(), sizeof(char), line.length());
 	os.str("");
@@ -1453,11 +1494,11 @@ void Node::writeData(Node::nodeData *data, char *filename) {
 }
 
 void Node::writeMyData(char *filename) {
-	if(filename == NULL) filename = Game::getInstance()->concat("res/common/", getId(), ".node");
-	writeData((nodeData*)getUserPointer(), filename);
+	if(filename == NULL) filename = Game::getInstance()->concat(3, "res/common/", getId(), ".node");
+	writeData((nodeData*)getUserPointer(), filename, this);
 }
 
-void Node::loadData(char *filename, Scene *scene) {
+void Node::loadData(char *filename) {
 	nodeData *data = readData(filename);
 	setUserPointer(data);
 }
@@ -1474,12 +1515,10 @@ void Node::updateData() {
 }
 
 void Node::reloadFromData(char *filename, bool addPhysics) {
-	nodeData *curData = (nodeData*)getUserPointer();
-	const char *type;
-	if(curData != NULL) type = curData->type;
 	loadData(filename);
 	nodeData *data = (nodeData*)getUserPointer();
-	if(type != NULL) data->type = type;
+	std::string materialFile = Game::getInstance()->concat(2, "res/common/models.material#", data->type.c_str());
+	updateData();
 	//update the mesh to contain the new coordinates
 	float *vertices, radius = 0;
 	unsigned short *triangles;
@@ -1495,14 +1534,14 @@ void Node::reloadFromData(char *filename, bool addPhysics) {
 	cout << "making node " << filename << " with " << numVertices << " vertices, " << numTriangles << " triangles, and "
 		<< data->faces.size() << " faces" << endl;
 	for(int i = 0; i < data->faces.size(); i++) {
-		for(int j = 0; j < 3; j++) vec[j].set(data->vertices[data->faces[i][j]]);
+		for(int j = 0; j < 3; j++) vec[j].set(data->worldVertices[data->faces[i][j]]);
 		normal[i].set(vec[1] - vec[0]);
 		normal[i].cross(vec[2] - vec[1]);
 		normal[i].normalize(&normal[i]);
 		for(int j = 0; j < data->faces[i].size(); j++) {
 			for(int k = 0; k < 3; k++) {
-				radius = fmaxf(radius, data->vertices[data->faces[i][j]].length());
-				vertices[v++] = gv(&data->vertices[data->faces[i][j]],k);
+				radius = fmaxf(radius, data->worldVertices[data->faces[i][j]].length());
+				vertices[v++] = gv(&data->worldVertices[data->faces[i][j]],k);
 				if(vertices[v-1] < gv(&min, k)) sv(&min, k, vertices[v-1]);
 				if(vertices[v-1] > gv(&max, k)) sv(&max, k, vertices[v-1]);
 			}
@@ -1526,15 +1565,26 @@ void Node::reloadFromData(char *filename, bool addPhysics) {
 	mesh->setBoundingSphere(BoundingSphere(Vector3::zero(), radius));
 	Model *model = Model::create(mesh);
 	mesh->release();
-	model->setMaterial(Game::getInstance()->concat(2, "res/common/sample.material#", data->type));
+	model->setMaterial(materialFile.c_str());
 	setModel(model);
 	model->release();
+	//set the initial transformation
+	setRotation(data->rotation);
+	setTranslation(data->translation);
+	setScale(data->scale);
+	//add the collision object
 	if(addPhysics) {
 		//load the compound convex hull collision object
 		PhysicsRigidBody::Parameters params;
-		params.mass = 10.0f;
-		setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::mesh(mesh), &params);
+		params.mass = data->mass;
+		if(data->objType.compare("mesh") == 0)
+			setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::mesh(mesh), &params);
+		else if(data->objType.compare("box") == 0)
+			setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &params);
+		else if(data->objType.compare("sphere") == 0)
+			setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::sphere(), &params);
 	}
+	updateData();
 }
 
 NodeCloneContext::NodeCloneContext()

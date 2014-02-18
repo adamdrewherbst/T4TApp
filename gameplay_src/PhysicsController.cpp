@@ -1106,8 +1106,9 @@ PhysicsCollisionShape* PhysicsController::createMesh(Mesh* mesh, const Vector3& 
 
 	// Copy the scaled vertex position data to the rigid body's local buffer.
 	Matrix m;
-	Matrix::createScale(scale, &m);
+	Matrix::createScale(data->scale, &m);
 	Vector3 v;
+	cout << "adding object for " << data->type << endl;
 	for(unsigned int i = 0; i < data->hulls.size(); i++)
 	{
 		btConvexHullShape *hull = bullet_new<btConvexHullShape>();
@@ -1115,6 +1116,7 @@ PhysicsCollisionShape* PhysicsController::createMesh(Mesh* mesh, const Vector3& 
 		for(int j = 0; j < data->hulls[i].size(); j++) {
 			v.set(data->vertices[data->hulls[i][j]]);
 			v *= m;
+			//v += data->translation;
 			hull->addPoint(btVector3(v.x, v.y, v.z));
 		    cout << "<" << v.x << ", " << v.y << ", " << v.z << ">" << endl;
 		}

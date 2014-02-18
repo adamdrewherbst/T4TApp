@@ -656,26 +656,34 @@ public:
     Node* clone() const;
     
     struct nodeConstraint {
-    	const char *other; //id of the node to which this one is constrained
-    	const char *type; //one of: hinge, spring, fixed, socket
+    	std::string other; //id of the node to which this one is constrained
+    	std::string type; //one of: hinge, spring, fixed, socket
     	Vector3 translation; //offset of the constraint point from my origin
     	Quaternion rotation; //rotation offset of the constraint point
     };
 
    	//any data associated with a node
 	struct nodeData {
+		//model
+		Quaternion rotation;
+		Vector3 translation;
+		Vector3 scale;
+		Matrix initTrans; //combination of inital rotation, translation, and scaling
 		std::vector<Vector3> vertices, worldVertices; //model space and world space coords
 		std::vector<std::vector<unsigned short> > edges; //vertex index pairs
 		std::vector<std::vector<unsigned short> > faces; //vertex indices of polygons (not triangles)
 		std::vector<std::vector<std::vector<unsigned short> > > triangles; //triangulation of each polygon
+		std::string type;
+		int typeCount; //number of clones of this model currently in the simulation
+		//physics
+		std::string objType; //mesh, box, sphere, capsule
+		float mass;
 		std::vector<std::vector<unsigned short> > hulls; //vertex indices of convex hulls
 		std::vector<nodeConstraint*> constraints;
-		const char *type;
-		int typeCount; //number of clones of this model currently in the simulation
 	};
 	
 	static nodeData* readData(char *filename);
-	static void writeData(nodeData *data, char *filename);
+	static void writeData(nodeData *data, char *filename, Node *node = NULL);
 	void writeMyData(char *filename = NULL);
 	void loadData(char *filename = NULL);
 	void updateData();

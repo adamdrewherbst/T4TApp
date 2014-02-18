@@ -651,9 +651,13 @@ char* Game::concat(int n, ...)
 		length += strlen(strings[i]);
 	}
 	va_end(arguments);
-	char* dest = new char[length+1];
-	dest[0] = '\0';
-	for(int i = 0; i < n; i++) strcat(dest, strings[i]);
+	char *dest = (char*)malloc((length+1)*sizeof(char));
+	int count = 0;
+	for(int i = 0; i < length+1; i++) dest[i] = '\0';
+	for(int i = 0; i < n; i++) {
+		strcpy(dest + count*sizeof(char), strings[i]);
+		count += strlen(strings[i]);
+	}
 	dest[length] = '\0';
 	return dest;
 }
