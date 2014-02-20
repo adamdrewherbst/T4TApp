@@ -1289,7 +1289,7 @@ void Node::sv(Vector3 *v, int dim, float val) {
 	}
 }
 
-Node::nodeData* Node::readData(char *filename)
+Node::nodeData* Node::readData(const char *filename)
 {
 	std::auto_ptr<Stream> stream(FileSystem::open(filename));
 	if (stream.get() == NULL)
@@ -1420,7 +1420,7 @@ Node::nodeData* Node::readData(char *filename)
     return data;
 }
 
-void Node::writeData(Node::nodeData *data, char *filename, Node *node) {
+void Node::writeData(Node::nodeData *data, const char *filename, Node *node) {
 	std::auto_ptr<Stream> stream(FileSystem::open(filename, FileSystem::WRITE));
 	if (stream.get() == NULL)
 	{
@@ -1493,12 +1493,12 @@ void Node::writeData(Node::nodeData *data, char *filename, Node *node) {
 	stream->close();
 }
 
-void Node::writeMyData(char *filename) {
+void Node::writeMyData(const char *filename) {
 	if(filename == NULL) filename = Game::getInstance()->concat(3, "res/common/", getId(), ".node");
 	writeData((nodeData*)getUserPointer(), filename, this);
 }
 
-void Node::loadData(char *filename) {
+void Node::loadData(const char *filename) {
 	nodeData *data = readData(filename);
 	setUserPointer(data);
 }
@@ -1514,7 +1514,13 @@ void Node::updateData() {
 	}
 }
 
-void Node::reloadFromData(char *filename, bool addPhysics) {
+void Node::reloadFromData(const char *filename, bool addPhysics) {
+	//reset the physics and transformation while loading the data
+	setCollisionObject(PhysicsCollisionObject::NONE);
+	setRotation(Quaternion::identity());
+	setTranslation(Vector3::zero());
+	setScale(Vector3(1,1,1));
+	//load the node coordinates etc.
 	loadData(filename);
 	nodeData *data = (nodeData*)getUserPointer();
 	std::string materialFile = Game::getInstance()->concat(2, "res/common/models.material#", data->type.c_str());

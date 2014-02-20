@@ -682,12 +682,12 @@ public:
 		std::vector<nodeConstraint*> constraints;
 	};
 	
-	static nodeData* readData(char *filename);
-	static void writeData(nodeData *data, char *filename, Node *node = NULL);
-	void writeMyData(char *filename = NULL);
-	void loadData(char *filename = NULL);
+	static nodeData* readData(const char *filename);
+	static void writeData(nodeData *data, const char *filename, Node *node = NULL);
+	void writeMyData(const char *filename = NULL);
+	void loadData(const char *filename = NULL);
 	void updateData();
-	void reloadFromData(char *filename, bool addPhysics = true);
+	void reloadFromData(const char *filename, bool addPhysics = true);
 	
 	static float gv(Vector3 *v, int dim);
 	static void sv(Vector3 *v, int dim, float val);
