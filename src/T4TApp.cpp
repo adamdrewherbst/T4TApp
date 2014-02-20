@@ -17,6 +17,11 @@ T4TApp::T4TApp()
 	_physicsStopped = false;
 }
 
+void T4TApp::debugTrigger()
+{
+	int x = 0;
+}
+
 T4TApp* T4TApp::getInstance() {
 	return __t4tInstance;
 }
@@ -156,18 +161,6 @@ void T4TApp::initialize()
 			case 0: //Rotate
 				break;
 			case 1: //Select
-				//snap-to-grid checkbox
-				_gridCheckbox = addControl <CheckBox> (options, "snapGrid", _buttonStyle, "Snap to grid");
-				_gridCheckbox->setChecked(false);
-				//slider to set grid spacing
-				_gridSlider = addControl <Slider> (options, "gridSpacing", _buttonStyle, "Grid spacing");
-				_gridSlider->setMin(0.1f);
-				_gridSlider->setMax(2.0f);
-				_gridSlider->setStep(0.1f);
-				_gridSlider->setValue(1.0f);
-				_gridSlider->setValueTextVisible(true);
-				_gridSlider->setValueTextPrecision(1);
-				_gridSlider->setEnabled(false);//*/
 				break;
 			case 2: //Constraint
 				break;
@@ -178,19 +171,22 @@ void T4TApp::initialize()
 		_sideMenu->removeControl(options);
 		_modeOptions[_modeNames[i]] = options;
 	}
-	
+
+	_modes.push_back(new RotateMode(this));
+	_modes.push_back(new SelectMode(this));	
 	_modes.push_back(new SliceMode(this));
 	_modePanel = addPanel(_sideMenu, "container_modes");
 	for(size_t i = 0; i < _modes.size(); i++) {
 		const char *id = _modes[i]->getId();
 		Button *modeButton = addControl <Button> (_modePanel, id, _buttonStyle, id+5);
 	}
-	_modePanel->setHeight(100.0f);
+	_modePanel->setHeight(200.0f);
 	_modePanel->setVisible(true);
 
 	_vehicleButton = addControl <Button> (_sideMenu, "buildVehicle", _buttonStyle, "Build Vehicle");
 	
 	_drawDebugCheckbox = addControl <CheckBox> (_sideMenu, "drawDebug", _buttonStyle, "Draw Debug");
+	Button *debugButton = addControl <Button> (_sideMenu, "debugButton", _buttonStyle, "Debug");
 	
 	//create an instance of each project template - will be activated as needed
 	_vehicleProject = new VehicleProject(this, "vehicleProject", _buttonStyle, _formStyle);
@@ -209,7 +205,6 @@ void T4TApp::loadScene()
     _scene->setId("scene");
     _scene->visit(this, &T4TApp::printNode);
     setActiveScene(_scene);
-    setSelected(NULL);
     
     // Set the aspect ratio for the scene's camera to match the current resolution
     _scene->getActiveCamera()->setAspectRatio(getAspectRatio());
@@ -349,13 +344,6 @@ void T4TApp::update(float elapsedTime)
     	_physicsStopped = true;
     	cout << "Physics stopped" << endl;
     }
-    if(_lastBody) {
-    	int activation = _lastBody->getActivation();
-    	//cout << "updating last body: " << activation << endl;
-    	if(activation == 2) _lastBody = NULL;
-    }
-    //cout << "update " << updateCount++ << endl;
-    //usleep(500000);
 }
 
 void T4TApp::render(float elapsedTime)
@@ -397,14 +385,10 @@ void T4TApp::render(float elapsedTime)
     if(_componentMenu->isVisible()) _componentMenu->draw();
 	if(_vehicleProject->container->isVisible()) _vehicleProject->container->draw();
 	for(size_t i = 0; i < _modes.size(); i++) {
-		if(_modes[i]->_active) _modes[i]->_controls->draw();
+		if(_modes[i]->_active && _modes[i]->_controls != NULL) {
+			_modes[i]->_controls->draw();
+		}
 	}
-
-    if(_lastBody) {
-    	int activation = _lastBody->getActivation();
-    	//cout << "rendering last body: " << activation << endl;
-    	if(activation == 2) _lastBody = NULL;
-    }
 }
 
 bool T4TApp::prepareNode(Node* node)
@@ -481,75 +465,7 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
     switch (evt)
     {
     case Touch::TOUCH_PRESS:
-		if(_mode.compare("Select") == 0) {
-		    Camera* camera = _scene->getActiveCamera();
-		    // Get a pick ray
-		    Ray ray;
-		    camera->pickRay(getViewport(), x, y, &ray);
-		    // Cast a ray into the physics world to test for hits
-		    PhysicsController::HitResult hitResult;
-		    if (getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) {
-		    	Node *node = hitResult.object->getNode();
-		    	if(node->getCollisionObject() != NULL) {
-		    		if(node != NULL && strcmp(node->getId(), "grid") == 0) break;
-					cout << "selected: " << node->getId() << endl;
-					//see if this object is constrained to any others
-					PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
-					if(body) {
-						cout << "\tenabled: " << body->isEnabled() << endl;
-						cout << "\tkinematic: " << body->isKinematic() << endl;
-						cout << "\tstatic: " << body->isStatic() << endl;
-						cout << "\tactivation = " << body->getActivation() << endl;
-						if(body->_constraints != NULL) for(int i = 0, size = body->_constraints->size(); i < size; i++) {
-							PhysicsConstraint* constraint = (*(body->_constraints))[i];
-							PhysicsRigidBody* other = constraint->_a == body ? constraint->_b : constraint->_a;
-							cout << "\tconstrained to " << other->getNode()->getId() << endl;
-							btHingeConstraint *_constraint = (btHingeConstraint*) constraint->_constraint;
-							btTransform transform = constraint->_a == body ? _constraint->getFrameOffsetA() : _constraint->getFrameOffsetB();
-							//determine the axis of rotation in world coords
-							btQuaternion rotation = transform.getRotation();
-							btScalar angle = rotation.getAngle();
-							btVector3 axis = rotation.getAxis(), origin = transform.getOrigin();
-							btTransform rot = btTransform(rotation);
-							axis = rot * btVector3(0, 0, 1);
-							//determine the compensatory translation to maintain the hinge alignment
-							float ang = 45.0f*PI/180;
-							btTransform t1 = btTransform(btQuaternion(axis, ang));
-							btVector3 test = t1 * origin - origin;
-							cout << "\thinge = " << angle << " about " << axis.x() << "," << axis.y() << "," << axis.z()
-								<< " with origin " << origin.x() << "," << origin.y() << "," << origin.z() << endl;
-							//as a test, rotate the object about the hinge by 45 degrees
-							cout << "\tbefore: activation = " << body->getActivation() << endl;
-							body->setEnabled(false);
-							node->rotate(Vector3(axis.x(), axis.y(), axis.z()), ang);
-							node->translate(-test.x(), -test.y(), -test.z());
-							body->setActivation(ACTIVE_TAG);
-							body->setEnabled(true);
-							cout << "\tafter: activation = " << body->getActivation() << endl;
-							_lastBody = body;
-						}
-						else {
-							cout << "\tbefore: activation = " << body->getActivation() << endl;
-							setSelected(node);
-							//treat it as if the user clicked on the point on the grid directly below this object's center
-							_dragOffset.set(0.0f, 0.0f);
-							Vector3 center = node->getTranslation(), hitPoint = hitResult.point;
-							Vector2 centerPix, hitPix;
-							center.y = 0;
-							Matrix viewProj = _scene->getActiveCamera()->getViewProjectionMatrix();
-							_scene->getActiveCamera()->project(getViewport(), hitPoint, &hitPix);
-							cout << "hit at " << printVector(hitPoint) << " => " << printVector2(hitPix) << endl;
-							_scene->getActiveCamera()->project(getViewport(), center, &centerPix);
-							_dragOffset.set(centerPix.x - x, centerPix.y - y);
-							cout << "dragging " << node->getId() << " with offset " << printVector2(_dragOffset) << endl;
-							body->setEnabled(false);
-							_lastBody = body;
-						}
-					}
-				}
-			}
-		}
-		else if(_mode.compare("Constraint") == 0) {
+		if(_mode.compare("Constraint") == 0) {
 			//see if the touch point intersects an edge
 			//_scene->visit(this, &T4TApp::checkTouchEdge);
 		    Camera* camera = _scene->getActiveCamera();
@@ -708,10 +624,6 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 				}
 		    }
 		}
-		else if(_mode.compare("Rotate") == 0) {
-			rotate = true;
-			break;
-		}
 		else if(_mode.compare("Ball Drop") == 0) {
 			Ray ray;
 			Plane vertical(Vector3(0, 0, 1), 0);
@@ -732,47 +644,14 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 	    break;
     case Touch::TOUCH_MOVE:
    	{
-   		//if an object is currently selected, move it to the touch position (projected onto the ground plane)
-    	if(_selectedNode != NULL) {
-			Ray ray;
-			_scene->getActiveCamera()->pickRay(getViewport(), x + _dragOffset.x, y + _dragOffset.y, &ray);
-			float distance = ray.intersects(_groundPlane);
-			if(distance == Ray::INTERSECTS_NONE) break;
-			_intersectPoint = ray.getOrigin() + ray.getDirection()*distance;
-			_intersectPoint.y = (_selectedBox->max.y - _selectedBox->min.y) / 2.0f;
-			//snap object to grid if desired
-			if(_gridCheckbox->isChecked()) {
-				float spacing = _gridSlider->getValue();
-				_intersectPoint.x = round(_intersectPoint.x / spacing) * spacing;
-				_intersectPoint.z = round(_intersectPoint.z / spacing) * spacing;
-			}
-			//if would intersect another object, place it on top of that object instead
-			_intersectModel = NULL;
-			_scene->visit(this, &T4TApp::checkTouchModel);
-			_selectedNode->setTranslation(_intersectPoint);
-			PhysicsRigidBody* body = _selectedNode->getCollisionObject()->asRigidBody();
-			body->setEnabled(true); body->setEnabled(false);
-		    break;
-		}
-		else if(_mode.compare("Rotate") == 0) {
-			rotate = true;
-			break;
-		}
     }
     case Touch::TOUCH_RELEASE:
     	_debugFlag = true;
-    	if(_selectedNode != NULL) {
-    		PhysicsRigidBody *body = _selectedNode->getCollisionObject()->asRigidBody();
-    		body->setEnabled(true);
-			body->setActivation(ACTIVE_TAG);
-    	}
-    	setSelected(NULL);
     	enableScriptCamera(true);
     	_physicsStopped = false;
     	updateCount = 0;
         break;
     };
-    if(rotate) getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", evt, x, y, contactIndex);
 }
 
 Node* T4TApp::getMouseNode(int x, int y, Vector3 *touch) {
@@ -791,27 +670,21 @@ Node* T4TApp::getMouseNode(int x, int y, Vector3 *touch) {
 bool T4TApp::checkTouchModel(Node* node)
 {
 	if(strcmp(node->getScene()->getId(), "models") == 0) return true;
-	if(node == _selectedNode) return true;
+	if(node == _intersectNode) return true;
 	Vector3 pos = node->getTranslation();
 	Model* model = node->getModel();
 	if(model == NULL) return true;
 	BoundingBox bbox = model->getMesh()->getBoundingBox();
-	float halfX = (_selectedBox->max.x - _selectedBox->min.x) / 2.0f,
-		halfY = (_selectedBox->max.y - _selectedBox->min.y) / 2.0f,
-		halfZ = (_selectedBox->max.z - _selectedBox->min.z) / 2.0f;
+	float halfX = (_intersectBox->max.x - _intersectBox->min.x) / 2.0f,
+		halfY = (_intersectBox->max.y - _intersectBox->min.y) / 2.0f,
+		halfZ = (_intersectBox->max.z - _intersectBox->min.z) / 2.0f;
 	if(_intersectPoint.x + halfX > pos.x + bbox.min.x && _intersectPoint.x - halfX < pos.x + bbox.max.x
 		&& _intersectPoint.z + halfZ > pos.z + bbox.min.z && _intersectPoint.z - halfZ < pos.z + bbox.max.z)
 	{
-		/*float distance = sqrt(pow((_intersectPoint.x - (bbox.max.x + bbox.min.x)/2.0f), 2)
-			+ pow((_intersectPoint.z - (bbox.max.z + bbox.min.z)/2.0f), 2));
-		float diagonal = sqrt(pow((bbox.max.x - bbox.min.x)/2.0f, 2) + pow((bbox.max.z - bbox.min.z)/2.0f, 2));//*/
-		
 		if(_intersectModel == NULL || halfY + pos.y + bbox.max.y > _intersectPoint.y)
 		{
 			_intersectModel = node;
 			_intersectPoint.y = pos.y + bbox.max.y + halfY;
-			//cout << "intersects " << node->getId() << " [" << pos.y << ", " << bbox.min.y << "-" << bbox.max.y << "]" << endl;
-			//cout << "\tmoving to " << halfY << ": " << _intersectPoint.x << ", " << _intersectPoint.y << ", " << _intersectPoint.z << endl;
 		}
 	}
 	return true;
@@ -867,6 +740,12 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	}
 	else if(_modePanel->getControl(controlID) == control) {
 		for(size_t i = 0; i < _modes.size(); i++) {
+			if(_modes[i]->_active) {
+				cout << "setting " << _modes[i]->getId() << " inactive" << endl;
+				_modes[i]->setActive(false);
+			}
+		}
+		for(size_t i = 0; i < _modes.size(); i++) {
 			if(strcmp(_modes[i]->getId(), controlID) == 0) {
 				cout << "setting " << _modes[i]->getId() << " active" << endl;
 				_modes[i]->setActive(true);
@@ -877,19 +756,15 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	else if(_componentMenu->getControl(controlID) == control) {
 		//now handled by individual project components
 	}
+	else if(strcmp(controlID, "debugButton") == 0) {
+		debugTrigger();
+	}
 	else if(_itemContainer->getControl(controlID) == control) {
 		Node *node = duplicateModelNode(controlID);
 		addCollisionObject(node);
 		_scene->addNode(node);
-		Node *curSelected = _selectedNode;
-		setSelected(node);
-		placeSelected(0.0f, 0.0f);
-		setSelected(curSelected);
+		placeNode(node, 0.0f, 0.0f);
 		_itemContainer->setVisible(false);
-	}
-	else if(control == _gridCheckbox) {
-		//cout << "checkbox is now " << (_gridCheckbox->isChecked() ? "" : "NOT ") << "checked" << endl;
-		_gridSlider->setEnabled(_gridCheckbox->isChecked());
 	}
 	else if(control == _zoomSlider) {
 	    getScriptController()->executeFunction<void>("camera_setRadius", "f", _zoomSlider->getValue());
@@ -964,39 +839,16 @@ void T4TApp::addCollisionObject(Node *node) {
 	}
 }
 
-//place the selected object at the given xz-coords and set its y-coord so it is on top of any objects it would otherwise intersect
-void T4TApp::placeSelected(float x, float z)
+//place at the given xz-coords and set its y-coord so it is on top of any objects it would otherwise intersect
+void T4TApp::placeNode(Node *node, float x, float z)
 {
-	float minY = _selectedNode->getModel()->getMesh()->getBoundingBox().min.y;
-	_selectedNode->setTranslation(x, -minY, z); //put the bounding box bottom on the ground
+	_intersectNode = node;
+	_intersectBox = &node->getModel()->getMesh()->getBoundingBox();
+	float minY = _intersectBox->min.y;
+	node->setTranslation(x, -minY, z); //put the bounding box bottom on the ground
 	_intersectPoint.set(x, -minY, z);
 	_scene->visit(this, &T4TApp::checkTouchModel); //will change _intersectPoint.y to be above any intersecting models
-	_selectedNode->setTranslation(_intersectPoint);
-}
-
-void T4TApp::setSelected(Node* node)
-{
-	if(node != NULL)
-	{
-		if(strcmp(node->getId(), "grid") == 0) return;
-		//if(node->getCollisionObject() == NULL) return; //shouldn't select a non-physical object (like the floor grid)
-		cout << "selecting " << node->getId() << endl;
-		_selectedBox = &(node->getModel()->getMesh()->getBoundingBox());
-		if(node->getCollisionObject() != NULL) {
-			PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
-			body->setEnabled(false); //turn off physics on this body while dragging it around
-		}
-	}
-	else
-	{
-		//cout << "selecting NULL" << endl;
-		if(_selectedNode && _selectedNode->getCollisionObject() != NULL) {
-			PhysicsRigidBody* body = _selectedNode->getCollisionObject()->asRigidBody();
-			body->setEnabled(true); //turn off physics on this body while dragging it around
-		}
-		_selectedBox = NULL;
-	}
-	_selectedNode = node;
+	node->setTranslation(_intersectPoint);
 }
 
 void T4TApp::setMode(const char *mode)
@@ -1077,6 +929,21 @@ void T4TApp::collisionEvent(PhysicsCollisionObject::CollisionListener::EventType
             pair.objectB->getNode()->getId(), pointB.x, pointB.y, pointB.z);
 }
 
+void T4TApp::translateNode(Node *node, Vector3 trans) {
+	//determine the set of all nodes constrained to this one - translate all of them
+	Node::nodeData *data = (Node::nodeData*)node->getUserPointer();
+	std::vector<Node*> nodes;
+	nodes.push_back(node);
+	for(int i = 0; i < data->constraints.size(); i++) {
+		Node *other = _scene->findNode(data->constraints[i]->other.c_str());
+		if(other != NULL) nodes.push_back(other);
+	}
+	for(int i = 0; i < nodes.size(); i++) {
+		Node *n = nodes[i];
+		n->setCollisionObject(PhysicsCollisionObject::NONE);
+	}
+}
+
 PhysicsConstraint* T4TApp::addConstraint(Node *n1, Node *n2, const char *type, ...) {
 	va_list arguments;
 	va_start(arguments, type);
@@ -1109,6 +976,7 @@ PhysicsConstraint* T4TApp::addConstraint(Node *n1, Node *n2, const char *type, .
 		ret = getPhysicsController()->createHingeConstraint(body[0], rot[0], trans[0], body[1], rot[1], trans[1]);
 	}
 	va_end(arguments);
+	for(int i = 0; i < 2; i++) _constraints[node[i]].push_back(ret);
 	return ret;
 }
 
@@ -1116,6 +984,29 @@ Node* T4TApp::loadNodeFromData(const char *nodeID) {
 	Node *node = _scene->addNode(nodeID);
 	char *filename = concat(3, "res/common/", nodeID, ".node");
 	node->reloadFromData(filename, true);
+}
+
+void T4TApp::removeNode(Node *node, const char *newID) {
+	//if we are planning to reload this node under a new ID, update all constraints to use the new ID
+	if(newID != NULL) {
+		Node::nodeData *data = (Node::nodeData*)node->getUserPointer();
+		for(int i = 0; i < data->constraints.size(); i++) {
+			Node *other = _scene->findNode(data->constraints[i]->other.c_str());
+			if(other == NULL) continue;
+			Node::nodeData *otherData = (Node::nodeData*)other->getUserPointer();
+			for(int j = 0; j < otherData->constraints.size(); j++) {
+				if(otherData->constraints[j]->other.compare(node->getId()) == 0) {
+					otherData->constraints[j]->other = newID;
+				}
+			}
+		}
+	}
+	//remove the node and its constraints
+	_scene->removeNode(node);
+	removeConstraints(node);
+}
+
+void T4TApp::addConstraints(Node *node) {
 	Node::nodeData *data = (Node::nodeData*)node->getUserPointer();
 	for(int i = 0; i < data->constraints.size(); i++) {
 		Node *other = _scene->findNode(data->constraints[i]->other.c_str());
@@ -1132,4 +1023,10 @@ Node* T4TApp::loadNodeFromData(const char *nodeID) {
 	}
 }
 
-
+void T4TApp::removeConstraints(Node *node) {
+	PhysicsController *controller = getPhysicsController();
+	for(PhysicsConstraint *constraint = _constraints[node].back(); constraint != NULL; constraint = _constraints[node].back()) {
+		controller->removeConstraint(constraint);
+		_constraints[node].pop_back();
+	}
+}

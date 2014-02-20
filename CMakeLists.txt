@@ -140,6 +140,8 @@ set(GAME_SRC
 	src/Lever.cpp
 	src/Mode.cpp
 	src/SliceMode.cpp
+	src/RotateMode.cpp
+	src/SelectMode.cpp
 )
 
 add_executable(${GAME_NAME}

@@ -32,6 +32,7 @@ public:
     void changeNodeModel(Node *node, const char* type);
     bool printNode(Node *node);
     bool prepareNode(Node *node);
+    void translateNode(Node *node, Vector3 trans);
     PhysicsConstraint* addConstraint(Node *n1, Node *n2, const char *type, ...);
     //misc functions
     const std::string printVector(const Vector3& v);
@@ -44,14 +45,17 @@ public:
 	bool hideNode(Node *node);
 	bool showNode(Node *node);
     void setActiveScene(Scene *scene);
+    void removeNode(Node *node, const char *newID = NULL);
+    void addConstraints(Node *node);
+    void removeConstraints(Node *node);
     
     /**
      * @see Game::keyEvent
      */
      
     bool mouseEvent(Mouse::MouseEvent evt, int x, int y, int wheelDelta);
-
 	void keyEvent(Keyboard::KeyEvent evt, int key);
+	void debugTrigger();
     
     /**
      * @see Game::touchEvent
@@ -94,7 +98,7 @@ public:
      */
     bool drawScene(Node* node);
     void setSelected(Node* node);
-    void placeSelected(float x, float y);
+    void placeNode(Node *node, float x, float y);
     void setMode(const char *mode);
 
     //see if the current touch coordinates intersect a given model in the scene
@@ -124,15 +128,15 @@ public:
     float _steering, _braking, _driving;
     
     //for placing objects
-    Node *_selectedNode, *_lastNode, *_intersectModel;
-    const BoundingBox* _selectedBox;
-    Plane _groundPlane;
+    Node *_lastNode, *_intersectNode, *_intersectModel;
+    const BoundingBox *_intersectBox;
     Vector3 _intersectPoint;
-    Vector2 _dragOffset;
+    Plane _groundPlane;
     
     //for creating physical constraints between objects
     Node* _constraintNodes[2];
     unsigned short _constraintEdges[2];
+    std::map<Node*, std::vector<PhysicsConstraint*> > _constraints;
     
     //current state
     std::string _mode;
@@ -146,8 +150,8 @@ public:
     Button *_itemButton, *_modeButton, *_machineButton; //submenu handles
     std::map<std::string, Form*> _modeOptions;
     Button *_vehicleButton;
-    CheckBox *_gridCheckbox, *_drawDebugCheckbox;
-    Slider *_gridSlider, *_zoomSlider;
+    CheckBox *_drawDebugCheckbox;
+    Slider *_zoomSlider;
     std::vector<std::string> _modeNames, _machineNames;
     Theme *_theme;
     Theme::Style *_formStyle, *_buttonStyle, *_titleStyle, *_hiddenStyle;
@@ -273,6 +277,31 @@ public:
 		void setAxis(int axis);
 		void setView();
 		bool sliceNode();
+	};
+	
+	class RotateMode : public Mode
+	{
+public:
+		bool _rotate;
+		
+		RotateMode(T4TApp *app_);
+		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+		void controlEvent(Control *control, Control::Listener::EventType evt);
+	};
+	
+	class SelectMode : public Mode
+	{
+public:
+		Node *_selectedNode;
+		std::vector<Node*> _nodeGroup;
+		std::vector<Vector3> _groupOffset;
+	    Vector2 _dragOffset;
+	    Slider *_gridSlider;
+	    CheckBox *_gridCheckbox;
+
+		SelectMode(T4TApp *app_);
+		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+		void controlEvent(Control *control, Control::Listener::EventType evt);
 	};
 	
     class TouchPoint

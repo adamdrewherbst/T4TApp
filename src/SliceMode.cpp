@@ -186,20 +186,22 @@ bool T4TApp::SliceMode::sliceNode() {
 	_slicePlane.set(Vector3(0, 0, 1), 0);
 	Matrix trans;
 	Matrix::createRotation(_knife->getRotation(), &trans);
-	trans.translate(_knife->getTranslationWorld());
 	_slicePlane.transform(trans);
+	_slicePlane.setDistance(-_knife->getTranslationWorld().dot(_slicePlane.getNormal()));
 	cout << "slicing " << _node->getId() << " at " << app->printVector(_slicePlane.getNormal()) << " => " << _slicePlane.getDistance() << endl;
 	Node::nodeData *data = (Node::nodeData*)_node->getUserPointer();
 	unsigned short e1, e2, numKeep = 0;
-	Vector3 v1, v2, planeOrigin = _slicePlane.getDistance() * _slicePlane.getNormal();
+	Vector3 v1, v2, planeOrigin = -_slicePlane.getDistance() * _slicePlane.getNormal();
 
 	//put the vertices that will be kept into a new nodeData struct
 	Node::nodeData newData;
 	newData.type = data->type;
 	newData.objType = "mesh"; //can't keep sphere/box collision object once it is deformed!
+	newData.mass = data->mass;
 	newData.rotation = data->rotation;
 	newData.translation = data->translation;
 	newData.scale = data->scale;
+	newData.constraints = data->constraints;
 	std::vector<short> keep(data->vertices.size()), //index in the new vertex list or -1 if discarding
 		replace(data->vertices.size()); //index of the new vertex that is replacing this one
 	for(int i = 0; i < data->vertices.size(); i++) {
@@ -385,19 +387,23 @@ bool T4TApp::SliceMode::sliceNode() {
 	for(int i = 0; i < newData.vertices.size(); i++) {
 		worldModel.transformVector(&newData.vertices[i]);
 		newData.vertices[i] -= translation;
-		transInv.transformVector(&newData.vertices[i]);
-		newData.vertices[i] -= data->translation;
+		//transInv.transformVector(&newData.vertices[i]);
+		//newData.vertices[i] -= data->translation;
 	}
 	
 	//write the new node data to a file with suffix '_slice' and read it back in
-	char filename[100];
-	for(int i = 0; i < 100; i++) filename[i] = '\0';
+	std::string filename;
+	char newID[40];
+	for(int i = 0; i < 40; i++) newID[i] = '\0';
 	int count = 1;
 	do {
-		sprintf(filename, "res/common/%s_slice%d.node", data->type.c_str(), count++);
-	}while(FileSystem::fileExists(filename));
-	Node::writeData(&newData, filename);
-	_node->reloadFromData(filename);
+		sprintf(newID, "%s_slice%d", data->type.c_str(), count++);
+		filename = newID;
+		filename = "res/common/" + filename + ".node";
+	}while(FileSystem::fileExists(filename.c_str()));
+	Node::writeData(&newData, filename.c_str());
+	app->removeNode(_node, newID);
+	app->loadNodeFromData(newID);
 	return true;
 }
 
