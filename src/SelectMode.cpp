@@ -52,7 +52,7 @@ bool T4TApp::SelectMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigne
 					app->removeConstraints(n);
 					n->setCollisionObject(PhysicsCollisionObject::NONE);
 				} else {
-					obj->setEnabled(false);
+					obj->asRigidBody()->setEnabled(false);
 				}
 			}
 			break;
@@ -76,6 +76,11 @@ bool T4TApp::SelectMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigne
 			app->_scene->visit(app, &T4TApp::checkTouchModel);
 			for(int i = 0; i < _nodeGroup.size(); i++) {
 				_nodeGroup[i]->setTranslation(app->_intersectPoint + _groupOffset[i]);
+				PhysicsCollisionObject *obj = _nodeGroup[i]->getCollisionObject();
+				if(obj) {
+					PhysicsRigidBody *body = obj->asRigidBody();
+					body->setEnabled(true); body->setEnabled(false);
+				}
 			}
 			break;
 		}
@@ -88,8 +93,9 @@ bool T4TApp::SelectMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigne
 					app->addCollisionObject(n);
 					app->addConstraints(n);
 				} else {
-					obj->setEnabled(true);
-					obj->asRigidBody()->setActivation(ACTIVE_TAG);
+					PhysicsRigidBody *body = obj->asRigidBody();
+					body->setActivation(ACTIVE_TAG);
+					body->setEnabled(true);
 				}
 			}
 			_selectedNode = NULL;

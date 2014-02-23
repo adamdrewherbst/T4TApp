@@ -984,6 +984,7 @@ Node* T4TApp::loadNodeFromData(const char *nodeID) {
 	Node *node = _scene->addNode(nodeID);
 	char *filename = concat(3, "res/common/", nodeID, ".node");
 	node->reloadFromData(filename, true);
+	addConstraints(node);
 }
 
 void T4TApp::removeNode(Node *node, const char *newID) {

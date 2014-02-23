@@ -72,7 +72,9 @@ void T4TApp::ProjectComponent::finishComponent() {
 		nodes.push_back(std::string(_allNodes[i]->getId()));
 	}
 	setActive(false);
-	for(int i = 0; i < nodes.size(); i++) app->loadNodeFromData(nodes[i].c_str());
+	for(int i = 0; i < nodes.size(); i++) {
+		app->loadNodeFromData(nodes[i].c_str());
+	}
 }
 
 void T4TApp::ProjectComponent::addElement(const char *name, T4TApp::ProjectComponent::TouchCallback touchCallback, bool isStatic) {
