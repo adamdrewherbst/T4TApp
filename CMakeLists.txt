@@ -139,9 +139,12 @@ set(GAME_SRC
 	src/ProjectComponent.cpp
 	src/Lever.cpp
 	src/Mode.cpp
+	src/ToolMode.cpp
 	src/SliceMode.cpp
+	src/DrillMode.cpp
 	src/RotateMode.cpp
 	src/SelectMode.cpp
+	src/TestMode.cpp
 )
 
 add_executable(${GAME_NAME}

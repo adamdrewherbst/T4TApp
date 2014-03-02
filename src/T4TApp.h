@@ -128,7 +128,8 @@ public:
     float _steering, _braking, _driving;
     
     //for placing objects
-    Node *_lastNode, *_intersectNode, *_intersectModel;
+    Node *_lastNode, *_intersectModel;
+    std::vector<Node*> _intersectNodeGroup;
     const BoundingBox *_intersectBox;
     Vector3 _intersectPoint;
     Plane _groundPlane;
@@ -258,25 +259,48 @@ public:
 	};
 	std::vector<Mode*> _modes;
 	
-	class SliceMode : public Mode
+	//generic mode for altering a model using a tool such as a knife or drill
+	class ToolMode : public Mode
 	{
 public:
-		Node *_node; //the object to be sliced
-		Plane _slicePlane, _viewPlane;
+		Node *_node; //the model to be altered
+		Plane _viewPlane;
 		Vector3 _touchStart, _touchPoint, _viewPlaneOrigin;
-		Node *_knife; //to display the slice plane to the user
-		Quaternion _knifeBaseRotation;
+		Node *_tool; //to display the tool to the user
+		Quaternion _toolBaseRotation;
 		int _subMode; //0 = rotate, 1 = translate
 		bool _touching;
 
-		SliceMode(T4TApp *app_);
+		ToolMode(T4TApp *app_, const char* id, const char* filename = NULL);
 		void setActive(bool active);
 		void setNode(Node *node);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
-		void setAxis(int axis);
+		virtual void setAxis(int axis);
 		void setView();
-		bool sliceNode();
+		virtual bool toolNode();
+	};
+	
+	class SliceMode : public ToolMode
+	{
+public:
+		Plane _slicePlane;
+
+		SliceMode(T4TApp *app_);
+		void setAxis(int axis);
+		bool toolNode();
+	};
+	
+	class DrillMode : public ToolMode
+	{
+public:
+		Ray _axis;
+		float _radius;
+		int _segments;
+		
+		DrillMode(T4TApp *app_);
+		void setAxis(int axis);
+		bool toolNode();
 	};
 	
 	class RotateMode : public Mode
@@ -304,15 +328,14 @@ public:
 		void controlEvent(Control *control, Control::Listener::EventType evt);
 	};
 	
-    class TouchPoint
-    {
-    public:
-        unsigned int _id;
-        Vector2 _coord;
-        bool _isStale;
-    };
-
-    std::list<TouchPoint> _touchPoints;
+	class TestMode : public Mode
+	{
+public:
+		TestMode(T4TApp *app_);
+		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+		void controlEvent(Control *control, Control::Listener::EventType evt);
+	};
+	
     Vector2 _mousePoint, _touchPoint;
     std::string _mouseString;
     Font* _font;

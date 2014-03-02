@@ -146,7 +146,7 @@ void T4TApp::initialize()
     }
 
 	//populate mode submenu
-	_modeButton = addButton <Button> (_sideMenu, "parent_modeContainer", "Set Mode >>");
+/*	_modeButton = addButton <Button> (_sideMenu, "parent_modeContainer", "Set Mode >>");
     _modeNames.push_back("Rotate");
     _modeNames.push_back("Select");
     _modeNames.push_back("Constraint");
@@ -171,16 +171,17 @@ void T4TApp::initialize()
 		_sideMenu->removeControl(options);
 		_modeOptions[_modeNames[i]] = options;
 	}
-
+//*/
 	_modes.push_back(new RotateMode(this));
 	_modes.push_back(new SelectMode(this));	
 	_modes.push_back(new SliceMode(this));
+	_modes.push_back(new TestMode(this));
 	_modePanel = addPanel(_sideMenu, "container_modes");
 	for(size_t i = 0; i < _modes.size(); i++) {
 		const char *id = _modes[i]->getId();
 		Button *modeButton = addControl <Button> (_modePanel, id, _buttonStyle, id+5);
 	}
-	_modePanel->setHeight(200.0f);
+	_modePanel->setHeight(250.0f);
 	_modePanel->setVisible(true);
 
 	_vehicleButton = addControl <Button> (_sideMenu, "buildVehicle", _buttonStyle, "Build Vehicle");
@@ -670,7 +671,9 @@ Node* T4TApp::getMouseNode(int x, int y, Vector3 *touch) {
 bool T4TApp::checkTouchModel(Node* node)
 {
 	if(strcmp(node->getScene()->getId(), "models") == 0) return true;
-	if(node == _intersectNode) return true;
+	if(strcmp(node->getId(), "knife") == 0) return true;
+	for(int i = 0; i < _intersectNodeGroup.size(); i++)
+		if(node == _intersectNodeGroup[i]) return true;
 	Vector3 pos = node->getTranslation();
 	Model* model = node->getModel();
 	if(model == NULL) return true;
@@ -842,7 +845,8 @@ void T4TApp::addCollisionObject(Node *node) {
 //place at the given xz-coords and set its y-coord so it is on top of any objects it would otherwise intersect
 void T4TApp::placeNode(Node *node, float x, float z)
 {
-	_intersectNode = node;
+	_intersectNodeGroup.clear();
+	_intersectNodeGroup.push_back(node);
 	_intersectBox = &node->getModel()->getMesh()->getBoundingBox();
 	float minY = _intersectBox->min.y;
 	node->setTranslation(x, -minY, z); //put the bounding box bottom on the ground
@@ -1003,6 +1007,8 @@ void T4TApp::removeNode(Node *node, const char *newID) {
 		}
 	}
 	//remove the node and its constraints
+	PhysicsCollisionObject *obj = node->getCollisionObject();
+	if(obj) getPhysicsController()->removeCollisionObject(obj, true);
 	_scene->removeNode(node);
 	removeConstraints(node);
 }
@@ -1026,8 +1032,11 @@ void T4TApp::addConstraints(Node *node) {
 
 void T4TApp::removeConstraints(Node *node) {
 	PhysicsController *controller = getPhysicsController();
+	if(_constraints.find(node) == _constraints.end() || _constraints[node].size() == 0) return;
 	for(PhysicsConstraint *constraint = _constraints[node].back(); constraint != NULL; constraint = _constraints[node].back()) {
 		controller->removeConstraint(constraint);
 		_constraints[node].pop_back();
 	}
 }
+
+

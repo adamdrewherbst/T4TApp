@@ -5,6 +5,8 @@ T4TApp::SelectMode::SelectMode(T4TApp *app_)
 
 	_gridCheckbox = (CheckBox*) _controls->getControl("snap");
 	_gridSlider = (Slider*) _controls->getControl("spacing");
+	
+	_selectedNode = NULL;
 }
 
 bool T4TApp::SelectMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
@@ -45,7 +47,9 @@ bool T4TApp::SelectMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigne
 				_groupOffset.push_back(other->getTranslationWorld() - node->getTranslationWorld());
 			}
 			//disable all physics during the move - if a node is static, we must remove its physics and re-add it at the end
+			app->_intersectNodeGroup.clear();
 			for(int i = 0; i < _nodeGroup.size(); i++) {
+				app->_intersectNodeGroup.push_back(_nodeGroup[i]);
 				Node *n = _nodeGroup[i];
 				PhysicsCollisionObject *obj = n->getCollisionObject();
 				if(obj->isStatic()) {
@@ -60,9 +64,11 @@ bool T4TApp::SelectMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigne
 		case Touch::TOUCH_MOVE: {
 			if(_selectedNode == NULL) break;
 			Ray ray;
+			T4TApp *ap = app;
 			app->_scene->getActiveCamera()->pickRay(app->getViewport(), x + _dragOffset.x, y + _dragOffset.y, &ray);
 			float distance = ray.intersects(app->_groundPlane);
 			if(distance == Ray::INTERSECTS_NONE) break;
+			app->_intersectBox = &_selectedNode->getModel()->getMesh()->getBoundingBox();
 			app->_intersectPoint = ray.getOrigin() + ray.getDirection()*distance;
 			app->_intersectPoint.y = (app->_intersectBox->max.y - app->_intersectBox->min.y) / 2.0f;
 			//snap object to grid if desired

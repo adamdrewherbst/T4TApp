@@ -26,6 +26,7 @@ T4TApp::Mode::Mode(T4TApp *app_, const char* id, const char* filename) : app(app
 		for(size_t i = 0; i < sub.size(); i++)
 			sub[i]->addListener(this, Control::Listener::CLICK);
 	}
+	else _controls = NULL;
 	
 	_active = false;
 }

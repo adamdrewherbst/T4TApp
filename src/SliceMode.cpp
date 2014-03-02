@@ -1,10 +1,7 @@
 #include "T4TApp.h"
 
 T4TApp::SliceMode::SliceMode(T4TApp *app_) 
-  : T4TApp::Mode::Mode(app_, "mode_Slice", "res/common/slice.form") {
-	_subMode = 0;
-	_node = NULL;
-	_touching = false;
+  : T4TApp::ToolMode::ToolMode(app_, "mode_Slice", "res/common/slice.form") {
 	_slicePlane.set(Vector3(0, 0, 1), 0);
 	//create the knife node
 	float spacing = 0.5f, radius = 3.25f, distance, color[3] = {1.0f, 1.0f, 1.0f}, vec[2];
@@ -32,162 +29,39 @@ T4TApp::SliceMode::SliceMode(T4TApp *app_)
 	Model *model = Model::create(mesh);
 	mesh->release();
 	model->setMaterial("res/common/grid.material");
-	_knife = Node::create("knife");
-	_knife->setModel(model);
+	_tool = Node::create("knife");
+	_tool->setModel(model);
 	model->release();
-	//app->_scene->addNode(_knife);
-	//_knife->setActive(false);
-}
-
-void T4TApp::SliceMode::setActive(bool active) {
-	Mode::setActive(active);
-	setNode(NULL);
-	_touching = false;
-}
-
-void T4TApp::SliceMode::setNode(Node *node) {
-	_node = node;
-	app->getScriptController()->executeFunction<void>("camera_setNode", "s", _node != NULL ? _node->getId() : NULL);
-	if(_node != NULL) {
-		setAxis(0);
-		app->_scene->addNode(_knife);
-	} else {
-		app->_scene->removeNode(_knife);
-	}
 }
 
 void T4TApp::SliceMode::setAxis(int axis) {
-	//translate the camera to look at the center of the node
-	//and face along the <axis> direction in its model space
-	float yaw = 0, pitch = 0;
-	Vector3 sliceNormal, viewNormal, translation(_node->getTranslationWorld());
+	ToolMode::setAxis(axis);
+	Vector3 sliceNormal;
 	Matrix rotation;
 	_node->getRotation(&rotation);
-	_knife->setRotation(rotation);
 	switch(axis) {
 		case 0: //x
-			yaw = 0;
-			pitch = M_PI/2 - 0.1f;
 			sliceNormal.set(1, 0, 0);
-			viewNormal.set(0, -1, 0);
-			_knife->rotateY(M_PI/2);
 			break;
 		case 1: //y
-			yaw = M_PI/2;
-			pitch = 0.1f;
 			sliceNormal.set(0, 1, 0);
-			viewNormal.set(0, 0, -1);
-			_knife->rotateX(M_PI/2);
 			break;
 		case 2: //z
-			yaw = 0.1f;
-			pitch = 0;
 			sliceNormal.set(0, 0, 1);
-			viewNormal.set(-1, 0, 0);
 			break;
 	}
-	_knife->setTranslation(translation);
-	_knifeBaseRotation = _knife->getRotation();
 	rotation.transformVector(&sliceNormal);
 	_slicePlane.setNormal(sliceNormal);
-	rotation.transformVector(&viewNormal);
-	_viewPlane.setNormal(viewNormal);
-	app->getScriptController()->executeFunction<void>("camera_rotateTo", "ff", yaw, pitch);
-	setView();
 }
 
-void T4TApp::SliceMode::setView() {
-	Vector3 cam(app->_activeScene->getActiveCamera()->getNode()->getTranslationWorld());
-	Ray camToNode(cam, _node->getTranslationWorld() - cam);
-	float distance = camToNode.intersects(_viewPlane);
-	_viewPlaneOrigin.set(camToNode.getOrigin() + distance * camToNode.getDirection());
-}
-
-bool T4TApp::SliceMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
-	switch(evt) {
-		case Touch::TOUCH_PRESS: {
-			if(_node == NULL) {
-				setNode(app->getMouseNode(x, y));
-				if(_node) cout << "going to slice " << _node->getId() << endl;
-			}
-			else {
-				Ray ray;
-				app->_activeScene->getActiveCamera()->pickRay(app->getViewport(), x, y, &ray);
-				float distance = ray.intersects(_viewPlane);
-				if(distance != Ray::INTERSECTS_NONE) {
-					_touchStart.set(ray.getOrigin() + distance * ray.getDirection());
-					_touching = true;
-					_knifeBaseRotation = _knife->getRotation();
-				}
-			}
-			break;
-		}
-		case Touch::TOUCH_MOVE: {
-			if(_node == NULL || !_touching) break;
-			Ray ray;
-			app->_activeScene->getActiveCamera()->pickRay(app->getViewport(), x, y, &ray);
-			float distance = ray.intersects(_viewPlane);
-			if(distance != Ray::INTERSECTS_NONE) {
-				_touchPoint.set(ray.getOrigin() + distance * ray.getDirection());
-				switch(_subMode) {
-					case 0: //rotate
-					{
-						Vector3 v1(_touchStart - _viewPlaneOrigin), v2(_touchPoint - _viewPlaneOrigin);
-						v1.normalize();
-						v2.normalize();
-						float cosAng = v1.dot(v2);
-						v1.cross(v2);
-						float sinAng = v1.dot(_viewPlane.getNormal());
-						float angle = atan2(sinAng, cosAng);
-						Quaternion rotation;
-						Quaternion::createFromAxisAngle(_viewPlane.getNormal(), angle, &rotation);
-						_knife->setRotation(rotation * _knifeBaseRotation);
-						break;
-					}
-					case 1: //translate
-						_knife->setTranslation(_node->getTranslationWorld() + _touchPoint-_touchStart);
-						break;
-				}
-			}
-			break;
-		}
-		case Touch::TOUCH_RELEASE:
-			_touching = false;
-			break;
-	}
-}
-
-void T4TApp::SliceMode::controlEvent(Control *control, Control::Listener::EventType evt) {
-	cout << "slice mode clicked " << control->getId() << endl;
-	const char *controlID = control->getId();
-
-	if(strcmp(controlID, "axis") == 0 && _node != NULL) {
-		const char *_axes[3] = {"X", "Y", "Z"};
-		for(int i = 0; i < 3; i++) {
-			if(strcmp(((Button*)control)->getText(), _axes[i]) == 0) {
-				setAxis(i);
-				((Button*)control)->setText(_axes[(i+1)%3]);
-				cout << "set axis to " << _axes[i] << endl;
-				break;
-			}
-		}
-	}
-	else if(strcmp(controlID, "rotate") == 0) _subMode = 0;
-	else if(strcmp(controlID, "translate") == 0) _subMode = 1;
-	else if(strcmp(controlID, "doSlice") == 0) {
-		sliceNode();
-		setActive(false);
-	}
-}
-
-bool T4TApp::SliceMode::sliceNode() {
-
+bool T4TApp::SliceMode::toolNode() {
+	ToolMode::toolNode();
 	_node->updateData(); //make sure the world coords are up to date
 	_slicePlane.set(Vector3(0, 0, 1), 0);
 	Matrix trans;
-	Matrix::createRotation(_knife->getRotation(), &trans);
+	Matrix::createRotation(_tool->getRotation(), &trans);
 	_slicePlane.transform(trans);
-	_slicePlane.setDistance(-_knife->getTranslationWorld().dot(_slicePlane.getNormal()));
+	_slicePlane.setDistance(-_tool->getTranslationWorld().dot(_slicePlane.getNormal()));
 	cout << "slicing " << _node->getId() << " at " << app->printVector(_slicePlane.getNormal()) << " => " << _slicePlane.getDistance() << endl;
 	Node::nodeData *data = (Node::nodeData*)_node->getUserPointer();
 	unsigned short e1, e2, numKeep = 0;
@@ -225,7 +99,9 @@ bool T4TApp::SliceMode::sliceNode() {
 		e2 = data->edges[i][1];
 		//if both endpoints are on the same side of the slice plane, decide whether to keep the edge and move on
 		if(keep[e1] >= 0 && keep[e2] >= 0) {
-			newData.edges.push_back(data->edges[i]);
+			newEdge[0] = keep[e1];
+			newEdge[1] = keep[e2];
+			newData.edges.push_back(newEdge);
 			continue;
 		}
 		if(keep[e1] < 0 && keep[e2] < 0) continue;
@@ -355,9 +231,13 @@ bool T4TApp::SliceMode::sliceNode() {
 		}
 		if(!found) GP_ERROR("Didn't find edge to continue new polygon");
 	}
-	
+
+	//just add 1 convex hull for each convex face
+	for(int i = 0; i < newData.faces.size(); i++)
+		newData.hulls.push_back(newData.faces[i]);
+
 	//update or discard all the old convex hulls
-	std::vector<unsigned short> newHull;
+/*	std::vector<unsigned short> newHull;
 	short *inHull = new short[newData.vertices.size()];
 	for(int i = 0; i < newData.vertices.size(); i++) inHull[i] = false;
 	for(int i = 0; i < data->hulls.size(); i++) {
@@ -378,17 +258,18 @@ bool T4TApp::SliceMode::sliceNode() {
 		for(int j = 0; j < newData.faces[i].size() && !needHull; j++) needHull = !inHull[newData.faces[i][j]];
 		if(needHull) newData.hulls.push_back(newData.faces[i]);
 	}
+//*/
 	
 	//transform the new vertices back to model space before saving the data
-	Matrix worldModel, transInv;
+	Matrix worldModel;
 	_node->getWorldMatrix().invert(&worldModel);
-	data->initTrans.invert(&transInv);
-	Vector3 translation(_node->getTranslationWorld());
+	Vector3 translation(_node->getTranslationWorld()), scale(_node->getScale());
+	newData.translation.set(translation);
+	newData.scale.set(scale);
+	translation.x /= scale.x; translation.y /= scale.y; translation.z /= scale.z;
 	for(int i = 0; i < newData.vertices.size(); i++) {
 		worldModel.transformVector(&newData.vertices[i]);
 		newData.vertices[i] -= translation;
-		//transInv.transformVector(&newData.vertices[i]);
-		//newData.vertices[i] -= data->translation;
 	}
 	
 	//write the new node data to a file with suffix '_slice' and read it back in
@@ -404,6 +285,12 @@ bool T4TApp::SliceMode::sliceNode() {
 	Node::writeData(&newData, filename.c_str());
 	app->removeNode(_node, newID);
 	app->loadNodeFromData(newID);
+	//make sure the node is not hovering if its lower part was sliced off
+	Node *newNode = app->_scene->findNode(newID);
+	if(newNode) {
+		translation.set(newNode->getTranslationWorld());
+		app->placeNode(newNode, translation.x, translation.z);
+	}
 	return true;
 }
 

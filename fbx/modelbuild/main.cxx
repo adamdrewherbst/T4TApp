@@ -274,10 +274,6 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
     cout << "writing node file:\n" << filename << endl;
     ofstream out(filename, ios::out | ios::trunc);
     out << type << endl;
-    //rotation, translation, scale
-    out << "1\t0\t0\t0" << endl;
-    out << "0\t0\t0" << endl;
-    out << "1\t1\t1" << endl;
     int numParts = 2;
 
 	//each mesh creation function, eg. CreateSphere, returns an array:
@@ -287,6 +283,10 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		int segments = va_arg(arguments, int);
 		arr = CreateSphere(pScene, pName, radius, segments);
 		mesh = arr[0];
+		//rotation, translation, scale
+		out << "1\t0\t0\t0" << endl;
+		out << "0\t0\t0" << endl;
+		out << "0.5\t0.5\t0.5" << endl;
 		//write vertex/edge data
 		out << segments*(segments-1)+2 << endl;
 		for(int i = 0; i < segments*(segments-1)+2; i++) {
@@ -340,6 +340,10 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		int segments = va_arg(arguments, int);
 		arr = CreateCylinder(pScene, pName, radius, height, segments);
 		mesh = arr[0];
+		//rotation, translation, scale
+		out << "1\t0\t0\t0" << endl;
+		out << "0\t0\t0" << endl;
+		out << "1\t1\t1" << endl;
 		//write vertex/edge data
 		out << 2*segments+2 << endl;
 		for(int i = 0; i < 2*segments+2; i++) {
@@ -384,6 +388,10 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		arr = CreateHalfPipe(pScene, pName, radius, height, thickness, segments);
 		mesh = arr[0];
 		numParts = 1+segments;
+		//rotation, translation, scale
+		out << "1\t0\t0\t180" << endl;
+		out << "0\t0\t0" << endl;
+		out << "4\t1\t1" << endl;
 		//write vertex/edge data
 		out << 2*segments+4 << endl;
 		for(int i = 0; i < 2*segments+4; i++) {
@@ -451,6 +459,10 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		float height = (float)va_arg(arguments, double);
 		arr = CreateBox(pScene, pName, length, width, height);
 		mesh = arr[0];
+		//rotation, translation, scale
+		out << "1\t0\t0\t0" << endl;
+		out << "0\t0\t0" << endl;
+		out << "3\t1\t2" << endl;
 		//write vertex/edge data
 		out << 8 << endl;
 		for(int i = 0; i < 8; i++) {
@@ -478,9 +490,14 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		//physics object
 		out << "box" << endl;
 		//convex hulls
-		out << 1 << endl << 8 << endl;
-		for(int i = 0; i < 8; i++) out << i << "\t";
-		out << endl;
+		out << 6 << endl;
+		for(int i = 0; i < 6; i++) {
+			out << 4 << endl;
+			d1 = dir[(i/2 + 1 - (1-i%2)) % 3];
+			d2 = dir[(i/2 + 1 - i%2) % 3];
+			start = (i%2) * dir[(i/2 + 2) % 3];
+			out << start << "\t" << start+d1 << "\t" << start+d1+d2 << "\t" << start+d2 << endl;
+		}
 	}
 	
 	//no physics constraints when node is first written - may be added by app users
