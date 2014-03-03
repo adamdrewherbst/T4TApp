@@ -1,4 +1,4 @@
-form slice {
+form drill {
 	theme = res/common/default.theme
 	style = basicContainer
 	position = 200,10
@@ -6,29 +6,29 @@ form slice {
 	height = 240
 	layout = LAYOUT_FLOW
 	
-	button Slice_axis {
+	button Drill_axis {
 		style = buttonStyle
 		width = 100
 		height = 50
 		text = Y
 	}
-	button Slice_rotate {
+	button Drill_rotate {
 		style = buttonStyle
 		width = 100
 		height = 50
 		text = Rotate
 	}
-	button Slice_translate {
+	button Drill_translate {
 		style = buttonStyle
 		width = 100
 		height = 50
 		text = Translate
 	}
-	button Slice_doTool {
+	button Drill_doTool {
 		style = buttonStyle
 		width = 100
 		height = 50
-		text = Slice!
+		text = Drill!
 	}
 }
 

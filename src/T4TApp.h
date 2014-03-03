@@ -248,7 +248,8 @@ public:
 	{
 public:
 		T4TApp *app;
-		Form *_container, *_controls;
+		Form *_container, *_controls; //the click overlay and control panel
+		std::vector<Control*> _subControls; //the actual buttons etc.
 		bool _active;
 		
 		Mode(T4TApp *app_, const char* id, const char* filename = NULL);
@@ -263,6 +264,7 @@ public:
 	class ToolMode : public Mode
 	{
 public:
+		std::string _toolType;
 		Node *_node; //the model to be altered
 		Plane _viewPlane;
 		Vector3 _touchStart, _touchPoint, _viewPlaneOrigin;

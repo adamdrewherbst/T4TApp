@@ -175,11 +175,13 @@ void T4TApp::initialize()
 	_modes.push_back(new RotateMode(this));
 	_modes.push_back(new SelectMode(this));	
 	_modes.push_back(new SliceMode(this));
+	_modes.push_back(new DrillMode(this));
 	_modes.push_back(new TestMode(this));
 	_modePanel = addPanel(_sideMenu, "container_modes");
 	for(size_t i = 0; i < _modes.size(); i++) {
 		const char *id = _modes[i]->getId();
 		Button *modeButton = addControl <Button> (_modePanel, id, _buttonStyle, id+5);
+		modeButton->setHeight(40.0f);
 	}
 	_modePanel->setHeight(250.0f);
 	_modePanel->setVisible(true);

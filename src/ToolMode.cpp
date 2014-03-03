@@ -2,6 +2,7 @@
 
 T4TApp::ToolMode::ToolMode(T4TApp *app_, const char* id, const char* filename) 
   : T4TApp::Mode::Mode(app_, id, filename) {
+	_toolType = id+5;
 	_subMode = 0;
 	_node = NULL;
 	_touching = false;
@@ -121,8 +122,11 @@ bool T4TApp::ToolMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 }
 
 void T4TApp::ToolMode::controlEvent(Control *control, Control::Listener::EventType evt) {
-	cout << "tool mode clicked " << control->getId() << endl;
+	
 	const char *controlID = control->getId();
+	if(strncmp(_toolType.c_str(), controlID, _toolType.length()) != 0) return;
+	cout << "tool mode clicked " << controlID << endl;
+	controlID = controlID + _toolType.length()+1;
 
 	if(strcmp(controlID, "axis") == 0 && _node != NULL) {
 		const char *_axes[3] = {"X", "Y", "Z"};

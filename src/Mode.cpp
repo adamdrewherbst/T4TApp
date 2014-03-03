@@ -22,18 +22,22 @@ T4TApp::Mode::Mode(T4TApp *app_, const char* id, const char* filename) : app(app
 	if(filename != NULL) {
 		_controls = Form::create(filename);
 		_container->addControl(_controls);
-		std::vector<Control*> sub = _controls->getControls();
-		for(size_t i = 0; i < sub.size(); i++)
-			sub[i]->addListener(this, Control::Listener::CLICK);
+		_subControls = _controls->getControls();
+		for(size_t i = 0; i < _subControls.size(); i++)
+			_subControls[i]->addListener(this, Control::Listener::CLICK);
 	}
 	else _controls = NULL;
 	
-	_active = false;
+	setActive(false);
 }
 
 void T4TApp::Mode::setActive(bool active) {
 	_active = active;
 	_container->setVisible(active);
+	if(_controls != NULL) {
+		for(size_t i = 0; i < _subControls.size(); i++)
+			_subControls[i]->setEnabled(active);
+	}
 	if(active) {
 		app->_mainMenu->addListener(this, Control::Listener::CLICK);
 	} else {
