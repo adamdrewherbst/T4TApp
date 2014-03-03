@@ -135,7 +135,7 @@ bool T4TApp::DrillMode::toolNode() {
 		//get the plane for this face
 		for(j = 0; j < 3; j++) v[j].set(data->worldVertices[data->faces[i][j]]);
 		v1.set(v[1]-v[0]);
-		v2.set(v[2]-v[0]);
+		v2.set(v[2]-v[1]);
 		v1.cross(v2);
 		faces[i].setNormal(v1);
 		faces[i].setDistance(-v[0].dot(faces[i].getNormal()));
@@ -426,32 +426,46 @@ bool T4TApp::DrillMode::toolNode() {
 				}
 			}
 
-			//find the beginning of the sequence of vertices from the drill intersection
-			start = newFaceSize-1;
-			while((oldFaceInds[j][start] >= 0 || oldFaceInds[j][start-1] < 0) && start >= 0) start--;
+			//find the end of the sequence of vertices from the drill intersection
+			start = 0;
+			while((oldFaceInds[j][start] >= 0 || oldFaceInds[j][start+1] < 0) && start < newFaceSize-1) start++;
 			if(oldFaceInds[j][start] >= 0) {
 				GP_WARN("Couldn't find drill intersection starting point for face %d", i);
 				return false;
 			}
-			n = (start-1+newFaceSize)%newFaceSize;
+			
+			//if the drill cross-section is entirely inside the face, determine its orientation relative to the face
+			if(drillInside) {
+				v[0].set(newData.vertices[drillInt[1][i]] - newData.vertices[drillInt[0][i]]);
+				v[1].set(newData.vertices[drillInt[2][i]] - newData.vertices[drillInt[1][i]]);
+				v[0].cross(v[1]);
+				dir = v[0].dot(faces[i].getNormal()) > 0 ? 1 : -1;
+			}
+			else dir = -1;
+			
+			n = (start+1)%newFaceSize;
 			if(!drillInside) m = start;
 			else m = drillPoint[n];
 			do {
-				if(m == drillPoint[(n-1+newFaceSize)%newFaceSize]) {
-					newTriangle[0] = newFaces[j][(n-1+newFaceSize)%newFaceSize];
+				if(m == drillPoint[n]) {
+					newTriangle[0] = newFaces[j][n];
+					do {
+						n = (n+1)%newFaceSize;
+					} while(oldFaceInds[j][n] < 0);
 					newTriangle[1] = newFaces[j][n];
 					newTriangle[2] = newFaces[j][m];
-					n = (n-1+newFaceSize)%newFaceSize;
 				} else {
-					newTriangle[0] = newFaces[j][n];
-					newTriangle[1] = newFaces[j][m];
-					newTriangle[2] = newFaces[j][(m+1)%newFaceSize];
-					m = (m+1)%newFaceSize;
+					newTriangle[0] = newFaces[j][m];
+					newTriangle[1] = newFaces[j][n];
+					do {
+						m = (m+dir+newFaceSize)%newFaceSize;
+					} while(oldFaceInds[j][m] >= 0);
+					newTriangle[2] = newFaces[j][m];
 				}
 				newData.faces.push_back(newTriangle);
 				newData.triangles.push_back(newTriangles);
-			} while((!drillInside && n != (m+1)%newFaceSize)
-				|| (drillInside && (m != start || n != (start-1+newFaceSize)%newFaceSize)));
+			} while((!drillInside && (n+1)%newFaceSize != m)
+				|| (drillInside && (m != drillPoint[(start+1)%newFaceSize] || n != (start+1)%newFaceSize)));
 		}
 	}
 	
