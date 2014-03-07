@@ -27,6 +27,7 @@ public:
     T4TApp* getInstance();
     
     Node* duplicateModelNode(const char* type, bool isStatic = false);
+    Node* createWireframe(std::vector<float>& vertices);
     void addCollisionObject(Node *node);
 	Node* loadNodeFromData(const char *nodeID);
     void changeNodeModel(Node *node, const char* type);

@@ -231,6 +231,16 @@ void T4TApp::loadScene()
 	body->setEnabled(true);
     //store the plane representing the grid, for calculating intersections
     _groundPlane = Plane(Vector3(0, 1, 0), 0);
+    
+    //create lines for the positive axes
+    std::vector<float> vertices;
+    vertices.resize(36,0);
+    for(int i = 0; i < 6; i++) {
+    	vertices[i*6+1] = 5.0f;
+    	if(i%2 == 1) vertices[i*6+i/2] += 5.0f;
+    	vertices[i*6+4] = 1.0f; //color green
+    }
+    _scene->addNode(createWireframe(vertices));
 
     enableScriptCamera(true);
     //and initialize camera position by triggering a touch event
@@ -828,6 +838,24 @@ Node* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 	body->addCollisionListener(this);
 	body->_body->setSleepingThresholds(0.1f, 0.1f);
 	body->setActivation(ACTIVE_TAG);//*/
+	return node;
+}
+
+Node* T4TApp::createWireframe(std::vector<float>& vertices) {
+	int numVertices = vertices.size()/6;
+	VertexFormat::Element elements[] = {
+		VertexFormat::Element(VertexFormat::POSITION, 3),
+		VertexFormat::Element(VertexFormat::COLOR, 3)
+	};
+	Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), numVertices, false);
+	mesh->setPrimitiveType(Mesh::LINES);
+	mesh->setVertexData(&vertices[0], 0, numVertices);
+	Model *model = Model::create(mesh);
+	mesh->release();
+	model->setMaterial("res/common/grid.material");
+	Node *node = Node::create("drill");
+	node->setModel(model);
+	model->release();
 	return node;
 }
 
