@@ -841,7 +841,7 @@ Node* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 	return node;
 }
 
-Node* T4TApp::createWireframe(std::vector<float>& vertices) {
+Node* T4TApp::createWireframe(std::vector<float>& vertices, char *id) {
 	int numVertices = vertices.size()/6;
 	VertexFormat::Element elements[] = {
 		VertexFormat::Element(VertexFormat::POSITION, 3),
@@ -853,7 +853,17 @@ Node* T4TApp::createWireframe(std::vector<float>& vertices) {
 	Model *model = Model::create(mesh);
 	mesh->release();
 	model->setMaterial("res/common/grid.material");
-	Node *node = Node::create("drill");
+	if(id == NULL) {
+		char newID[40];
+		for(int i = 0; i < 40; i++) newID[i] = '\0';
+		int n = 0;
+		do {
+			n++;
+			sprintf(newID, "wireframe%d", n);
+		} while(_scene->findNode(newID) != NULL);
+		id = newID;
+	}
+	Node *node = Node::create(id);
 	node->setModel(model);
 	model->release();
 	return node;

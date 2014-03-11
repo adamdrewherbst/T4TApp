@@ -27,7 +27,7 @@ public:
     T4TApp* getInstance();
     
     Node* duplicateModelNode(const char* type, bool isStatic = false);
-    Node* createWireframe(std::vector<float>& vertices);
+    Node* createWireframe(std::vector<float>& vertices, char *id=NULL);
     void addCollisionObject(Node *node);
 	Node* loadNodeFromData(const char *nodeID);
     void changeNodeModel(Node *node, const char* type);
@@ -300,10 +300,19 @@ public:
 		Ray _axis;
 		float _radius;
 		int _segments;
+		Node::nodeData newData;
+		//store all the lines and planes of the drill bit
+		std::vector<Ray> lines;
+		std::vector<Plane> planes;
+		//edgeInt[edge vertex 1][edge vertex 2] = (drill ray number, index of intersection point in new model's vertex list)
+		//drillInt[drill ray number][face index in old model] = index of intersection point in new model's vertex list
+		std::map<unsigned short, std::map<unsigned short, unsigned short> > drillInt;
+		std::map<unsigned short, std::map<unsigned short, std::pair<unsigned short, unsigned short> > > edgeInt;
 		
 		DrillMode(T4TApp *app_);
 		void setAxis(int axis);
 		bool toolNode();
+		void drawFace(int face);
 	};
 	
 	class RotateMode : public Mode

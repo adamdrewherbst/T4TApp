@@ -212,6 +212,16 @@ function camera_rotateTo(yaw, pitch)
 	camera_setPosition()
 end
 
+function camera_setVectors(_eyeVec, _targetVec, _upVec)
+	_eye:set(_eyeVec)
+	_target:set(_targetVec)
+	_up:set(_upVec)
+	print('camera now at', _eye:x(), _eye:y(), _eye:z())
+	print('camera looking at', _target:x(), _target:y(), _target:z())
+	print('camera up is', _up:x(), _up:y(), _up:z())
+	camera_set()
+end
+
 --call when _pitch, _yaw, or _radius has been changed, to set the camera position accordingly
 function camera_setPosition()
 	-- Create lookAt matrix

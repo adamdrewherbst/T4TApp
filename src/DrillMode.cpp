@@ -6,6 +6,8 @@ T4TApp::DrillMode::DrillMode(T4TApp *app_)
 	_radius = 0.2f;
 	_segments = 20;
 	//create the drill-bit node
+	lines.resize(_segments);
+	planes.resize(_segments);
 	float length = 5.0f, color[3] = {1.0f, 1.0f, 1.0f}, angle, dAngle = 2*M_PI / _segments;
 	int v = 0, vertexCount = 6*_segments*6;
 	std::vector<float> vertices(vertexCount);
@@ -61,13 +63,81 @@ void T4TApp::DrillMode::setAxis(int axis) {
 	_axis.setDirection(drillAxis);
 }
 
+//for debugging, zoom in on a face, highlight it, and show its drill intersections
+void T4TApp::DrillMode::drawFace(int f) {
+
+	Node::nodeData *data = (Node::nodeData*)_node->getUserPointer();
+
+	//get the plane for this face
+	std::vector<unsigned short> face = data->faces[f];
+	Plane plane;
+	Vector3 vec[3], v1, v2;
+	for(int i = 0; i < 3; i++) vec[i].set(data->worldVertices[face[i]]);
+	v1.set(vec[1]-vec[0]);
+	v2.set(vec[2]-vec[1]);
+	v1.cross(v2);
+	plane.setNormal(v1);
+	plane.setDistance(-vec[0].dot(plane.getNormal()));
+
+	std::vector<float> vertices(6*2*face.size());
+	int v = 0;
+	Vector3 color(1, 0, 0);
+	for(int i = 0; i < face.size(); i++) {
+		for(int j = 0; j < 2; j++) {
+			v1.set(data->worldVertices[face[(i+j)%face.size()]] + 0.01f * plane.getNormal());
+			for(int k = 0; k < 3; k++) vertices[v++] = Node::gv(&v1, k);
+			for(int k = 0; k < 3; k++) vertices[v++] = Node::gv(&color, k);
+		}
+	}
+	app->_scene->addNode(app->createWireframe(vertices));
+	//then the calculated drill points for the face
+	color.set(1, 1, 1);
+	vertices.clear();
+	vertices.reserve(_segments*2*6);
+	v = 0;
+	for(int i = 0; i < _segments; i++) {
+		if(drillInt.find(i) != drillInt.end() && drillInt[i].find(f) != drillInt[i].end()) {
+			v1.set(newData.vertices[drillInt[i][f]] + 0.01f * plane.getNormal());
+			for(int j = 0; j < 2; j++) {
+				if(j == 0 && vertices.empty()) continue;
+				for(int k = 0; k < 3; k++) vertices.push_back(Node::gv(&v1, k));
+				for(int k = 0; k < 3; k++) vertices.push_back(Node::gv(&color, k));
+			}
+		}
+	}
+	if(!vertices.empty()) vertices.resize(vertices.size() - 6);
+	if(!vertices.empty()) app->_scene->addNode(app->createWireframe(vertices));
+	//then all drill intersections on this plane
+	color.set(0, 1, 0);
+	vertices.clear();
+	vertices.resize(_segments*2*6);
+	v = _segments*2*6 - 6;
+	float distance;
+	for(int i = 0; i < _segments; i++) {
+		distance = lines[i].intersects(plane);
+		v1.set(lines[i].getOrigin() + distance * lines[i].getDirection() + 0.01f*plane.getNormal());
+		for(int j = 0; j < 2; j++) {
+			for(int k = 0; k < 3; k++) vertices[v++] = Node::gv(&v1, k);
+			for(int k = 0; k < 3; k++) vertices[v++] = Node::gv(&color, k);
+			if(i == 0 && j == 0) v = 0;
+		}
+	}
+	app->_scene->addNode(app->createWireframe(vertices));
+	//move the camera to look at the face
+	Vector3 eye, target, up;
+	target.set(vec[0]);
+	eye.set(target + 5.0f*plane.getNormal());
+	up.set(vec[1]-vec[0]);
+	app->getScriptController()->executeFunction<void>("camera_setVectors", "<Vector3><Vector3><Vector3>", &eye, &target, &up);
+	app->frame();
+}
+
 bool T4TApp::DrillMode::toolNode() {
 	ToolMode::toolNode();
 	_node->updateData();
 	Node::nodeData *data = (Node::nodeData*)_node->getUserPointer();
 
 	//build drilled node into a new node data structure, save to disk, and reload
-	Node::nodeData newData;
 	newData.type = data->type;
 	newData.objType = "mesh"; //can't keep sphere/box collision object once it is deformed!
 	newData.mass = data->mass;
@@ -75,12 +145,13 @@ bool T4TApp::DrillMode::toolNode() {
 	newData.translation = data->translation;
 	newData.scale = data->scale;
 	newData.constraints = data->constraints;
+	newData.vertices.clear();
+	newData.edges.clear();
+	newData.faces.clear();
+	newData.hulls.clear();
 	
 	unsigned short i, j, k, m, n;
 
-	//store all the lines and planes of the drill bit
-	std::vector<Ray> lines(_segments);
-	std::vector<Plane> planes(_segments);
 	float angle, dAngle = 2*M_PI/_segments, planeDistance = _radius * cos(dAngle/2);
 	Matrix trans(_tool->getWorldMatrix());
 	for(i = 0; i < _segments; i++) {
@@ -97,11 +168,9 @@ bool T4TApp::DrillMode::toolNode() {
 	_axis.setOrigin(-1000.0f, 0, 0);
 	_axis.setDirection(1, 0, 0);
 	_axis.transform(trans);
-	//edgeInt[edge vertex 1][edge vertex 2] = (drill ray number, index of intersection point in new model's vertex list)
-	//drillInt[drill ray number][face index in old model] = index of intersection point in new model's vertex list
-	std::map<unsigned short, std::map<unsigned short, unsigned short> > drillInt;
-	std::map<unsigned short, std::map<unsigned short, std::pair<unsigned short, unsigned short> > > edgeInt;
-	
+	edgeInt.clear();
+	drillInt.clear();
+
 	//determine which vertices to discard because they are inside the drill cylinder
 	std::vector<short> keep(data->vertices.size());
 	Matrix toolWorldModel;
@@ -180,8 +249,10 @@ bool T4TApp::DrillMode::toolNode() {
 	std::vector<bool> hasInt(2);
 	std::vector<unsigned short> newEdge(2);
 	Vector4 intersect4;
-	float intersectAngle, edgeLen, curDistance;
+	float intersectAngle, angleDiff, minAngleDiff, edgeLen, curDistance;
+	bool angleInside, better, useInt;
 	std::vector<std::vector<float> > minDistance(data->edges.size());
+	std::map<unsigned short, std::map<unsigned short, bool> > isNewEdge;
 	for(i = 0; i < data->edges.size(); i++) minDistance[i].resize(2);
 	Vector3 dupTest;
 	for(i = 0; i < data->edges.size(); i++) {
@@ -195,6 +266,7 @@ bool T4TApp::DrillMode::toolNode() {
 		v[2].set(v[1]-v[0]);
 		edge.set(v[0], v[2]);
 		edgeLen = v[2].length();
+		minAngleDiff = (keep[e[0]] >= 0 && keep[e[1]] >= 0) ? -1000 : 1000;
 		for(j = 0; j < _segments; j++) {
 			distance = edge.intersects(planes[j]);
 			//only consider intersections outside the endpoints if we have already said that one endpoint is being discarded,
@@ -207,16 +279,30 @@ bool T4TApp::DrillMode::toolNode() {
 			intersectAngle = atan2(intersect4.z, intersect4.y);
 			while(intersectAngle < 0) intersectAngle += 2*M_PI;
 			angle = (2*M_PI*j) / _segments;
-			if(intersectAngle < angle || intersectAngle > angle+dAngle) continue;
-			bool useInt = false;
+			//again, if one endpoint is being discarded, allow tolerance in the angle check
+			angleInside = (intersectAngle >= angle && intersectAngle <= angle+dAngle);
+			if(angleInside) {
+				angleDiff = -1;
+			} else {
+				if(keep[e[0]] >= 0 && keep[e[1]] >= 0) continue;
+				angleDiff = fmin(fabs(intersectAngle-angle), fabs(intersectAngle-(angle+dAngle)));
+			}
+			useInt = false;
 			for(k = 0; k < 2; k++) {
 				curDistance = k*edgeLen + (1-2*k)*distance;
-				if(curDistance < minDistance[i][k]) {
+				if(minAngleDiff >= 0) better = angleDiff < minAngleDiff;
+				else if(angleDiff < 0 && minDistance[i][k] >= 0 && minDistance[i][k] <= edgeLen)
+					better = curDistance >= 0 && curDistance < minDistance[i][k];
+				else if(angleDiff < 0 && curDistance >= 0 && curDistance <= edgeLen) better = true;
+				else better = angleDiff < 0 && fmin(fabs(curDistance), fabs(curDistance - edgeLen))
+					< fmin(fabs(minDistance[i][k]), fabs(minDistance[i][k] - edgeLen));
+				if(better) {
 					//if there is already an intersection for this edge, make sure we are not duplicating it due to imprecision
 					if(edgeInt.find(e[k]) != edgeInt.end() && edgeInt[e[k]].find(e[1-k]) != edgeInt[e[k]].end()) {
 						int newInd = edgeInt[e[k]][e[1-k]].second;
 						if(newData.vertices[newInd].distance(intersect) < 0.001f) continue;
 					}
+					minAngleDiff = angleDiff;
 					minDistance[i][k] = curDistance;
 					useInt = true;
 					hasInt[k] = true;
@@ -225,19 +311,25 @@ bool T4TApp::DrillMode::toolNode() {
 			}
 			if(useInt) newData.vertices.push_back(intersect);
 		}
-		//split this edge on the intersection point(s)
-		if(!hasInt[0] || !hasInt[1] || edgeInt[e[0]][e[1]].second != edgeInt[e[1]][e[0]].second) {
-			for(j = 0; j < 2; j++) if(keep[j] >= 0 && hasInt[j]) {
+		//don't allow both directions of the edge to intersect the same drill point, and don't allow edges where only one direction intersects the drill
+		if((!hasInt[0] && hasInt[1]) || (hasInt[0] && !hasInt[1]) ||
+			(keep[e[0]] >= 0 && keep[e[1]] >= 0 && hasInt[0] && hasInt[1] && edgeInt[e[0]][e[1]].second == edgeInt[e[1]][e[0]].second)) {
+			edgeInt[e[0]].erase(e[1]);
+			edgeInt[e[1]].erase(e[0]);
+		}
+		else {
+			//split this edge on the intersection point(s)
+			if(hasInt[0] && hasInt[1]) for(j = 0; j < 2; j++) if(keep[j] >= 0) {
 				newEdge[0] = keep[e[j]];
 				newEdge[1] = edgeInt[e[j]][e[1-j]].second;
 				newData.edges.push_back(newEdge);
 			}
-		}
-		//or add it as is if it has no intersections
-		if(!hasInt[0] && !hasInt[1] && keep[e[0]] >= 0 && keep[e[1]] >= 0) {
-			newEdge[0] = keep[e[0]];
-			newEdge[1] = keep[e[1]];
-			newData.edges.push_back(newEdge);
+			//or add it as is if it has no intersections
+			if(!hasInt[0] && !hasInt[1] && keep[e[0]] >= 0 && keep[e[1]] >= 0) {
+				newEdge[0] = keep[e[0]];
+				newEdge[1] = keep[e[1]];
+				newData.edges.push_back(newEdge);
+			}
 		}
 	}
 
@@ -313,7 +405,10 @@ bool T4TApp::DrillMode::toolNode() {
 			ind = start;
 			do {
 				current = data->faces[i][ind];
-				if(keep[current] < 0) continue;
+				if(keep[current] < 0) {
+					ind = (ind+1)%faceSize;
+					continue;
+				}
 				next = data->faces[i][(ind+1) % faceSize];
 				keepNext = keep[next];
 				newFace.push_back(current);
@@ -403,23 +498,21 @@ bool T4TApp::DrillMode::toolNode() {
 			//for each edge that is from the original face
 			for(k = 0; k < newFaceSize; k++) {
 				if(oldFaceInds[j][k] < 0 || (!drillInside && oldFaceInds[j][(k+1)%newFaceSize] < 0)) continue;
-				minAngle = 2; //cosine metric
+				minAngle = -1;
 				//find the drill bit intersection point whose radial normal is closest to that of the edge
 				// - will be used to make the triangle with that edge
+				v2.set(newData.vertices[newFaces[j][k]] - v1); //first calculate the perpendicular from the drill center to this edge
+				for(m = (k+1)%newFaceSize; oldFaceInds[j][m] < 0; m = (m+1)%newFaceSize);
+				v3.set(newData.vertices[newFaces[j][m]] - newData.vertices[newFaces[j][k]]);
+				v3.normalize(&v3);
+				v2.set(v2 - (v2.dot(v3)) * v3);
+				v2.normalize(&v2);
 				for(m = 0; m < newFaceSize; m++) {
 					if(oldFaceInds[j][m] >= 0) continue;
-					v2.set(newData.vertices[newFaces[j][k]]);
-					for(n = (k+1)%newFaceSize; oldFaceInds[j][n] < 0; n = (n+1)%newFaceSize);
-					v3.set(newData.vertices[newFaces[j][n]]);
-					v[0].set(newData.vertices[newFaces[j][m]] - v1);
-					v[1].set(v2 - v1);
-					v[2].set(v3 - v1);
-					v[3].set(v3 - v2);
-					if(v[0].dot(v[1]) < 0 || v[0].dot(v[2]) < 0) continue;
-					v[0].normalize(&v[0]);
-					v[3].normalize(&v[3]);
-					angle = fabs(v[0].dot(v[3]));
-					if(angle < minAngle) {
+					v3.set(newData.vertices[newFaces[j][m]] - v1); //drill spoke
+					v3.normalize(&v3);
+					angle = v3.dot(v2);
+					if(angle > minAngle) {
 						minAngle = angle;
 						drillPoint[oldFaceInds[j][k]] = m;
 					}
@@ -448,20 +541,29 @@ bool T4TApp::DrillMode::toolNode() {
 			else m = drillPoint[oldFaceInds[j][n]];
 			do {
 				if(m == drillPoint[oldFaceInds[j][n]]) {
-					newTriangle[0] = newFaces[j][n];
+					newTriangle[0] = n;
 					do {
 						n = (n+1)%newFaceSize;
 					} while(oldFaceInds[j][n] < 0);
-					newTriangle[1] = newFaces[j][n];
-					newTriangle[2] = newFaces[j][m];
+					newTriangle[1] = n;
+					newTriangle[2] = m;
 				} else {
-					newTriangle[0] = newFaces[j][m];
-					newTriangle[1] = newFaces[j][n];
+					newTriangle[0] = m;
+					newTriangle[1] = n;
 					do {
 						m = (m+dir+newFaceSize)%newFaceSize;
 					} while(oldFaceInds[j][m] >= 0);
-					newTriangle[2] = newFaces[j][m];
+					newTriangle[2] = m;
 				}
+				for(k = 0; k < 3; k++) { //add any edges of this triangle that aren't already edges of the face
+					if(newTriangle[k] != (newTriangle[(k+1)%3]+1)%newFaceSize
+					  && newTriangle[k] != (newTriangle[(k+1)%3]-1+newFaceSize)%newFaceSize) {
+						newEdge[0] = newFaces[j][newTriangle[k]];
+						newEdge[1] = newFaces[j][newTriangle[(k+1)%3]];
+						newData.edges.push_back(newEdge);
+					}
+				}
+				for(k = 0; k < 3; k++) newTriangle[k] = newFaces[j][newTriangle[k]];
 				newData.faces.push_back(newTriangle);
 				newData.triangles.push_back(newTriangles);
 			} while((!drillInside && (n+1)%newFaceSize != m)
