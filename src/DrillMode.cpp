@@ -246,6 +246,7 @@ bool T4TApp::DrillMode::toolNode() {
 	Ray edge;
 	Vector3 intersect;
 	unsigned short e[2];
+	short lineInd[2];
 	std::vector<bool> hasInt(2);
 	std::vector<unsigned short> newEdge(2);
 	Vector4 intersect4;
@@ -258,6 +259,7 @@ bool T4TApp::DrillMode::toolNode() {
 	for(i = 0; i < data->edges.size(); i++) {
 		for(j = 0; j < 2; j++) {
 			hasInt[j] = false;
+			lineInd[j] = -1;
 			e[j] = data->edges[i][j];
 			v[j].set(data->worldVertices[e[j]]);
 			minDistance[i][j] = 999999;
@@ -298,37 +300,30 @@ bool T4TApp::DrillMode::toolNode() {
 					< fmin(fabs(minDistance[i][k]), fabs(minDistance[i][k] - edgeLen));
 				if(better) {
 					//if there is already an intersection for this edge, make sure we are not duplicating it due to imprecision
-					if(edgeInt.find(e[k]) != edgeInt.end() && edgeInt[e[k]].find(e[1-k]) != edgeInt[e[k]].end()) {
-						int newInd = edgeInt[e[k]][e[1-k]].second;
-						if(newData.vertices[newInd].distance(intersect) < 0.001f) continue;
-					}
+					if(hasInt[k] && v[k].distance(intersect) < 0.001f) continue;
+					v[k].set(intersect);
 					minAngleDiff = angleDiff;
 					minDistance[i][k] = curDistance;
-					useInt = true;
+					lineInd[k] = j;
 					hasInt[k] = true;
-					edgeInt[e[k]][e[1-k]] = std::pair<unsigned short,unsigned short>(j, newData.vertices.size());
 				}
 			}
-			if(useInt) newData.vertices.push_back(intersect);
 		}
 		//don't allow both directions of the edge to intersect the same drill point, and don't allow edges where only one direction intersects the drill
 		if((!hasInt[0] && hasInt[1]) || (hasInt[0] && !hasInt[1]) ||
-			(keep[e[0]] >= 0 && keep[e[1]] >= 0 && hasInt[0] && hasInt[1] && edgeInt[e[0]][e[1]].second == edgeInt[e[1]][e[0]].second)) {
-			edgeInt[e[0]].erase(e[1]);
-			edgeInt[e[1]].erase(e[0]);
+		  (keep[e[0]] >= 0 && keep[e[1]] >= 0 && hasInt[0] && hasInt[1] && lineInd[0] == lineInd[1])) {
+			continue;
 		}
 		else {
 			//split this edge on the intersection point(s)
 			if(hasInt[0] && hasInt[1]) {
 				for(j = 0; j < 2; j++) {
-					if(keep[j] >= 0) {
+					edgeInt[e[j]][e[1-j]] = std::pair<unsigned short, unsigned short>(lineInd[j], newData.vertices.size());
+					if(keep[e[j]] >= 0) {
 						newEdge[0] = keep[e[j]];
-						newEdge[1] = edgeInt[e[j]][e[1-j]].second;
+						newEdge[1] = newData.vertices.size();
+						newData.vertices.push_back(v[j]);
 						newData.edges.push_back(newEdge);
-					}
-					//if only keeping one endpoint, make sure the intersection is the same from both directions
-					else {
-						edgeInt[e[j]][e[1-j]] = edgeInt[e[1-j]][e[j]];
 					}
 				}
 			}
@@ -346,12 +341,12 @@ bool T4TApp::DrillMode::toolNode() {
 	std::vector<std::vector<short> > oldFaceInds;
 	std::vector<unsigned short> newFace, faceKeep, newTriangle(3);
 	std::vector<short> oldFaceInd, drillPoint;
-	std::map<unsigned short, std::map<unsigned short, std::vector<unsigned short> > > faceEdgeInt;
-	short faceSize, diff, bestLineDiff, newInd, start, current, next, ind, lastInter, startLine,
+	std::map<unsigned short, std::map<unsigned short, unsigned short> > faceEdgeInt;
+	short faceSize, diff, bestLineDiff, newInd, start, current, next, ind, lastInter, startLine, endLine,
 		line, newFaceSize, keepNext, dir, lineNum, drillIntCount;
 	unsigned short eind[2];
 	float minAngle, maxIntFraction;
-	bool keepAll, drillInside;
+	bool keepAll, drillInside, reverseFace;
 	for(i = 0; i < 3; i++) newTriangles[0].push_back(i);
 
 	for(i = 0; i < data->faces.size(); i++) {
@@ -404,6 +399,14 @@ bool T4TApp::DrillMode::toolNode() {
 			if(!drillInside) {
 				newData.faces.push_back(newFace);
 				newData.triangles.push_back(data->triangles[i]);
+				cout << "face " << i << " untouched" << endl;
+				for(j = 0; j < faceSize; j++) cout << data->faces[i][j] << " ";
+				cout << endl;
+				for(j = 0; j < data->triangles[i].size(); j++) {
+					cout << "\t";
+					for(k = 0; k < 3; k++) cout << data->triangles[i][j][k] << " ";
+					cout << endl;
+				}
 				continue;
 			}
 			else {
@@ -418,153 +421,97 @@ bool T4TApp::DrillMode::toolNode() {
 		while(!faceEdgeInt.empty()) {
 			newFace.clear();
 			//begin each new face on an edge intersection point
-			std::map<unsigned int, std::map<unsigned int, unsigned int> >::iterator it = faceEdgeInt.begin();
-			std::map<unsigned int, unsigned int>::iterator it1 = it->second.begin();
+			std::map<unsigned short, std::map<unsigned short, unsigned short> >::iterator it = faceEdgeInt.begin();
+			std::map<unsigned short, unsigned short>::iterator it1 = it->second.begin();
 			newFace.push_back(it1->second);
+			oldFaceInd.push_back(-1);
 			dir = it1->first == (it->first+1)%faceSize ? -1 : 1;
-			start = it1->first;
+			reverseFace = dir == -1;
+			start = it->first;
+			endLine = edgeInt[data->faces[i][it->first]][data->faces[i][it1->first]].first;
 			lastInter = it1->second;
 			it->second.erase(it1->first);
 			if(it->second.empty()) faceEdgeInt.erase(it->first);
 			//loop around to the next edge intersection point
-			for(ind = start; ;) {
+			for(ind = start;
+			  faceEdgeInt.find(ind) == faceEdgeInt.end() || faceEdgeInt[ind].find((ind+dir+faceSize)%faceSize) == faceEdgeInt[ind].end();
+			  ind = (ind+dir+faceSize)%faceSize) {
 				newFace.push_back(keep[data->faces[i][ind]]);
 				oldFaceInd.push_back(ind);
 				newEdge[0] = lastInter;
 				newEdge[1] = keep[data->faces[i][ind]];
 				newData.edges.push_back(newEdge);
-				
+				lastInter = newEdge[1];
 			}
-		}
-		
-		while(!faceKeep.empty()) {
-			newFace.clear();
-			oldFaceInd.clear();
-			//start from any vertex of this face that is not being discarded
-			start = faceKeep.back();
-			//loop through the face vertices, adding new vertices as called for
-			ind = start;
-			do {
-				current = data->faces[i][ind];
-				if(keep[current] < 0) {
-					ind = (ind+1)%faceSize;
-					continue;
+			newFace.push_back(keep[data->faces[i][ind]]);
+			oldFaceInd.push_back(ind);
+			newEdge[0] = lastInter;
+			newEdge[1] = keep[data->faces[i][ind]];
+			newData.edges.push_back(newEdge);
+			lastInter = newEdge[1];
+			//add the next edge intersection
+			n = faceEdgeInt[ind][(ind+dir+faceSize)%faceSize];
+			newFace.push_back(n);
+			oldFaceInd.push_back(-1);
+			newEdge[0] = lastInter;
+			newEdge[1] = n;
+			newData.edges.push_back(newEdge);
+			lastInter = newEdge[1];
+			//and get rid of it so we don't try to reuse it
+			faceEdgeInt[ind].erase((ind+dir+faceSize)%faceSize);
+			if(faceEdgeInt[ind].empty()) faceEdgeInt.erase(ind);
+			//determine which way to go around the drill circle to connect the face
+			//-choose the one with a higher percentage of drill line intersections (ideally should be 100%)
+			startLine = edgeInt[data->faces[i][ind]][data->faces[i][(ind+dir+faceSize)%faceSize]].first;
+			maxIntFraction = -1;
+			for(k = -1; k <= 1; k += 2) {
+				drillIntCount = 0;
+				n = 0;
+				for(lineNum = (startLine + (k == -1 ? 0 : 1) + _segments) % _segments;
+				  lineNum != (endLine + (k == -1 ? 0 : 1) + _segments) % _segments;
+				  lineNum = (lineNum+k+_segments) % _segments) {
+				  	n++;
+					if(drillInt.find(lineNum) != drillInt.end() && drillInt[lineNum].find(i) != drillInt[lineNum].end())
+						drillIntCount++;
 				}
-				next = data->faces[i][(ind+1) % faceSize];
-				keepNext = keep[next];
-				newFace.push_back(current);
-				oldFaceInd.push_back(ind);
-				faceKeep.erase(std::remove(faceKeep.begin(), faceKeep.end(), ind), faceKeep.end());
-				//if this edge intersects the drill, add intersection points until we get to the next face vertex
-				if(edgeInt.find(current) != edgeInt.end() && edgeInt[current].find(next) != edgeInt[current].end()) {
-					//first the intersection of the edge with the drill
-					lastInter = edgeInt[current][next].second;
-					newFace.push_back(lastInter);
+				if(n == 0 || 1.0*drillIntCount/n > maxIntFraction) {
+					maxIntFraction = 1.0*drillIntCount/n;
+					dir = k;
+				}
+			}
+			//iterate in the chosen direction, adding intersection points
+			for(lineNum = (startLine + (dir == -1 ? 0 : 1) + _segments) % _segments;
+			  lineNum != (endLine + (dir == -1 ? 0 : 1) + _segments) % _segments;
+			  lineNum = (lineNum+dir+_segments) % _segments) {
+				if(drillInt.find(lineNum) != drillInt.end() && drillInt[lineNum].find(i) != drillInt[lineNum].end()) {
+					newFace.push_back(drillInt[lineNum][i]);
 					oldFaceInd.push_back(-1);
-					//discard this edge intersection so we don't reuse it
-					std::vector<unsigned short> *list = &faceEdgeInt[edgeInt[current][next].first][current];
-					list->erase(std::remove(list->begin(), list->end(), next), list->end());
-					if(list->empty()) faceEdgeInt[edgeInt[current][next].first].erase(current);
-
-					//find the next edge intersection in each direction, and go in the direction that has more
-					//drill intersections along the way
-					lineNum = edgeInt[current][next].first;
-					startLine = lineNum;
-					maxIntFraction = -1;
-					for(k = -1; k <= 1; k += 2) {
-						drillIntCount = 0;
-						n = 0;
-						for(lineNum = (startLine + (k == -1 ? 0 : 1) + _segments) % _segments;
-						  faceEdgeInt.find(lineNum) == faceEdgeInt.end();
-						  lineNum = (lineNum+k+_segments) % _segments) {
-						  	n++;
-							if(drillInt.find(lineNum) != drillInt.end() && drillInt[lineNum].find(i) != drillInt[lineNum].end())
-								drillIntCount++;
-						}
-						if(n == 0 || 1.0*drillIntCount/n > maxIntFraction) {
-							maxIntFraction = 1.0*drillIntCount/n;
-							dir = k;
-						}
-					}
-					//iterate in the chosen direction, adding intersection points
-					for(lineNum = (startLine + (dir == -1 ? 0 : 1) + _segments) % _segments;
-					  faceEdgeInt.find(lineNum) == faceEdgeInt.end();
-					  lineNum = (lineNum+dir+_segments) % _segments) {
-						if(drillInt.find(lineNum) != drillInt.end() && drillInt[lineNum].find(i) != drillInt[lineNum].end()) {
-							newFace.push_back(drillInt[lineNum][i]);
-							oldFaceInd.push_back(-1);
-							newEdge[0] = lastInter;
-							newEdge[1] = drillInt[lineNum][i];
-							newData.edges.push_back(newEdge);
-							lastInter = drillInt[lineNum][i];
-						}
-					}
-					//add the adjacent edge intersection
-					
-					dir = (drillInt.find(lineNum) != drillInt.end()
-						&& drillInt[lineNum].find(i) != drillInt[lineNum].end()) ? -1 : 1;
-					if(dir == -1) {
-						newFace.push_back(drillInt[lineNum][i]);
-						oldFaceInd.push_back(-1);
-						newEdge[0] = lastInter;
-						newEdge[1] = drillInt[lineNum][i];
-						newData.edges.push_back(newEdge);
-					}
-					for(lineNum = (lineNum+dir) % _segments; true; lineNum = (lineNum+dir) % _segments) {
-						if(drillInt.find(lineNum) != drillInt.end() && drillInt[lineNum].find(i) != drillInt[lineNum].end()) {
-							newFace.push_back(drillInt[lineNum][i]);
-							oldFaceInd.push_back(-1);
-							newEdge[0] = lastInter;
-							newEdge[1] = drillInt[lineNum][i];
-							newData.edges.push_back(newEdge);
-							lastInter = drillInt[lineNum][i];
-						}
-						for(j = 0; j < faceSize; j++) {
-							for(k = 0; k < 2; k++) e[k] = data->faces[i][(j+k)%faceSize];
-							if(keep[e[1]] >= 0
-							  && edgeInt.find(e[1]) != edgeInt.end() && edgeInt[e[1]].find(e[0]) != edgeInt[e[1]].end()
-							  && edgeInt[e[1]][e[0]] == lineNum) {
-						}
-					}
-				
-					//at this point we should be next to a drill plane that another edge of this face intersects
-					lineNum = dir == 1 ? lineNum - 1 : lineNum;
-					//we want it to be the one we're on, but we'll take +/-1 due to imprecision
-					bestLineDiff = _segments;
-					for(j = 0; j < faceSize; j++) {
-							line = edgeInt[e[1]][e[0]].first;
-							diff = abs(line - lineNum);
-							if(diff > _segments/2) diff = _segments - diff;
-							if(diff < bestLineDiff) {
-								bestLineDiff = diff;
-								newInd = edgeInt[e[1]][e[0]].second;
-								ind = j;
-							}
-						}
-					}
-					if(bestLineDiff < 2) {
-						//add the edge-drill intersection vertex
-						newFace.push_back(newInd);
-						oldFaceInd.push_back(-1);
-						//add the last edge along the intersection rim
-						newEdge[0] = lastInter;
-						newEdge[1] = newInd;
-						newData.edges.push_back(newEdge);
-					} else {
-						GP_WARN("DrillMode: couldn't find edge to exit drill to continue face");
-						return false;
-					}
+					newEdge[0] = lastInter;
+					newEdge[1] = drillInt[lineNum][i];
+					newData.edges.push_back(newEdge);
+					lastInter = drillInt[lineNum][i];
 				}
-				ind = (ind+1) % faceSize;
-			} while(ind != start);
+			}
+			//add the new face to the list of new faces, reversing it if we built it backwards
 			if(!newFace.empty()) {
-				newFaces.push_back(newFace);
-				oldFaceInds.push_back(oldFaceInd);
+				m = newFaces.size();
+				n = newFace.size();
+				newFaces.resize(m+1);
+				newFaces[m].resize(n);
+				oldFaceInds.resize(m+1);
+				oldFaceInds[m].resize(n);
+				for(j = 0; j < n; j++) {
+					newFaces[m][j] = reverseFace ? newFace[n-j-1] : newFace[j];
+					oldFaceInds[m][j] = reverseFace ? oldFaceInd[n-j-1] : oldFaceInd[j];
+				}
 			}
 		}
 		if(drillInside) for(j = 0; j < _segments; j++) {
 			newFaces[0].push_back(drillInt[j][i]);
 			oldFaceInds[0].push_back(-1);
+			newEdge[0] = drillInt[j][i];
+			newEdge[1] = drillInt[(j+1)%_segments][i];
+			newData.edges.push_back(newEdge);
 		}
 
 		//mark where the drill center intersects this face's plane, for computing 2d normals in the face plane
