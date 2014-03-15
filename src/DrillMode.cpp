@@ -159,7 +159,7 @@ bool T4TApp::DrillMode::toolNode() {
 	for(i = 0; i < _segments; i++) {
 		angle = (2*M_PI*i) / _segments;
 		//line
-		lines[i].setOrigin(-1000.0f, _radius*cos(angle), _radius*sin(angle));
+		lines[i].setOrigin(-50.0f, _radius*cos(angle), _radius*sin(angle));
 		lines[i].setDirection(1, 0, 0);
 		lines[i].transform(trans);
 		//plane
@@ -167,7 +167,7 @@ bool T4TApp::DrillMode::toolNode() {
 		planes[i].setDistance(-planeDistance);
 		planes[i].transform(trans);
 	}
-	_axis.setOrigin(-1000.0f, 0, 0);
+	_axis.setOrigin(-50.0f, 0, 0);
 	_axis.setDirection(1, 0, 0);
 	_axis.transform(trans);
 	edgeInt.clear();
@@ -199,8 +199,12 @@ bool T4TApp::DrillMode::toolNode() {
 	Vector3 v1, v2, v3;
 	std::vector<Vector3> v(4), inter(_segments);
 	std::vector<bool> rayUsed(_segments);
+	std::vector<float> intDistance(_segments);
+	std::map<unsigned short, std::map<unsigned short, unsigned short> >::iterator it;
+	std::map<unsigned short, unsigned short>::iterator it1;
 	float distance, s, t, denom,
 		dot[5]; //the distinct dot products needed to compute barycentric coordinates - http://geomalgorithms.com/a06-_intersect-2.html
+	bool entering, keepInt;
 	for(i = 0; i < data->faces.size(); i++) {
 		for(j = 0; j < _segments; j++) rayUsed[j] = false;
 		//get the plane for this face
@@ -213,6 +217,7 @@ bool T4TApp::DrillMode::toolNode() {
 		//find all intersections for the drill with the plane
 		for(j = 0; j < _segments; j++) {
 			distance = lines[j].intersects(faces[i]);
+			intDistance[j] = distance;
 			if(distance == Ray::INTERSECTS_NONE) inter[j].set(Vector3::zero());
 			else inter[j].set(lines[j].getOrigin() + distance * lines[j].getDirection());
 		}
@@ -236,7 +241,18 @@ bool T4TApp::DrillMode::toolNode() {
 				if(s < 0 || t < 0 || s+t > 1) {
 					continue;
 				}
-				//the intersection point is inside this triangle
+				//now we know the intersection point is inside this triangle
+				//before adding it, make sure we're not duplicating due to imprecision
+				keepInt = true;
+				entering = lines[k].getDirection().dot(faces[i].getNormal()) < 0;
+				if(drillInt.find(k) != drillInt.end()) for(it1 = drillInt[k].begin(); it1 != drillInt[k].end(); it1++) {
+					if((lines[k].getDirection().dot(faces[it1->first].getNormal()) < 0) == entering
+					  && newData.vertices[it1->second].distance(inter[k]) < 0.001) {
+						keepInt = false;
+						break;
+					}
+				}
+				if(!keepInt) continue;
 				newData.vertices.push_back(inter[k]);
 				drillInt[k][i] = newData.vertices.size()-1;
 				rayUsed[k] = true;
@@ -424,8 +440,8 @@ bool T4TApp::DrillMode::toolNode() {
 		while(!faceEdgeInt.empty()) {
 			newFace.clear();
 			//begin each new face on an edge intersection point
-			std::map<unsigned short, std::map<unsigned short, unsigned short> >::iterator it = faceEdgeInt.begin();
-			std::map<unsigned short, unsigned short>::iterator it1 = it->second.begin();
+			it = faceEdgeInt.begin();
+			it1 = it->second.begin();
 			newFace.push_back(it1->second);
 			oldFaceInd.push_back(-1);
 			dir = it1->first == (it->first+1)%faceSize ? -1 : 1;
@@ -604,8 +620,40 @@ bool T4TApp::DrillMode::toolNode() {
 	
 	//add the new faces formed by the walls of the drill cylinder
 	unsigned short newFaceStart = newData.faces.size();
+	std::vector<std::vector<std::pair<unsigned short, float> > > lineInt(_segments);
+	std::vector<std::pair<unsigned short, float> >::iterator vit;
+	for(it = drillInt.begin(); it != drillInt.end(); it++) {
+		lineNum = it->first;
+		v1.set(lines[lineNum].getOrigin());
+		//sort the drill line intersections by distance along the ray
+		for(it1 = drillInt[lineNum].begin(); it1 != drillInt[lineNum].end(); it1++) {
+			n = it1->second;
+			v2.set(newData.vertices[n] - v1);
+			edgeLen = v2.length();
+			for(vit = lineInt[lineNum].begin();	vit != lineInt[lineNum].end() && vit->second < edgeLen; vit++);
+			lineInt[lineNum].insert(vit, std::pair<unsigned short, float>(n, edgeLen));
+		}
+	}
+	//now that the intersections are sorted, grab pairs of intersections from adjacent drill lines to make quadrilaterals
+	newTriangles.resize(2);
+	for(i = 0; i < 2; i++) {
+		newTriangles[i].resize(3);
+		for(j = 0; j < 3; j++) newTriangles[i][j] = j == 0 ? 0 : i+j;
+	}
+	for(i = 0; i < _segments; i++) {
+		n = min(lineInt[i].size(), lineInt[(i+1)%_segments].size()) / 2; //number of quads for this segment
+		newFace.resize(4);
+		for(j = 0; j < n; j++) {
+			newFace[3] = lineInt[i][j*2].first;
+			newFace[2] = lineInt[(i+1)%_segments][j*2].first;
+			newFace[1] = lineInt[(i+1)%_segments][j*2+1].first;
+			newFace[0] = lineInt[i][j*2+1].first;
+			newData.faces.push_back(newFace);
+			newData.triangles.push_back(newTriangles);
+		}
+	}
 	
-	//just add 1 convex hull for each convex face
+	//just add 1 convex hull for each convex face - is there a better way?
 	for(i = 0; i < newData.faces.size(); i++)
 		newData.hulls.push_back(newData.faces[i]);
 	
