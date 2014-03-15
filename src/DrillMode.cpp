@@ -148,7 +148,9 @@ bool T4TApp::DrillMode::toolNode() {
 	newData.vertices.clear();
 	newData.edges.clear();
 	newData.faces.clear();
+	newData.triangles.clear();
 	newData.hulls.clear();
+	newData.constraints = data->constraints;
 	
 	short i, j, k, m, n;
 
@@ -318,6 +320,7 @@ bool T4TApp::DrillMode::toolNode() {
 			//split this edge on the intersection point(s)
 			if(hasInt[0] && hasInt[1]) {
 				for(j = 0; j < 2; j++) {
+					if(keep[e[j]] < 0) lineInd[j] = lineInd[1-j]; //if only keeping one endpoint, intersection is same both ways
 					edgeInt[e[j]][e[1-j]] = std::pair<unsigned short, unsigned short>(lineInd[j], newData.vertices.size());
 					if(keep[e[j]] >= 0) {
 						newEdge[0] = keep[e[j]];
@@ -521,6 +524,7 @@ bool T4TApp::DrillMode::toolNode() {
 		//triangulate each of the new polygons
 		for(j = 0; j < newFaces.size(); j++) {
 			newFaceSize = newFaces[j].size();
+			for(k = 0; k < faceSize; k++) drillPoint[k] = -1;
 
 			//for each edge that is from the original face
 			for(k = 0; k < newFaceSize; k++) {
