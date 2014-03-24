@@ -307,11 +307,17 @@ public:
 		//edgeInt[edge vertex 1][edge vertex 2] = (drill ray number, index of intersection point in new model's vertex list)
 		//drillInt[drill ray number][face index in old model] = index of intersection point in new model's vertex list
 		std::map<unsigned short, std::map<unsigned short, unsigned short> > drillInt;
+		std::map<unsigned short, std::map<unsigned short, float> > drillError;
 		std::map<unsigned short, std::map<unsigned short, std::pair<unsigned short, unsigned short> > > edgeInt;
-		
+		//store which edges have already been added so as not to duplicate
+		std::map<unsigned short, std::vector<unsigned short> > usedEdges;
+		std::vector<unsigned short> newEdge;
+				
 		DrillMode(T4TApp *app_);
 		void setAxis(int axis);
 		bool toolNode();
+		void addEdge(unsigned short e1, unsigned short e2);
+		void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 		void drawFace(int face);
 	};
 	
