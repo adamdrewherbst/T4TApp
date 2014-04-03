@@ -398,9 +398,7 @@ void T4TApp::render(float elapsedTime)
     if(_componentMenu->isVisible()) _componentMenu->draw();
 	if(_vehicleProject->container->isVisible()) _vehicleProject->container->draw();
 	for(size_t i = 0; i < _modes.size(); i++) {
-		if(_modes[i]->_active && _modes[i]->_controls != NULL) {
-			_modes[i]->_controls->draw();
-		}
+		if(_modes[i]->_active) _modes[i]->draw();
 	}
 }
 

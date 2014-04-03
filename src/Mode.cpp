@@ -31,6 +31,10 @@ T4TApp::Mode::Mode(T4TApp *app_, const char* id, const char* filename) : app(app
 	setActive(false);
 }
 
+void T4TApp::Mode::draw() {
+	if(_controls != NULL) _controls->draw();
+}
+
 void T4TApp::Mode::setActive(bool active) {
 	_active = active;
 	_container->setVisible(active);

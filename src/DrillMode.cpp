@@ -5,42 +5,104 @@ T4TApp::DrillMode::DrillMode(T4TApp *app_)
 	_axis.set(Vector3(0, 0, 0), Vector3(1, 0, 0));
 	_radius = 0.2f;
 	_segments = 20;
-	//create the drill-bit node
-	lines.resize(_segments);
-	planes.resize(_segments);
-	float length = 5.0f, color[3] = {1.0f, 1.0f, 1.0f}, angle, dAngle = 2*M_PI / _segments;
-	int v = 0, vertexCount = 6*_segments*6;
-	std::vector<float> vertices(vertexCount);
-	for(int i = 0; i < _segments; i++) {
-		angle = (2*M_PI * i) / _segments;
-		for(int j = 0; j < 2; j++) {
-			vertices[v++] = (2*j-1) * length;
-			vertices[v++] = _radius * cos(angle);
-			vertices[v++] = _radius * sin(angle);
-			for(int i = 0; i < 3; i++) vertices[v++] = color[i];
-		}
-		for(int j = 0; j < 2; j++) {
-			for(int k = 0; k < 2; k++) {
-				vertices[v++] = (2*j-1) * length;
-				vertices[v++] = _radius * cos(angle + k*dAngle);
-				vertices[v++] = _radius * sin(angle + k*dAngle);
-				for(int i = 0; i < 3; i++) vertices[v++] = color[i];
-			}
+	_tool = Node::create("drill");
+	
+	//have the user start by selecting a drill bit - shape and size
+	_bitMenu = Form::create("bitMenu", app->_formStyle, Layout::LAYOUT_FLOW);
+	_bitMenu->setPosition(app->_sideMenu->getX() + app->_sideMenu->getWidth() + 25.0f, 25.0f);
+	_bitMenu->setWidth(app->getWidth() - _bitMenu->getX() - 25.0f);
+	_bitMenu->setHeight(app->getHeight() - 50.0f);
+	_bitMenu->setScroll(Container::SCROLL_VERTICAL);
+	_bitMenu->setConsumeInputEvents(true);
+	_bitMenu->setVisible(false);
+	_container->addControl(_bitMenu);
+
+	float sizes[6] = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 1.0f};
+	int shapes[2] = {4, 12};
+	for(int h = 0; h < 2; h++) {
+		for(int s = 0; s < 6; s++) {
+			char id[20];
+			sprintf(id, "drill_bit_%d_%3.2f", shapes[h], sizes[s]);
+			ImageControl* itemImage = app->addButton <ImageControl> (_bitMenu, id);
+			itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
+			itemImage->setWidth(150.0f);
+			itemImage->setHeight(150.0f);
+			itemImage->removeListener(app);
+			itemImage->addListener((Control::Listener*)this, Control::Listener::CLICK);
 		}
 	}
-	VertexFormat::Element elements[] = {
-		VertexFormat::Element(VertexFormat::POSITION, 3),
-		VertexFormat::Element(VertexFormat::COLOR, 3)
-	};
-	Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), v/6, false);
-	mesh->setPrimitiveType(Mesh::LINES);
-	mesh->setVertexData(&vertices[0], 0, v/6);
-	Model *model = Model::create(mesh);
-	mesh->release();
-	model->setMaterial("res/common/grid.material");
-	_tool = Node::create("drill");
-	_tool->setModel(model);
-	model->release();
+}
+
+void T4TApp::DrillMode::setActive(bool active) {
+	ToolMode::setActive(active);
+	_controls->setVisible(false);
+	_bitMenu->setVisible(active);
+	std::vector<Control*> controls = _bitMenu->getControls();
+	for(size_t i = 0; i < controls.size(); i++) controls[i]->setEnabled(active);
+	if(active) {
+		app->_mainMenu->addListener((Control::Listener*)this, Control::Listener::CLICK);
+	} else {
+		app->_mainMenu->removeListener((Control::Listener*)this);
+	}
+}
+
+void T4TApp::DrillMode::draw() {
+	Mode::draw();
+	if(_bitMenu->isVisible()) _bitMenu->draw();
+}
+
+void T4TApp::DrillMode::controlEvent(Control *control, Control::Listener::EventType evt) {
+	ToolMode::controlEvent(control, evt);
+	const char *controlID = control->getId();
+	if(strncmp(controlID, "drill_bit_", 10) == 0) {
+		int shape;
+		float size;
+		std::stringstream ss(std::string(controlID+10));
+		ss >> shape;
+		ss.ignore();
+		ss >> size;
+		cout << "chose drill bit with " << shape << " segments of radius " << size << endl;
+		_segments = shape;
+		_radius = size;
+		_bitMenu->setVisible(false);
+		_controls->setVisible(true);
+
+		//create the drill-bit node
+		lines.resize(_segments);
+		planes.resize(_segments);
+		float length = 5.0f, color[3] = {1.0f, 1.0f, 1.0f}, angle, dAngle = 2*M_PI / _segments;
+		int v = 0, vertexCount = 6*_segments*6;
+		std::vector<float> vertices(vertexCount);
+		for(int i = 0; i < _segments; i++) {
+			angle = (2*M_PI * i) / _segments;
+			for(int j = 0; j < 2; j++) {
+				vertices[v++] = (2*j-1) * length;
+				vertices[v++] = _radius * cos(angle);
+				vertices[v++] = _radius * sin(angle);
+				for(int i = 0; i < 3; i++) vertices[v++] = color[i];
+			}
+			for(int j = 0; j < 2; j++) {
+				for(int k = 0; k < 2; k++) {
+					vertices[v++] = (2*j-1) * length;
+					vertices[v++] = _radius * cos(angle + k*dAngle);
+					vertices[v++] = _radius * sin(angle + k*dAngle);
+					for(int i = 0; i < 3; i++) vertices[v++] = color[i];
+				}
+			}
+		}
+		VertexFormat::Element elements[] = {
+			VertexFormat::Element(VertexFormat::POSITION, 3),
+			VertexFormat::Element(VertexFormat::COLOR, 3)
+		};
+		Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), v/6, false);
+		mesh->setPrimitiveType(Mesh::LINES);
+		mesh->setVertexData(&vertices[0], 0, v/6);
+		Model *model = Model::create(mesh);
+		mesh->release();
+		model->setMaterial("res/common/grid.material");
+		_tool->setModel(model);
+		model->release();
+	}
 }
 
 void T4TApp::DrillMode::setAxis(int axis) {

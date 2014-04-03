@@ -258,6 +258,7 @@ public:
 		virtual bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) = 0;
 		virtual void controlEvent(Control *control, EventType evt) = 0;
 		virtual void setActive(bool active);
+		virtual void draw();
 	};
 	std::vector<Mode*> _modes;
 	
@@ -272,18 +273,18 @@ public:
 		Node *_tool; //to display the tool to the user
 		Quaternion _toolBaseRotation;
 		int _subMode; //0 = rotate, 1 = translate
-		bool _touching;
+		bool _touching, _rotate;
 
 		ToolMode(T4TApp *app_, const char* id, const char* filename = NULL);
-		void setActive(bool active);
+		virtual void setActive(bool active);
 		void setNode(Node *node);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
-		void controlEvent(Control *control, Control::Listener::EventType evt);
+		virtual void controlEvent(Control *control, Control::Listener::EventType evt);
 		virtual void setAxis(int axis);
 		void setView();
 		virtual bool toolNode();
 	};
-	
+
 	class SliceMode : public ToolMode
 	{
 public:
@@ -293,7 +294,7 @@ public:
 		void setAxis(int axis);
 		bool toolNode();
 	};
-	
+
 	class DrillMode : public ToolMode
 	{
 public:
@@ -312,7 +313,12 @@ public:
 		//store which edges have already been added so as not to duplicate
 		std::map<unsigned short, std::vector<unsigned short> > usedEdges;
 		std::vector<unsigned short> newEdge;
-				
+		//GUI
+		Form *_bitMenu;
+		void controlEvent(Control *control, Control::Listener::EventType evt);
+		void setActive(bool active);
+		void draw();
+
 		DrillMode(T4TApp *app_);
 		void setAxis(int axis);
 		bool toolNode();
