@@ -215,6 +215,96 @@ void T4TApp::DrillMode::addFace(std::vector<unsigned short>& face, std::vector<s
 	}
 }
 
+//use ear clipping to triangulate the given polygon, which may be concave
+// - http://www.geometrictools.com/Documentation/TriangulationByEarClipping.pdf
+void T4TApp::DrillMode::triangulate(int index) {
+
+	std::vector<unsigned short> face = newData.faces[index], triangle(3);
+	short i, j, k, faceSize = face.size(), ind, remaining = faceSize;
+	std::vector<std::pair<unsigned short, unsigned short> > indClass(faceSize);
+	std::vector<std::vector<unsigned short> > triangles;
+	
+	//start by calculating the properly oriented face normal by Newell's method
+	// - https://www.opengl.org/wiki/Calculating_a_Surface_Normal#Newell.27s_Method
+	Vector3 v1, v2, normal(0, 0, 0);
+	for(i = 0; i < faceSize; i++) {
+		v1.set(newData.vertices[face[i]]);
+		v2.set(newData.vertices[face[(i+1)%faceSize]]);
+		normal.x += (v1.y - v2.y) * (v1.z + v2.z);
+		normal.y += (v1.z - v2.z) * (v1.x + v2.x);
+		normal.z += (v1.x - v2.x) * (v1.y + v2.y);
+	}
+	normal.normalize();
+	newData.normals[index] = normal;
+
+	//build the initial lists of convex/reflex/ear vertices
+	for(i = 0; i < faceSize; i++) indClass[i] = std::pair<unsigned short, unsigned short>(i, 0);
+	for(i = 0; i < faceSize; i++) indClass[i].second = vertexClass(index, i, indClass);
+
+	//iterate over the polygon removing ears
+	while((remaining = indClass.size()) > 3) {
+		ind = -1;
+		for(i = 0; i < remaining; i++) if(indClass[i].second == 2) { ind = i; break; }
+		if(ind < 0) break;
+		triangle[0] = indClass[(ind-1+remaining)%remaining].first;
+		triangle[1] = indClass[ind].first;
+		triangle[2] = indClass[(ind+1)%remaining].first;
+		triangles.push_back(triangle);
+		indClass.erase(indClass.begin() + ind);
+		if(indClass.size() <= 3) break;
+		//see if the neighboring vertices' classification has changed
+		remaining--;
+		for(j = ind-1; j <= ind; j++) {
+			k = (j+remaining)%remaining;
+			indClass[k].second = vertexClass(index, k, indClass);
+		}
+	}
+	if(remaining == 3) {
+		for(i = 0; i < 3; i++) triangle[i] = indClass[i].first();
+		triangles.push_back(triangle);
+	}
+	newData.triangles[index] = triangles;
+}
+
+//given a vertex(i) of a face(f), see if it is convex, reflex, or an ear (using the known reflex vertices of the face)
+unsigned short T4TApp::DrillMode::vertexClass(unsigned short f, unsigned short index, std::vector<std::pair<unsigned short, unsigned short> > classes) {
+	Vector3 v1, v2, v3, e1, e2, normal = newData.normals[f], cross;
+	float d00, d10, d11, d20, d21, denom, u, v, w;
+	std::vector<unsigned short> face = newData.faces[f];
+	unsigned short faceSize = classes.size(), i, n2 = classes[index].first,
+		n1 = classes[(index-1+faceSize)%faceSize].first, n3 = classes[(index+1)%faceSize].first;
+	v1.set(newData.vertices[face[n1]]);
+	v2.set(newData.vertices[face[n2]]);
+	v3.set(newData.vertices[face[n3]]);
+	e1.set(v2 - v1);
+	e2.set(v3 - v2);
+	Vector3::cross(e1, e2, &cross);
+	if(cross.dot(normal) < 0) return 0; //reflex
+	v1.set(-e1);
+	v2.set(e2);
+	d00 = v1.dot(v1);
+	d10 = v2.dot(v1);
+	d11 = v2.dot(v2);
+	bool isEar = true;
+	for(i = 0; i < faceSize; i++) {
+		if(classes[i].second != 0) continue; //not a reflex point
+		if(i == (index+1)%faceSize || i == (index-1+faceSize)%faceSize) continue;
+		//compute the barycentric coords of the vertex wrt this triangle
+		v3.set(newData.vertices[face[classes[i].first]] - newData.vertices[face[n2]]);
+		d20 = v3.dot(v1);
+		d21 = v3.dot(v2);
+		denom = d00 * d11 - d10 * d10;
+		if(denom == 0) continue;
+		v = (d11 * d20 - d10 * d21) / denom;
+		w = (d00 * d21 - d10 * d20) / denom;
+		u = 1.0f - v - w;
+		if(u < 0.0f || u > 1.0f) continue;
+		isEar = false;
+		break;
+	}
+	return isEar ? 2 : 1; //ear : convex
+}
+
 bool T4TApp::DrillMode::toolNode() {
 	ToolMode::toolNode();
 	_node->updateData();
@@ -782,7 +872,8 @@ bool T4TApp::DrillMode::toolNode() {
 			for(j = 0; j < newFace.size(); j++) usedPoints.push_back(newFace[j]);
 			if(hasFirst && newFace.size() > 2) {
 				//triangulate
-				
+				newData.faces.push_back(newFace);
+				triangulate(newData.faces.size() - 1);
 			}
 		}
 	}

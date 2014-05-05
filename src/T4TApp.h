@@ -324,6 +324,8 @@ public:
 		bool toolNode();
 		void addEdge(unsigned short e1, unsigned short e2);
 		void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
+		void triangulate(int index);
+		unsigned short vertexClass(int f, int i, std::vector<std::pair<unsigned short, unsigned short> > classes);
 		void drawFace(int face);
 	};
 	
