@@ -288,6 +288,7 @@ bool T4TApp::DrillMode::toolNode() {
 	std::vector<Vector3> v(4), inter(_segments);
 	std::vector<bool> rayUsed(_segments);
 	std::vector<float> intDistance(_segments);
+	std::map<unsigned short, unsigned short> drillLineInd;
 	std::map<unsigned short, std::map<unsigned short, unsigned short> >::iterator it;
 	std::map<unsigned short, unsigned short>::iterator it1;
 	float distance, s, t, denom, epsilon = 0.001f, error,
@@ -355,6 +356,7 @@ bool T4TApp::DrillMode::toolNode() {
 				newData.vertices.push_back(inter[k]);
 				drillInt[k][i] = newData.vertices.size()-1;
 				drillError[k][i] = error;
+				drillLineInd[newData.vertices.size()-1] = k;
 			}
 		}
 	}
@@ -370,6 +372,7 @@ bool T4TApp::DrillMode::toolNode() {
 	bool angleInside, better, useInt;
 	std::vector<std::vector<float> > minDistance(data->edges.size());
 	std::map<unsigned short, std::map<unsigned short, bool> > isNewEdge;
+	std::map<unsigned short, unsigned short> segmentInd; //which drill segment each new vertex lies in
 	for(i = 0; i < data->edges.size(); i++) minDistance[i].resize(2);
 	Vector3 dupTest;
 	for(i = 0; i < data->edges.size(); i++) {
@@ -452,6 +455,7 @@ bool T4TApp::DrillMode::toolNode() {
 				for(j = 0; j < 2; j++) {
 					if(keep[e[j]] < 0) lineInd[j] = lineInd[1-j]; //if only keeping one endpoint, intersection is same both ways
 					edgeInt[e[j]][e[1-j]] = std::pair<unsigned short, unsigned short>(lineInd[j], newData.vertices.size());
+					segmentInd[newData.vertices.size()] = lineInd[j];
 					if(keep[e[j]] >= 0) {
 						newData.vertices.push_back(v[j]);
 					}
@@ -716,10 +720,77 @@ bool T4TApp::DrillMode::toolNode() {
 			lineInt[lineNum].insert(vit, std::pair<unsigned short, float>(n, edgeLen));
 		}
 	}
+	
+	//for each segment of the drill bit: start with the first intersection along line A, and look for an edge of a new face
+	//that lies in the same segment - if there is one, follow it until we get back to line A or B; if not, move to the
+	//next intersection along line A.  When on line B, move in the reverse direction.  Go until loop complete, and triangulate.
+	newFace.clear();
+	short mode = 0; //0 = line A, 1 = line B, 2 = interior
+	short found;
+	bool hasFirst;
+	std::vector<unsigned short> usedPoints;
+	std::vector<unsigned short>::iterator vit2;
+	for(i = 0; i < _segments; i++) {
+		usedPoints.clear();
+		while(true) {
+			//find the first unused intersection along line A, or unused point in the interior of segment A
+			found = -1;
+			for(j = 0; j < lineInt[i].size(); j++)
+				if(std::find(usedPoints.begin(), usedPoints.end(), lineInt[i][j]) == usedPoints.end()) {
+					n = lineInt[i][j];
+					found = 1;
+					break;
+				}
+			if(found < 0) for(j = 0; j < segmentPoints[i].size(); j++)
+				if(std::find(usedPoints.begin(), usedPoints.end(), segmentPoints[i][j]) == usedPoints.end()) {
+					n = segmentPoints[i][j];
+					found = 1;
+					break;
+				}
+			if(found < 0) break;
+			do {
+				newFace.push_back(n);
+				found = -1;
+				hasFirst = false;
+				//first check for an established edge that continues the face
+				if(usedEdges.find(n) != usedEdges.end()) {
+					for(j = 0; j < usedEdges[n].size(); j++) {
+						m = usedEdges[n][j];
+						vit2 = std::find(newFace.begin(), newFace.end(), m);
+						if(vit2 == newFace.begin()) hasFirst = true;
+						if(vit2 != newFace.end()) continue;
+						if(segmentInd.find(m) != segmentInd.end() && segmentInd[m] == j) found = 2;
+						else if(drillLineInd.find(m) != drillLineInd.end() && drillLineInd[m] == j) found = 0;
+						else if(drillLineInd.find(m) != drillLineInd.end() && drillLineInd[m] == j+1) found = 1;
+						if(found >= 0) {
+							mode = found;
+							n = m;
+							break;
+						}
+					}
+				}
+				//if that fails, and we are on a drill line, take the next intersection along that line
+				if(found < 0 && mode < 2) {
+					dir = 1 - 2*mode; //forward on line A, backward on line B
+					//figure out which intersection we are on
+					ind = -1;
+					for(j = 0; j < lineInt[i+mode].size(); j++) if(lineInt[i+mode].first == n) { ind = j; break; }
+					if(ind >= 0 && ind+dir >= 0 && ind+dir < lineInt[i+mode].size()) n = lineInt[i+mode][ind+dir];
+					if(n == newFace[0]) { n = -1; hasFirst = true; }
+				}
+			} while(n >= 0);
+			for(j = 0; j < newFace.size(); j++) usedPoints.push_back(newFace[j]);
+			if(hasFirst && newFace.size() > 2) {
+				//triangulate
+				
+			}
+		}
+	}
+	
 	//for each segment (pair of lines) of the drill bit: the first and last intersections along the line will form a quadrilateral
 	//if we have 4 intersections along each line, we can make 2 quadrilaterals instead; 6 => 3, and so on
 	//this is a hopefully temporary approximation since it ignores notches in the segment
-	newTriangles.resize(2);
+/*	newTriangles.resize(2);
 	newFace.resize(4);
 	for(i = 0; i < 2; i++) {
 		newTriangles[i].resize(3);
@@ -740,7 +811,7 @@ bool T4TApp::DrillMode::toolNode() {
 			newFace[0] = lineInt[i][seq[0][j*2+1]].first;
 			addFace(newFace, newTriangles);
 		}
-	}
+	}//*/
 	
 	//just add 1 convex hull for each convex face - is there a better way?
 	for(i = 0; i < newData.faces.size(); i++)
