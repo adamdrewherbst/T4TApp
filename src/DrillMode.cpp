@@ -205,8 +205,25 @@ void T4TApp::DrillMode::addEdge(unsigned short e1, unsigned short e2) {
 }
 
 void T4TApp::DrillMode::addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
+	if(triangles.empty()) {
+		//if no triangles given, we need to triangulate, and since it may be concave, we'll add each triangle as a separate face
+		triangulate(face, triangles);
+		std::vector<std::vector<unsigned short> > oneTriangle(1);
+		for(int i = 0; i < 3; i++) oneTriangle[0].push_back(i);
+		for(int i = 0; i < triangles.size(); i++) {
+			addFaceHelper(triangles[i], oneTriangle);
+		}
+	} else addFaceHelper(face, triangles);
+}
+
+void T4TApp::DrillMode::addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
 	newData.faces.push_back(face);
 	newData.triangles.push_back(triangles);
+	Vector3 v1(newData.vertices[face[1]] - newData.vertices[face[0]]),
+		v2(newData.vertices[face[2]] - newData.vertices[face[1]]),
+		normal;
+	Vector3::cross(v1, v2, &normal);
+	newData.normals.push_back(normal);
 	unsigned short e1, e2;
 	for(short n = 0; n < triangles.size(); n++) {
 		for(short i = 0; i < 3; i++) {
@@ -217,12 +234,11 @@ void T4TApp::DrillMode::addFace(std::vector<unsigned short>& face, std::vector<s
 
 //use ear clipping to triangulate the given polygon, which may be concave
 // - http://www.geometrictools.com/Documentation/TriangulationByEarClipping.pdf
-void T4TApp::DrillMode::triangulate(int index) {
+void T4TApp::DrillMode::triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
 
-	std::vector<unsigned short> face = newData.faces[index], triangle(3);
+	std::vector<unsigned short> triangle(3);
 	short i, j, k, faceSize = face.size(), ind, remaining = faceSize;
 	std::vector<std::pair<unsigned short, unsigned short> > indClass(faceSize);
-	std::vector<std::vector<unsigned short> > triangles;
 	
 	//start by calculating the properly oriented face normal by Newell's method
 	// - https://www.opengl.org/wiki/Calculating_a_Surface_Normal#Newell.27s_Method
@@ -235,42 +251,42 @@ void T4TApp::DrillMode::triangulate(int index) {
 		normal.z += (v1.x - v2.x) * (v1.y + v2.y);
 	}
 	normal.normalize();
-	newData.normals[index] = normal;
 
 	//build the initial lists of convex/reflex/ear vertices
 	for(i = 0; i < faceSize; i++) indClass[i] = std::pair<unsigned short, unsigned short>(i, 0);
-	for(i = 0; i < faceSize; i++) indClass[i].second = vertexClass(index, i, indClass);
+	for(i = 0; i < faceSize; i++) indClass[i].second = vertexClass(face, normal, i, indClass);
 
 	//iterate over the polygon removing ears
 	while((remaining = indClass.size()) > 3) {
 		ind = -1;
 		for(i = 0; i < remaining; i++) if(indClass[i].second == 2) { ind = i; break; }
 		if(ind < 0) break;
-		triangle[0] = indClass[(ind-1+remaining)%remaining].first;
-		triangle[1] = indClass[ind].first;
-		triangle[2] = indClass[(ind+1)%remaining].first;
+		triangle[0] = face[indClass[(ind-1+remaining)%remaining].first];
+		triangle[1] = face[indClass[ind].first];
+		triangle[2] = face[indClass[(ind+1)%remaining].first];
 		triangles.push_back(triangle);
 		indClass.erase(indClass.begin() + ind);
-		if(indClass.size() <= 3) break;
+		if((remaining = indClass.size()) <= 3) break;
 		//see if the neighboring vertices' classification has changed
 		remaining--;
 		for(j = ind-1; j <= ind; j++) {
 			k = (j+remaining)%remaining;
-			indClass[k].second = vertexClass(index, k, indClass);
+			indClass[k].second = vertexClass(face, normal, k, indClass);
 		}
 	}
 	if(remaining == 3) {
-		for(i = 0; i < 3; i++) triangle[i] = indClass[i].first();
+		for(i = 0; i < 3; i++) triangle[i] = face[indClass[i].first];
 		triangles.push_back(triangle);
 	}
-	newData.triangles[index] = triangles;
 }
 
-//given a vertex(i) of a face(f), see if it is convex, reflex, or an ear (using the known reflex vertices of the face)
-unsigned short T4TApp::DrillMode::vertexClass(unsigned short f, unsigned short index, std::vector<std::pair<unsigned short, unsigned short> > classes) {
-	Vector3 v1, v2, v3, e1, e2, normal = newData.normals[f], cross;
+//given a vertex(index) of a face(f), see if it is convex, reflex, or an ear (using the known reflex vertices of the face)
+unsigned short T4TApp::DrillMode::vertexClass(std::vector<unsigned short>& face,
+  Vector3& normal,
+  unsigned short index,
+  std::vector<std::pair<unsigned short, unsigned short> >& classes) {
+	Vector3 v1, v2, v3, e1, e2, cross;
 	float d00, d10, d11, d20, d21, denom, u, v, w;
-	std::vector<unsigned short> face = newData.faces[f];
 	unsigned short faceSize = classes.size(), i, n2 = classes[index].first,
 		n1 = classes[(index-1+faceSize)%faceSize].first, n3 = classes[(index+1)%faceSize].first;
 	v1.set(newData.vertices[face[n1]]);
@@ -288,9 +304,9 @@ unsigned short T4TApp::DrillMode::vertexClass(unsigned short f, unsigned short i
 	bool isEar = true;
 	for(i = 0; i < faceSize; i++) {
 		if(classes[i].second != 0) continue; //not a reflex point
-		if(i == (index+1)%faceSize || i == (index-1+faceSize)%faceSize) continue;
+		if(i == n1 || i == n2 || i == n3) continue;
 		//compute the barycentric coords of the vertex wrt this triangle
-		v3.set(newData.vertices[face[classes[i].first]] - newData.vertices[face[n2]]);
+		v3.set(newData.vertices[face[i]] - newData.vertices[face[n2]]);
 		d20 = v3.dot(v1);
 		d21 = v3.dot(v2);
 		denom = d00 * d11 - d10 * d10;
@@ -463,6 +479,7 @@ bool T4TApp::DrillMode::toolNode() {
 	std::vector<std::vector<float> > minDistance(data->edges.size());
 	std::map<unsigned short, std::map<unsigned short, bool> > isNewEdge;
 	std::map<unsigned short, unsigned short> segmentInd; //which drill segment each new vertex lies in
+	std::vector<std::vector<unsigned short> > segmentPoints(_segments); //the intersection points in each drill segment
 	for(i = 0; i < data->edges.size(); i++) minDistance[i].resize(2);
 	Vector3 dupTest;
 	for(i = 0; i < data->edges.size(); i++) {
@@ -546,6 +563,7 @@ bool T4TApp::DrillMode::toolNode() {
 					if(keep[e[j]] < 0) lineInd[j] = lineInd[1-j]; //if only keeping one endpoint, intersection is same both ways
 					edgeInt[e[j]][e[1-j]] = std::pair<unsigned short, unsigned short>(lineInd[j], newData.vertices.size());
 					segmentInd[newData.vertices.size()] = lineInd[j];
+					segmentPoints[lineInd[j]].push_back(newData.vertices.size());
 					if(keep[e[j]] >= 0) {
 						newData.vertices.push_back(v[j]);
 					}
@@ -814,20 +832,22 @@ bool T4TApp::DrillMode::toolNode() {
 	//for each segment of the drill bit: start with the first intersection along line A, and look for an edge of a new face
 	//that lies in the same segment - if there is one, follow it until we get back to line A or B; if not, move to the
 	//next intersection along line A.  When on line B, move in the reverse direction.  Go until loop complete, and triangulate.
-	newFace.clear();
 	short mode = 0; //0 = line A, 1 = line B, 2 = interior
-	short found;
+	short found, counterclockwise;
 	bool hasFirst;
 	std::vector<unsigned short> usedPoints;
 	std::vector<unsigned short>::iterator vit2;
 	for(i = 0; i < _segments; i++) {
 		usedPoints.clear();
 		while(true) {
+			newFace.clear();
+			newTriangles.clear();
 			//find the first unused intersection along line A, or unused point in the interior of segment A
 			found = -1;
+			counterclockwise = 0;
 			for(j = 0; j < lineInt[i].size(); j++)
-				if(std::find(usedPoints.begin(), usedPoints.end(), lineInt[i][j]) == usedPoints.end()) {
-					n = lineInt[i][j];
+				if(std::find(usedPoints.begin(), usedPoints.end(), lineInt[i][j].first) == usedPoints.end()) {
+					n = lineInt[i][j].first;
 					found = 1;
 					break;
 				}
@@ -849,9 +869,9 @@ bool T4TApp::DrillMode::toolNode() {
 						vit2 = std::find(newFace.begin(), newFace.end(), m);
 						if(vit2 == newFace.begin()) hasFirst = true;
 						if(vit2 != newFace.end()) continue;
-						if(segmentInd.find(m) != segmentInd.end() && segmentInd[m] == j) found = 2;
-						else if(drillLineInd.find(m) != drillLineInd.end() && drillLineInd[m] == j) found = 0;
-						else if(drillLineInd.find(m) != drillLineInd.end() && drillLineInd[m] == j+1) found = 1;
+						if(segmentInd.find(m) != segmentInd.end() && segmentInd[m] == i) found = 2;
+						else if(drillLineInd.find(m) != drillLineInd.end() && drillLineInd[m] == i) found = 0;
+						else if(drillLineInd.find(m) != drillLineInd.end() && drillLineInd[m] == (i+1)%_segments) found = 1;
 						if(found >= 0) {
 							mode = found;
 							n = m;
@@ -861,20 +881,55 @@ bool T4TApp::DrillMode::toolNode() {
 				}
 				//if that fails, and we are on a drill line, take the next intersection along that line
 				if(found < 0 && mode < 2) {
-					dir = 1 - 2*mode; //forward on line A, backward on line B
 					//figure out which intersection we are on
 					ind = -1;
-					for(j = 0; j < lineInt[i+mode].size(); j++) if(lineInt[i+mode].first == n) { ind = j; break; }
-					if(ind >= 0 && ind+dir >= 0 && ind+dir < lineInt[i+mode].size()) n = lineInt[i+mode][ind+dir];
-					if(n == newFace[0]) { n = -1; hasFirst = true; }
+					for(j = 0; j < lineInt[(i+mode)%_segments].size(); j++) if(lineInt[(i+mode)%_segments][j].first == n) {
+						ind = j;
+						break;
+					}
+					//see if the next intersection in the counterclockwise direction exists and is unused
+					for(j = (counterclockwise == 0 ? -1 : counterclockwise);
+					  j <= (counterclockwise == 0 ? 1 : counterclockwise); j += 2) {
+						dir = j * (1 - 2*mode); //forward on line A, backward on line B
+						if(ind >= 0 && ind+dir >= 0 && ind+dir < lineInt[(i+mode)%_segments].size()
+						  && std::find(usedPoints.begin(), usedPoints.end(), lineInt[(i+mode)%_segments][ind+dir].first) 
+						  == usedPoints.end()) {
+							n = lineInt[(i+mode)%_segments][ind+dir].first;
+							counterclockwise = j;
+							found = mode;
+							break;
+						}
+					}
+					if(n == newFace[0]) { found = -1; hasFirst = true; }
 				}
-			} while(n >= 0);
+			} while(found >= 0);
 			for(j = 0; j < newFace.size(); j++) usedPoints.push_back(newFace[j]);
 			if(hasFirst && newFace.size() > 2) {
+				//if added clockwise, reverse the order
+				if(counterclockwise == -1) {
+					faceSize = newFace.size();
+					for(j = 0; j < faceSize/2; j++) {
+						n = newFace[j];
+						newFace[j] = newFace[faceSize-1-j];
+						newFace[faceSize-1-j] = n;
+					}
+				}
 				//triangulate
-				newData.faces.push_back(newFace);
-				triangulate(newData.faces.size() - 1);
+				cout << "adding face: ";
+				for(j = 0; j < newFace.size(); j++) cout << newFace[j] << " ";
+				cout << endl;
+				addFace(newFace, newTriangles);
 			}
+		}
+	}
+	
+	cout << "NEW FACES: " << endl;
+	for(i = newFaceStart; i < newData.faces.size(); i++) {
+		for(j = 0; j < newData.faces[i].size(); j++) cout << newData.faces[i][j] << " ";
+		cout << endl;
+		for(j = 0; j < newData.triangles[i].size(); j++) {
+			for(k = 0; k < 3; k++) cout << " " << newData.triangles[i][j][k];
+			cout << endl;
 		}
 	}
 	
@@ -941,5 +996,4 @@ bool T4TApp::DrillMode::toolNode() {
 	}
 	return true;
 }
-
 
