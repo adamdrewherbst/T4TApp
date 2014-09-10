@@ -301,7 +301,7 @@ public:
 		Ray _axis;
 		float _radius;
 		int _segments;
-		Node::nodeData data, newData;
+		Node::nodeData *data, newData;
 		//store all the lines and planes of the drill bit
 		std::vector<Ray> lines;
 		std::vector<Plane> planes;
@@ -327,6 +327,8 @@ public:
 		DrillMode(T4TApp *app_);
 		void setAxis(int axis);
 		bool toolNode();
+		void partitionNode();
+		void buildPatch(unsigned short face);
 		void addEdge(unsigned short e1, unsigned short e2);
 		void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 		void addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
