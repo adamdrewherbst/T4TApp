@@ -323,7 +323,9 @@ unsigned short T4TApp::DrillMode::vertexClass(std::vector<unsigned short>& face,
 
 void T4TApp::DrillMode::partitionNode() {
 	bool found;
-	unsigned short i, j, k, patch;
+	unsigned short i, j, k, patch, faceSize;
+	facePatch.resize(data->faces.size());
+	for(i = 0; i < data->faces.size(); i++) facePatch[i] = -1;
 	do { //find the first unused face and recursively nucleate a patch from it
 		found = false;
 		for(i = 0; i < data->faces.size(); i++) {
@@ -334,8 +336,10 @@ void T4TApp::DrillMode::partitionNode() {
 				patchEdge.resize(patch + 1);
 				patches[patch].push_back(i);
 				facePatch[i] = patch;
-				for(j = 0; j < data->faces[i].size(); j++)
-					patchEdge[patch].push_back(data->faces[i][j]);
+				faceSize = data->faces[i].size();
+				for(j = 0; j < faceSize; j++) {
+					patchEdge[patch].push_back(data->edgeInd[data->faces[i][j]][data->faces[i][(j+1)%faceSize]]);
+				}
 				buildPatch(i);
 				break;
 			}
@@ -344,39 +348,28 @@ void T4TApp::DrillMode::partitionNode() {
 }
 
 void T4TApp::DrillMode::buildPatch(unsigned short face) {
-	unsigned short i, j, k, n1, n2, n3, n4, neighbor, patch = patches.size() - 1, patchSize = patches[patch].size();
-	bool toward = data->normals[face].dot(_axis.getDirection()) > 0;
+	unsigned short i, j, k, n1, n2, n3, n4, neighbor, faceSize, edge,
+		patch = patches.size() - 1, patchSize = patches[patch].size();
+	bool toward = data->normals[face].dot(_axis.getDirection()) > 0, found;
 	for(i = 0; i < data->faceNeighbors[face].size(); i++) {
 		neighbor = data->faceNeighbors[face][i];
+		faceSize = data->faces[neighbor].size();
 		if(facePatch[neighbor] >= 0 || toward != (data->normals[neighbor].dot(_axis.getDirection()) > 0)) continue;
 		//add the triangle to the face
 		patches[patch].push_back(neighbor);
 		facePatch[neighbor] = patch;
-		//as to the patch boundary...
-		for(j = 0; j < patchEdge[patch].size(); j++) {
-			if(std::find(data->faces[face].begin(), data->faces[face].end(), patchEdge[patch][(j-1+patchSize)%patchSize])
-				!= data->faces[face].end()) continue;
-			n1 = std::find(data->faces[face].begin(), data->faces[face].end(), patchEdge[patch][j])
-				- data->faces[face].begin();
-			n2 = std::find(data->faces[face].begin(), data->faces[face].end(), patchEdge[patch][(j+1) % patchSize])
-				- data->faces[face].begin();
-			n3 = std::find(data->faces[face].begin(), data->faces[face].end(), patchEdge[patch][(j+2) % patchSize])
-				- data->faces[face].begin();
-			n4 = std::find(data->faces[face].begin(), data->faces[face].end(), patchEdge[patch][(j+3) % patchSize])
-				- data->faces[face].begin();
-			if(n1 < 3 && n2 < 3) {
-				//if the current patch only contains one edge of this triangle, we insert its other vertex
-				if(n3 >= 3 && n4 >= 3)
-					patchEdge[patch].insert(patchEdge[patch].begin() + ((j+1) % patchSize),
-						data->faces[face][3 - (n1 + n2)]);
-				//if it contains two edges, we remove their shared vertex
-				else if(n3 < 3 && n4 >= 3) 
-					patchEdge[patch].erase(patchEdge[patch].begin() + (j+1) % patchSize);
-				//if it contains all three edges, one must occur twice - remove the other two and the duplicate occurrence
-				else if(n3 < 3 && n4 < 3) for(k = 0; k < 3; k++)
-					patchEdge[patch].erase(patchEdge[patch].begin() + (j+k+1) % patchSize);
-				break;
+		//for the patch boundary: replace all edges that are part of the new face, with the rest of the edges from the new face
+		for(j = 0; j < faceSize; j++) {
+			edge = data->edgeInd[data->faces[neighbor][j]][data->faces[neighbor][(j+1)%faceSize]];
+			found = false;
+			for(k = 0; k < patchEdge[patch].size(); k++) {
+				if(edge == patchEdge[patch][k]) {
+					patchEdge[patch].erase(patchEdge[patch].begin() + k);
+					found = true;
+					break;
+				}
 			}
+			if(!found) patchEdge[patch].push_back(edge);
 		}
 		buildPatch(neighbor);
 	}
@@ -405,7 +398,7 @@ bool T4TApp::DrillMode::toolNode() {
 	usedEdges.clear();
 	newEdge.resize(2);
 	
-	short i, j, k, m, n;
+	short i, j, k, m, n, p, q;
 
 	//store the planes and lines of the drillbit segments for calculations
 	float angle, dAngle = 2*M_PI/_segments, planeDistance = _radius * cos(dAngle/2);
@@ -442,27 +435,22 @@ bool T4TApp::DrillMode::toolNode() {
 
 	//determine which vertices to discard because they are inside the drill cylinder
 	std::vector<short> keep(data->vertices.size());
-	Matrix toolWorldModel;
-	_tool->getWorldMatrix().invert(&toolWorldModel);
 	Vector3 test;
-	Vector4 test4;
 	float testAngle, testRadius;
 	for(i = 0; i < data->vertices.size(); i++) {
 		keep[i] = -1;
-		test.set(data->worldVertices[i]);
-		test4.set(test.x, test.y, test.z, 1);
-		toolWorldModel.transformVector(&test4);
-		testAngle = atan2(test4.z, test4.y);
-		testRadius = sqrt(test4.y*test4.y + test4.z*test4.z);
+		test.set(drillVertices[i]);
+		testAngle = atan2(test.y, test.x);
+		testRadius = sqrt(test.x*test.x + test.y*test.y);
 		float ang = fabs(fmod(testAngle, dAngle) - dAngle/2), radius = planeDistance / cos(ang);
 		if(testRadius >= radius) {
 			keep[i] = newData.vertices.size();
-			newData.vertices.push_back(test);
+			newData.vertices.push_back(data->worldVertices[i]);
 		}
 	}
 
 	//store the plane for each face in the model
-	Vector3 direction, v1, v2, v3, drillPt, intersect;
+	Vector3 direction, v1, v2, v3, drillPt, drillVec, intersect;
 	std::vector<Vector3> v(4);
 	std::vector<Plane> faces(data->faces.size());
 	for(i = 0; i < data->faces.size(); i++) {
@@ -480,9 +468,9 @@ bool T4TApp::DrillMode::toolNode() {
 
 	//for each patch, check whether each drill line intersects it, using its 2D projection onto the drill plane
 	Ray ray;
-	unsigned short patchSize, intersectCount, neighbor;
+	unsigned short patchSize, intersectCount, neighbor, edgeInd;
 	bool positive, skip;
-	float epsilon = 0.001f, delta, closest, denom, s, t, distance;
+	float epsilon = 0.001f, delta, denom, s, t, distance;
 	std::map<unsigned short, unsigned short> drillLineInd;
 	std::map<unsigned short, std::map<unsigned short, unsigned short> >::iterator it;
 	std::map<unsigned short, unsigned short>::iterator it1;
@@ -494,8 +482,9 @@ bool T4TApp::DrillMode::toolNode() {
 			direction.set(1, 0, 0);
 			intersectCount = 0;
 			for(k = 0; k < patchEdge[i].size(); k++) {
-				v1.set(drillVertices[patchEdge[i][k]] - drillPt);
-				v2.set(drillVertices[patchEdge[i][(k+1) % patchEdge[i].size()]] - drillPt);
+				edgeInd = patchEdge[i][k];
+				v1.set(drillVertices[data->edges[edgeInd][0]] - drillPt);
+				v2.set(drillVertices[data->edges[edgeInd][1]] - drillPt);
 				v1.z = 0;
 				v2.z = 0;
 				Vector3::cross(v2, v1, &v3);
@@ -508,128 +497,78 @@ bool T4TApp::DrillMode::toolNode() {
 			}
 			if(intersectCount % 2 == 0) continue;
 			//we now know the line passes through this patch - use barycentric coords on the triangles to find out exactly where
-			closest = 1.0f;
 			for(k = 0; k < patchSize; k++) {
 				m = patches[i][k];
-				v1.set(drillVertices[data->faces[m][1]] - drillVertices[data->faces[m][0]]);
-				v2.set(drillVertices[data->faces[m][2]] - drillVertices[data->faces[m][0]]);
-				//s*v1 + t*v2 = P => [v1 v2][s,t] = P => [s,t] = [v1 v2]^-1 * P
-				// 1/(v1.x * v2.y - v2.x * v1.y) [v2.y -v2.x -v1.y v1.x] [P.x P.y]
-				//								 [v2.y * P.x - v2.x * P.y, -v1.y * P.x + v1.x * P.y]
-				denom = v1.x * v2.y - v2.x * v1.y;
-				s = (v2.y * drillPt.x - v2.x * drillPt.y) / denom;
-				t = (-v1.y * drillPt.x + v1.x * drillPt.y) / denom;
-				if(s + t < -epsilon || s + t > 1 + epsilon) continue;
-				if(s + t >= 0 && s + t <= 1) { //true match
-					delta = 0;
-				} else {
-					if(s + t < 0) delta = -s - t;
-					else delta = s + t - 1;
-				}
-				//first see if this should replace an intersection in a neighboring face due to imprecision
-				intersect.set(data->worldVertices[data->faces[m][0]]
-					+ s * (data->worldVertices[data->faces[m][1]] - data->worldVertices[data->faces[m][0]])
-					+ t * (data->worldVertices[data->faces[m][2]] - data->worldVertices[data->faces[m][0]]));
-				skip = false;
-				for(n = 0; n < data->faceNeighbors[m].size(); n++) {
-					neighbor = data->faceNeighbors[m][n];
-					if(drillInt[j].find(neighbor) != drillInt[j].end()) {
-						if(drillError[j][neighbor] < delta) {
-							skip = true;
-							break;
-						} else {
-							newData.vertices[drillInt[j][neighbor]] = intersect;
-							drillLineInd[drillInt[j][neighbor]] = j;
-							drillInt[j][m] = drillInt[j][neighbor];
+				for(n = 0; n < data->triangles[m].size(); n++) {
+					v1.set(drillVertices[data->faces[m][data->triangles[m][n][1]]]
+						- drillVertices[data->faces[m][data->triangles[m][n][0]]]);
+					v2.set(drillVertices[data->faces[m][data->triangles[m][n][2]]]
+						- drillVertices[data->faces[m][data->triangles[m][n][0]]]);
+					drillVec.set(drillPt - drillVertices[data->faces[m][data->triangles[m][n][0]]]);
+					//2D barycentric coords (ignore drill axis):
+					//s*v1 + t*v2 = P => [v1 v2][s,t] = P => [s,t] = [v1 v2]^-1 * P
+					// => [s,t] = 1/(v1.x * v2.y - v2.x * v1.y) [v2.y -v2.x -v1.y v1.x] [P.x P.y]
+					//											[v2.y * P.x - v2.x * P.y, -v1.y * P.x + v1.x * P.y]
+					denom = v1.x * v2.y - v2.x * v1.y;
+					if(denom == 0) continue;
+					s = (v2.y * drillVec.x - v2.x * drillVec.y) / denom;
+					t = (-v1.y * drillVec.x + v1.x * drillVec.y) / denom;
+					if(isinf(s) || isinf(t) || isnan(s) || isnan(t)) continue;
+					if(s < -epsilon || t < -epsilon || s + t > 1 + epsilon) continue;
+					if(s >=0 && t >= 0 && s+t <= 1) delta = 0;
+					else {
+						delta = fmax(delta, -s);
+						delta = fmax(delta, -t);
+						delta = fmax(delta, s+t - 1);
+					}
+					if(isinf(delta) || isnan(delta)) continue;
+					//first see if this should replace an intersection in a neighboring triangle/face due to imprecision
+					intersect.set(data->worldVertices[data->faces[m][data->triangles[m][n][0]]]
+						+ s * (data->worldVertices[data->faces[m][data->triangles[m][n][1]]]
+							- data->worldVertices[data->faces[m][data->triangles[m][n][0]]])
+						+ t * (data->worldVertices[data->faces[m][data->triangles[m][n][2]]]
+							- data->worldVertices[data->faces[m][data->triangles[m][n][0]]]));
+					//already an intersection in another triangle of this face?
+					if(drillInt[j].find(m) != drillInt[j].end()) {
+						if(drillError[j][m] > delta) {
+							newData.vertices[drillInt[j][m]].set(intersect);
 							drillError[j][m] = delta;
-							drillInt[j].erase(neighbor);
-							drillError[j].erase(neighbor);
-							skip = true;
-							break;
+						}
+						continue;
+					}
+					//already an intersection in a neighboring face of the same patch?
+					skip = false;
+					for(p = 0; p < data->faceNeighbors[m].size(); p++) {
+						neighbor = data->faceNeighbors[m][p];
+						if(facePatch[neighbor] != i) continue;
+						if(drillInt[j].find(neighbor) != drillInt[j].end()) {
+							if(drillError[j][neighbor] < delta) {
+								skip = true;
+								break;
+							} else {
+								newData.vertices[drillInt[j][neighbor]] = intersect;
+								drillLineInd[drillInt[j][neighbor]] = j;
+								drillInt[j][m] = drillInt[j][neighbor];
+								drillError[j][m] = delta;
+								drillInt[j].erase(neighbor);
+								drillError[j].erase(neighbor);
+								skip = true;
+								break;
+							}
 						}
 					}
+					if(skip) continue;
+					//add the intersection data and add the vertex to the new model
+					drillInt[j][m] = newData.vertices.size();
+					drillError[j][m] = delta;
+					newData.vertices.push_back(intersect);
 				}
-				if(skip) continue;
-				//add the intersection data and add the vertex to the new model
-				drillInt[j][m] = newData.vertices.size();
-				drillError[j][m] = delta;
-				newData.vertices.push_back(intersect);
 			}
 		}
 	}
-
-	//find all intersections between the lines of the drill bit and faces of the model
-/*
-	std::vector<Vector3> v(4), inter(_segments);
-	std::vector<bool> rayUsed(_segments);
-	std::vector<float> intDistance(_segments);
-	float distance, s, t, denom, epsilon = 0.001f, error,
-		dot[5]; //the distinct dot products needed to compute barycentric coordinates - http://geomalgorithms.com/a06-_intersect-2.html
-	bool entering, keepInt;
-	for(i = 0; i < data->faces.size(); i++) {
-		for(j = 0; j < _segments; j++) rayUsed[j] = false;
-		//find all intersections for the drill with the plane
-		for(j = 0; j < _segments; j++) {
-			distance = lines[j].intersects(faces[i]);
-			intDistance[j] = distance;
-			if(distance == Ray::INTERSECTS_NONE) inter[j].set(Vector3::zero());
-			else inter[j].set(lines[j].getOrigin() + distance * lines[j].getDirection());
-		}
-		//check each triangle of the face for an intersection
-		for(j = 0; j < data->triangles[i].size(); j++) {
-			for(k = 0; k < 3; k++) v[k].set(data->worldVertices[data->faces[i][data->triangles[i][j][k]]]);
-			v1.set(v[1] - v[0]);
-			v2.set(v[2] - v[0]);
-			for(k = 0; k < _segments; k++) {
-				if(rayUsed[k]) continue;
-				//calculate barycentric coords of the intersection wrt this triangle
-				if(inter[k] == Vector3::zero()) continue;
-				v3.set(inter[k] - v[0]);
-				dot[0] = v1.dot(v2); dot[1] = v3.dot(v2); dot[2] = v2.dot(v2); dot[3] = v3.dot(v1); dot[4] = v1.dot(v1);
-				denom = dot[0]*dot[0] - dot[4]*dot[2];
-				if(denom == 0) {
-					continue;
-				}
-				s = (dot[0]*dot[1] - dot[2]*dot[3]) / denom;
-				t = (dot[0]*dot[3] - dot[4]*dot[1]) / denom;
-				if(s < -epsilon || t < -epsilon || s+t > 1+epsilon) {
-					continue;
-				}
-				error = fmax(fmax(-s, -t), fmax(0, s+t-1));
-				//now we know the intersection point is inside this triangle
-				//before adding it, make sure we're not duplicating due to imprecision
-				keepInt = true;
-				entering = lines[k].getDirection().dot(faces[i].getNormal()) < 0;
-				if(drillInt.find(k) != drillInt.end()) for(it1 = drillInt[k].begin(); it1 != drillInt[k].end(); it1++) {
-					if(it1->first == i || //don't allow two intersections of the same line in the same face
-					  ((lines[k].getDirection().dot(faces[it1->first].getNormal()) < 0) == entering
-					  && newData.vertices[it1->second].distance(inter[k]) < 0.001)) {
-						keepInt = false;
-						//if this is a better match, replace the previous intersection
-						if(error < drillError[k][it1->first]) {
-							newData.vertices[it1->second].set(inter[k]);
-							drillInt[k].erase(it1->first);
-							drillError[k].erase(it1->first);
-							drillInt[k][i] = it1->second;
-							drillError[k][i] = error;
-						}
-						break;
-					}
-				}
-				if(error == 0) rayUsed[k] = true;
-				if(!keepInt) continue;
-				newData.vertices.push_back(inter[k]);
-				drillInt[k][i] = newData.vertices.size()-1;
-				drillError[k][i] = error;
-				drillLineInd[newData.vertices.size()-1] = k;
-			}
-		}
-	}
-//*/
 
 	//find all intersections between edges of the model and the planes of the drill bit
 	Ray edge;
-	//Vector3 intersect;
 	unsigned short e[2];
 	short lineInd[2];
 	std::vector<bool> hasInt(2);
@@ -647,25 +586,32 @@ bool T4TApp::DrillMode::toolNode() {
 			hasInt[j] = false;
 			lineInd[j] = -1;
 			e[j] = data->edges[i][j];
-			v[j].set(data->worldVertices[e[j]]);
+			v[j].set(drillVertices[e[j]]);
+			v[j].z = 0;
 			minDistance[i][j] = 999999;
 		}
 		if(keep[e[0]] < 0 && keep[e[1]] < 0) continue;
 		v[2].set(v[1]-v[0]);
+		//validate the edge is really there
 		if(v[2] == Vector3::zero()) continue;
 		edge.set(v[0], v[2]);
 		edgeLen = v[2].length();
+		v[2].set(v[2] / edgeLen);
+		//weed out edges that are completely outside the drill cross section
+		v[3].set(v[1] - (v[2] * v[1].dot(v[2])));
+		if(v[3].length() > _radius) continue;
 		minAngleDiff = 1000; //(keep[e[0]] >= 0 && keep[e[1]] >= 0) ? -1000 : 1000;
 		for(j = 0; j < _segments; j++) {
-			distance = edge.intersects(planes[j]);
+			//(v0 + a*v2) * r = planeDistance => a = (planeDistance - v0*r) / v2*r
+			angle = j * dAngle + dAngle/2;
+			v[3].set(cos(angle), sin(angle), 0);
+			distance = (planeDistance - v[0].dot(v[3])) / (v[2].dot(v[3]) * edgeLen);
 			//only consider intersections outside the endpoints if we have already said that one endpoint is being discarded,
 			//since in that case we need to find an intersection somewhere, and there may be imprecision
 			if((distance <= 0 || distance >= edgeLen) && keep[e[0]] >= 0 && keep[e[1]] >= 0) continue;
 			intersect.set(edge.getOrigin() + distance * edge.getDirection());
-			//transform the intersection point back to the drillbit's model space and see if it is in the correct angular range
-			intersect4.set(intersect.x, intersect.y, intersect.z, 1);
-			toolWorldModel.transformVector(&intersect4);
-			intersectAngle = atan2(intersect4.z, intersect4.y);
+			//see if the intersection is in the correct angular range
+			intersectAngle = atan2(intersect.y, intersect.x);
 			while(intersectAngle < 0) intersectAngle += 2*M_PI;
 			angle = (2*M_PI*j) / _segments;
 			//again, if one endpoint is being discarded, allow tolerance in the angle check
@@ -719,14 +665,17 @@ bool T4TApp::DrillMode::toolNode() {
 		else {
 			//split this edge on the intersection point(s)
 			if(hasInt[0] && hasInt[1]) {
+				m = newData.vertices.size();
 				for(j = 0; j < 2; j++) {
+					n = keep[e[0]] >= 0 && keep[e[1]] >= 0 ? newData.vertices.size() : m;
 					if(keep[e[j]] < 0) lineInd[j] = lineInd[1-j]; //if only keeping one endpoint, intersection is same both ways
-					edgeInt[e[j]][e[1-j]] = std::pair<unsigned short, unsigned short>(lineInd[j], newData.vertices.size());
-					segmentInd[newData.vertices.size()] = lineInd[j];
-					segmentPoints[lineInd[j]].push_back(newData.vertices.size());
-					if(keep[e[j]] >= 0) {
-						newData.vertices.push_back(v[j]);
+					else {
+						newData.vertices.push_back(data->worldVertices[e[j]]
+							+ (data->worldVertices[e[(j+1)%2]] - data->worldVertices[e[j]]) * (minDistance[i][j] / edgeLen));
+						segmentInd[n] = lineInd[j];
+						segmentPoints[lineInd[j]].push_back(n);
 					}
+					edgeInt[e[j]][e[1-j]] = std::pair<unsigned short, unsigned short>(lineInd[j], n);
 				}
 			}
 		}
@@ -743,6 +692,9 @@ bool T4TApp::DrillMode::toolNode() {
 	unsigned short eind[2];
 	float minAngle, maxIntFraction;
 	bool keepAll, drillInside, reverseFace;
+	Matrix toolWorldModel;
+	_tool->getWorldMatrix().invert(&toolWorldModel);
+	Vector4 test4;
 	for(i = 0; i < 3; i++) newTriangles[0].push_back(i);
 
 	for(i = 0; i < data->faces.size(); i++) {

@@ -308,7 +308,7 @@ public:
 		//contiguous patches of the surface based on alignment of normal with drill
 		std::vector<std::vector<unsigned short> > patches, patchEdge;
 		std::vector<bool> faceToward, patchToward; //whether each face/patch is aligned toward or away from the drill
-		std::vector<unsigned short> facePatch; //which patch each face is part of
+		std::vector<short> facePatch; //which patch each face is part of
 		std::vector<Vector3> drillVertices; //coords of model vertices wrt drill axis
 		//edgeInt[edge vertex 1][edge vertex 2] = (drill ray number, index of intersection point in new model's vertex list)
 		//drillInt[drill ray number][face index in old model] = index of intersection point in new model's vertex list
