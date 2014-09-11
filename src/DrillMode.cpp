@@ -601,11 +601,13 @@ bool T4TApp::DrillMode::toolNode() {
 		v[3].set(v[1] - (v[2] * v[1].dot(v[2])));
 		if(v[3].length() > _radius) continue;
 		minAngleDiff = 1000; //(keep[e[0]] >= 0 && keep[e[1]] >= 0) ? -1000 : 1000;
+		v1.set(v[0]);
+		v2.set(v[1]);
 		for(j = 0; j < _segments; j++) {
 			//(v0 + a*v2) * r = planeDistance => a = (planeDistance - v0*r) / v2*r
 			angle = j * dAngle + dAngle/2;
 			v[3].set(cos(angle), sin(angle), 0);
-			distance = (planeDistance - v[0].dot(v[3])) / (v[2].dot(v[3]) * edgeLen);
+			distance = (planeDistance - v1.dot(v[3])) / v[2].dot(v[3]);
 			//only consider intersections outside the endpoints if we have already said that one endpoint is being discarded,
 			//since in that case we need to find an intersection somewhere, and there may be imprecision
 			if((distance <= 0 || distance >= edgeLen) && keep[e[0]] >= 0 && keep[e[1]] >= 0) continue;
