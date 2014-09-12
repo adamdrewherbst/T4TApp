@@ -399,6 +399,9 @@ bool T4TApp::DrillMode::toolNode() {
 	
 	usedEdges.clear();
 	newEdge.resize(2);
+	edgeLine.clear();
+	leftEdge.clear();
+	enterInt.clear();
 	
 	short i, j, k, m, n, p, q;
 	float f1, f2, f3, f4;
@@ -458,7 +461,6 @@ bool T4TApp::DrillMode::toolNode() {
 	std::vector<Vector3> v(4);
 	std::vector<Plane> faces(data->faces.size());
 	for(i = 0; i < data->faces.size(); i++) {
-		//get the plane for this face
 		for(j = 0; j < 3; j++) v[j].set(data->worldVertices[data->faces[i][j]]);
 		v1.set(v[1]-v[0]);
 		v2.set(v[2]-v[1]);
@@ -467,7 +469,7 @@ bool T4TApp::DrillMode::toolNode() {
 		faces[i].setDistance(-v[0].dot(faces[i].getNormal()));
 	}
 
-	//partition the model surface into patches based on whether the face normals are with or against the drill axis
+	//partition the model surface into patches based on whether the face normals are along or against the drill axis
 	partitionNode();
 
 	//for each patch, check whether each drill line intersects it, using its 2D projection onto the drill plane
@@ -562,6 +564,8 @@ bool T4TApp::DrillMode::toolNode() {
 						}
 					}
 					if(skip) continue;
+					//are we entering or leaving the model at this intersection?
+					enterInt[newData.vertices.size()] = data->normals[m].dot(axis) < 0;
 					//add the intersection data and add the vertex to the new model
 					drillInt[j][m] = newData.vertices.size();
 					drillError[j][m] = delta;
@@ -831,9 +835,11 @@ bool T4TApp::DrillMode::toolNode() {
 				if(drillInt.find(lineNum) != drillInt.end() && drillInt[lineNum].find(i) != drillInt[lineNum].end()) {
 					newFace.push_back(drillInt[lineNum][i]);
 					oldFaceInd.push_back(-1);
+					edgeLine[lastInter][drillInt[lineNum][i]] = (lineNum - (dir == -1 ? 0 : 1) + _segments) % _segments;
 					lastInter = drillInt[lineNum][i];
 				}
 			}
+			edgeLine[lastInter][newFace[0]] = endLine;
 			//add the new face to the list of new faces, reversing it if we built it backwards
 			if(!newFace.empty()) {
 				m = newFaces.size();
@@ -851,15 +857,25 @@ bool T4TApp::DrillMode::toolNode() {
 		if(drillInside) for(j = 0; j < _segments; j++) {
 			newFaces[0].push_back(drillInt[j][i]);
 			oldFaceInds[0].push_back(-1);
+			edgeLine[drillInt[j][i]][drillInt[(j+1)%_segments][i]] = j;
 		}
 
 		//mark where the drill center intersects this face's plane, for computing 2d normals in the face plane
 		distance = _axis.intersects(faces[i]);
 		v1.set(_axis.getOrigin() + distance * _axis.getDirection());
 		
-		//triangulate each of the new polygons
+		//triangulate each of the new polygons - also, note left/right edges within the drill bit
 		for(j = 0; j < newFaces.size(); j++) {
 			newFaceSize = newFaces[j].size();
+			
+			//note left/right edges on the drill bit
+			for(k = 0; k < newFaceSize; k++) {
+				if(oldFaceInds[j][k] >= 0 || oldFaceInds[j][(k+1)%newFaceSize] >= 0) continue;
+				v2.set(newData.vertices[newFaces[j][(k+1)%newFaceSize]] - newData.vertices[newFaces[j][k]]);
+				Vector3::cross(data->normals[i], v2, &v3);
+				
+			}
+
 			for(k = 0; k < faceSize; k++) drillPoint[k] = -1;
 
 			//for each edge that is from the original face

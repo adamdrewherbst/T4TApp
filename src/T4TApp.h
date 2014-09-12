@@ -315,6 +315,12 @@ public:
 		std::map<unsigned short, std::map<unsigned short, unsigned short> > drillInt;
 		std::map<unsigned short, std::map<unsigned short, float> > drillError;
 		std::map<unsigned short, std::map<unsigned short, std::pair<unsigned short, unsigned short> > > edgeInt;
+		//for each edge in a drill plane, which drill plane it is in
+		std::map<unsigned short, std::map<unsigned short, unsigned short> > edgeLine;
+		//for each edge in a drill plane, whether the interior of the object is to the left of the edge
+		std::map<unsigned short, std::map<unsigned short, bool> > leftEdge;
+		//for each drill line intersection point, whether the interior of the object is in the forward drill axis direction
+		std::map<unsigned short, bool> enterInt;
 		//store which edges have already been added so as not to duplicate
 		std::map<unsigned short, std::vector<unsigned short> > usedEdges;
 		std::vector<unsigned short> newEdge;
