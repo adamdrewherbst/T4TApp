@@ -336,6 +336,7 @@ public:
 		void partitionNode();
 		void buildPatch(unsigned short face);
 		void addEdge(unsigned short e1, unsigned short e2);
+		void addDrillEdge(unsigned short v1, unsigned short v2, unsigned short lineNum, short face);
 		void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 		void addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 		void triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);

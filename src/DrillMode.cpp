@@ -377,6 +377,17 @@ void T4TApp::DrillMode::buildPatch(unsigned short face) {
 	}
 }
 
+void T4TApp::DrillMode::addDrillEdge(unsigned short v1, unsigned short v2, unsigned short lineNum, short face) {
+	edgeLine[v1][v2] = lineNum;
+	if(face >= 0) {
+		edgeLine[v2][v1] = lineNum;
+		Vector3 v(newData.vertices[v2] - newData.vertices[v1]);
+		v.cross(data->normals[face]);
+		leftEdge[v1][v2] = v.dot(planes[lineNum].getNormal()) > 0;
+		leftEdge[v2][v1] = !leftEdge[v1][v2];
+	}
+}
+
 bool T4TApp::DrillMode::toolNode() {
 	ToolMode::toolNode();
 	_node->updateData();
@@ -403,12 +414,18 @@ bool T4TApp::DrillMode::toolNode() {
 	leftEdge.clear();
 	enterInt.clear();
 	
+	//temp variables
 	short i, j, k, m, n, p, q;
 	float f1, f2, f3, f4;
+	Vector3 v1, v2, v3;
+	std::vector<Vector3> v(4);
 
 	//store the planes and lines of the drillbit segments for calculations
 	float angle, dAngle = 2*M_PI/_segments, planeDistance = _radius * cos(dAngle/2);
 	Matrix trans(_tool->getWorldMatrix());
+	_axis.setOrigin(-50.0f, 0, 0);
+	_axis.setDirection(1, 0, 0);
+	_axis.transform(trans);
 	for(i = 0; i < _segments; i++) {
 		angle = (2*M_PI*i) / _segments;
 		//line
@@ -419,10 +436,14 @@ bool T4TApp::DrillMode::toolNode() {
 		planes[i].setNormal(0, cos(angle+dAngle/2), sin(angle+dAngle/2));
 		planes[i].setDistance(-planeDistance);
 		planes[i].transform(trans);
+		v1.set(planes[i].getNormal());
+		f1 = planes[i].getDistance();
+		//make sure the plane normal points outward from the drill center
+		if(v1.dot(-v1*f1 - _axis.getOrigin()) < 0) {
+			planes[i].set(-v1, -f1);
+		}
+		cout << "plane " << i << " set" << endl;
 	}
-	_axis.setOrigin(-50.0f, 0, 0);
-	_axis.setDirection(1, 0, 0);
-	_axis.transform(trans);
 	edgeInt.clear();
 	drillInt.clear();
 	drillError.clear();
@@ -457,8 +478,7 @@ bool T4TApp::DrillMode::toolNode() {
 	}
 
 	//store the plane for each face in the model
-	Vector3 direction, v1, v2, v3, drillPt, drillVec, intersect;
-	std::vector<Vector3> v(4);
+	Vector3 direction, drillPt, drillVec, intersect;
 	std::vector<Plane> faces(data->faces.size());
 	for(i = 0; i < data->faces.size(); i++) {
 		for(j = 0; j < 3; j++) v[j].set(data->worldVertices[data->faces[i][j]]);
@@ -484,7 +504,7 @@ bool T4TApp::DrillMode::toolNode() {
 		patchSize = patches[i].size();
 		for(j = 0; j < _segments; j++) {
 			//use test-ray edge-intersection count to check if line is inside or outside patch
-			drillPt.set(_radius * cos(j*2*M_PI / _segments), _radius * sin(j*2*M_PI / _segments), 0);
+			drillPt.set(_radius * sin(j*2*M_PI / _segments), _radius * cos(j*2*M_PI / _segments), 0);
 			direction.set(1, 0, 0);
 			intersectCount = 0;
 			for(k = 0; k < patchEdge[i].size(); k++) {
@@ -835,11 +855,11 @@ bool T4TApp::DrillMode::toolNode() {
 				if(drillInt.find(lineNum) != drillInt.end() && drillInt[lineNum].find(i) != drillInt[lineNum].end()) {
 					newFace.push_back(drillInt[lineNum][i]);
 					oldFaceInd.push_back(-1);
-					edgeLine[lastInter][drillInt[lineNum][i]] = (lineNum - (dir == -1 ? 0 : 1) + _segments) % _segments;
+					addDrillEdge(lastInter, drillInt[lineNum][i], (lineNum - (dir == -1 ? 0 : 1) + _segments) % _segments, i);
 					lastInter = drillInt[lineNum][i];
 				}
 			}
-			edgeLine[lastInter][newFace[0]] = endLine;
+			addDrillEdge(lastInter, newFace[0], endLine, i);
 			//add the new face to the list of new faces, reversing it if we built it backwards
 			if(!newFace.empty()) {
 				m = newFaces.size();
@@ -857,25 +877,13 @@ bool T4TApp::DrillMode::toolNode() {
 		if(drillInside) for(j = 0; j < _segments; j++) {
 			newFaces[0].push_back(drillInt[j][i]);
 			oldFaceInds[0].push_back(-1);
-			edgeLine[drillInt[j][i]][drillInt[(j+1)%_segments][i]] = j;
+			addDrillEdge(drillInt[j][i], drillInt[(j+1)%_segments][i], j, i);
 		}
 
-		//mark where the drill center intersects this face's plane, for computing 2d normals in the face plane
-		distance = _axis.intersects(faces[i]);
-		v1.set(_axis.getOrigin() + distance * _axis.getDirection());
-		
 		//triangulate each of the new polygons - also, note left/right edges within the drill bit
 		for(j = 0; j < newFaces.size(); j++) {
 			newFaceSize = newFaces[j].size();
 			
-			//note left/right edges on the drill bit
-			for(k = 0; k < newFaceSize; k++) {
-				if(oldFaceInds[j][k] >= 0 || oldFaceInds[j][(k+1)%newFaceSize] >= 0) continue;
-				v2.set(newData.vertices[newFaces[j][(k+1)%newFaceSize]] - newData.vertices[newFaces[j][k]]);
-				Vector3::cross(data->normals[i], v2, &v3);
-				
-			}
-
 			for(k = 0; k < faceSize; k++) drillPoint[k] = -1;
 
 			//for each edge that is from the original face
@@ -969,134 +977,63 @@ bool T4TApp::DrillMode::toolNode() {
 		//now they are ordered, note the edges they form
 		numInt = lineInt[lineNum].size();
 		for(i = 0; i < numInt; i++) {
-			if(i < numInt-1) addEdge(lineInt[lineNum][i].first, lineInt[lineNum][i+1].first);
-			segmentPoints[lineNum].push_back(lineInt[lineNum][i].first);
-			segmentPoints[(lineNum-1+_segments)%segments].push_back(lineInt[lineNum][i].first);
+			for(j = 0; j < 2; j++) e[j] = lineInt[lineNum][i+j].first;
+			if(i < numInt-1 && enterInt[e[0]] && !enterInt[e[1]]) {
+				addEdge(e[0], e[1]);
+				addDrillEdge(e[0], e[1], lineNum, -1); //-1 indicates this edge is along a drill line, not in a drill plane
+			}
+			segmentPoints[lineNum].push_back(e[0]);
+			segmentPoints[(lineNum-1+_segments)%_segments].push_back(e[0]);
 		}
 	}
 	
 	//for each segment of the drill bit, use its known set of points and edges to determine all its faces
-	std::vector<std::vector<unsigned short> > neighbors;
-	std::vector<unsigned short>::iterator vit2;
+	std::map<unsigned short, std::map<unsigned short, bool> > edges; //per segment
+	std::map<unsigned short, std::map<unsigned short, bool> >::iterator eit;
+	std::map<unsigned short, bool>::iterator eit2;
 	for(i = 0; i < _segments; i++) {
-		up.set(planes[i].getNormal());
-		Vector3::cross(axis, up, &right);
-		n = segmentPoints[i].size();
-		neighbors.resize(n);
-		//order the neighbors of each vertex within the segment counterclockwise by angle
-		for(j = 0; j < n; j++) {
+		//make a list of all edges in this segment - use the direction where the model interior is to the left
+		edges.clear();
+		for(j = 0; j < segmentPoints[i].size(); j++) {
 			p = segmentPoints[i][j];
-			neighbors[j].clear();
-			for(k = j+1; k < n; k++) {
-				q = segmentPoints[i][k];
-				if(newData.edgeInd[p].find(q) != newData.edgeInd[q].end()) {
-					v1.set(newData.vertices[q] - newData.vertices[p]);
-					v1.normalize(&v1);
-					angle = atan2(v1.dot(axis), v1.dot(right));
-					for(vit2 = neighbors[p].begin(); vit2 != neighbors[p].end() && *vit2 < angle; vit2++);
-					neighbors[p].insert(vit2, q);
-					angle = atan2(-v1.dot(axis), -v1.dot(right));
-					for(vit2 = neighbors[q].begin(); vit2 != neighbors[q].end() && *vit2 < angle; vit2++);
-					neighbors[q].insert(vit2, p);
+			for(it1 = newData.edgeInd[p].begin(); it1 != newData.edgeInd[p].end(); it1++) {
+				q = it1->first;
+				if(edgeLine.find(p) == edgeLine.end() || edgeLine[p].find(q) == edgeLine[p].end()) continue;
+				if(edgeLine[p][q] == i &&
+				  (leftEdge.find(p) == leftEdge.end() || leftEdge[p].find(q) == leftEdge[p].end() || leftEdge[p][q] == true)) {
+					edges[p][q] = true;
+				}
+				else if(edgeLine[p][q] == (i+1)%_segments &&
+				  (leftEdge.find(p) == leftEdge.end() || leftEdge[p].find(q) == leftEdge[p].end())) {
+					edges[q][p] = true;
 				}
 			}
 		}
-		//start at a point, pick 2 adjacent edges, and walk the tile between them
-	}
-	
-	//: start with the first intersection along line A, and look for an edge of a new face
-	//that lies in the same segment - if there is one, follow it until we get back to line A or B; if not, move to the
-	//next intersection along line A.  When on line B, move in the reverse direction.  Go until loop complete, and triangulate.
-	short mode = 0; //0 = line A, 1 = line B, 2 = interior
-	short found, counterclockwise;
-	bool hasFirst;
-	std::vector<unsigned short> usedPoints;
-	for(i = 0; i < _segments; i++) {
-		usedPoints.clear();
-		while(true) {
-			newFace.clear();
-			newTriangles.clear();
-			//find the first unused intersection along line A, or unused point in the interior of segment A
-			found = -1;
-			counterclockwise = 0;
-			for(j = 0; j < lineInt[i].size(); j++)
-				if(std::find(usedPoints.begin(), usedPoints.end(), lineInt[i][j].first) == usedPoints.end()) {
-					n = lineInt[i][j].first;
-					found = 1;
-					break;
-				}
-			if(found < 0) for(j = 0; j < segmentPoints[i].size(); j++)
-				if(std::find(usedPoints.begin(), usedPoints.end(), segmentPoints[i][j]) == usedPoints.end()) {
-					n = segmentPoints[i][j];
-					found = 1;
-					break;
-				}
-			if(found < 0) break;
-			do {
-				newFace.push_back(n);
-				found = -1;
-				hasFirst = false;
-				//first check for an established edge that continues the face
-				if(usedEdges.find(n) != usedEdges.end()) {
-					for(j = 0; j < usedEdges[n].size(); j++) {
-						m = usedEdges[n][j];
-						vit2 = std::find(newFace.begin(), newFace.end(), m);
-						if(vit2 == newFace.begin()) hasFirst = true;
-						if(vit2 != newFace.end()) continue;
-						if(segmentInd.find(m) != segmentInd.end() && segmentInd[m] == i) found = 2;
-						else if(drillLineInd.find(m) != drillLineInd.end() && drillLineInd[m] == i) found = 0;
-						else if(drillLineInd.find(m) != drillLineInd.end() && drillLineInd[m] == (i+1)%_segments) found = 1;
-						if(found >= 0) {
-							mode = found;
-							n = m;
-							break;
-						}
-					}
-				}
-				//if that fails, and we are on a drill line, take the next intersection along that line
-				if(found < 0 && mode < 2) {
-					//figure out which intersection we are on
-					ind = -1;
-					for(j = 0; j < lineInt[(i+mode)%_segments].size(); j++) if(lineInt[(i+mode)%_segments][j].first == n) {
-						ind = j;
-						break;
-					}
-					//see if the next intersection in the counterclockwise direction exists and is unused
-					for(j = (counterclockwise == 0 ? -1 : counterclockwise);
-					  j <= (counterclockwise == 0 ? 1 : counterclockwise); j += 2) {
-						dir = j * (1 - 2*mode); //forward on line A, backward on line B
-						if(ind >= 0 && ind+dir >= 0 && ind+dir < lineInt[(i+mode)%_segments].size()
-						  && std::find(usedPoints.begin(), usedPoints.end(), lineInt[(i+mode)%_segments][ind+dir].first) 
-						  == usedPoints.end()) {
-							n = lineInt[(i+mode)%_segments][ind+dir].first;
-							counterclockwise = j;
-							found = mode;
-							break;
-						}
-					}
-					if(n == newFace[0]) { found = -1; hasFirst = true; }
-				}
-			} while(found >= 0);
-			for(j = 0; j < newFace.size(); j++) usedPoints.push_back(newFace[j]);
-			if(hasFirst && newFace.size() > 2) {
-				//if added clockwise, reverse the order
-				if(counterclockwise == -1) {
-					faceSize = newFace.size();
-					for(j = 0; j < faceSize/2; j++) {
-						n = newFace[j];
-						newFace[j] = newFace[faceSize-1-j];
-						newFace[faceSize-1-j] = n;
-					}
-				}
-				//triangulate
-				cout << "adding face: ";
-				for(j = 0; j < newFace.size(); j++) cout << newFace[j] << " ";
-				cout << endl;
+		//just keep building cycles until all edges are used
+		newFace.clear();
+		while(!edges.empty()) {
+			if(newFace.empty()) {
+				eit = edges.begin();
+				p = eit->first;
+				newFace.push_back(p);
+			} else {
+				p = newFace[newFace.size()-1];
+			}
+			if(edges.find(p) == edges.end()) {
+				GP_WARN("Couldn't continue drill face from point %d", p);
+				return false;
+			}
+			eit2 = edges[p].begin();
+			q = eit2->first;
+			edges[p].erase(q);
+			if(edges[p].empty()) edges.erase(p);
+			if(!newFace.empty() && q == newFace[0]) { //when cycle complete, triangulate and add the new face
+				newTriangles.clear();
 				addFace(newFace, newTriangles);
-			}
+				newFace.clear();
+			} else newFace.push_back(q);
 		}
 	}
-//*/
 	
 	cout << "NEW FACES: " << endl;
 	for(i = newFaceStart; i < newData.faces.size(); i++) {
@@ -1125,32 +1062,6 @@ bool T4TApp::DrillMode::toolNode() {
 			}
 		}
 	}
-	
-	//for each segment (pair of lines) of the drill bit: the first and last intersections along the line will form a quadrilateral
-	//if we have 4 intersections along each line, we can make 2 quadrilaterals instead; 6 => 3, and so on
-	//this is a hopefully temporary approximation since it ignores notches in the segment
-/*	newTriangles.resize(2);
-	newFace.resize(4);
-	for(i = 0; i < 2; i++) {
-		newTriangles[i].resize(3);
-		for(j = 0; j < 3; j++) newTriangles[i][j] = j == 0 ? 0 : i+j;
-	}
-	std::vector<unsigned short> seq[2];
-	for(i = 0; i < _segments; i++) {
-		n = min(lineInt[i].size(), lineInt[(i+1)%_segments].size()) / 2; //number of quads for this segment
-		for(j = 0; j < 2; j++) {
-			seq[j].resize(2*n);
-			for(k = 0; k < n; k++) seq[j][k] = k;
-			for(k = 0; k < n; k++) seq[j][n+k] = lineInt[(i+j)%_segments].size()-n+k;
-		}
-		for(j = 0; j < n; j++) {
-			newFace[3] = lineInt[i][seq[0][j*2]].first;
-			newFace[2] = lineInt[(i+1)%_segments][seq[1][j*2]].first;
-			newFace[1] = lineInt[(i+1)%_segments][seq[1][j*2+1]].first;
-			newFace[0] = lineInt[i][seq[0][j*2+1]].first;
-			addFace(newFace, newTriangles);
-		}
-	}//*/
 	
 	//just add 1 convex hull for each convex face - is there a better way?
 	for(i = 0; i < newData.faces.size(); i++)
