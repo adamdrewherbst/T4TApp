@@ -6,6 +6,7 @@ T4TApp::DrillMode::DrillMode(T4TApp *app_)
 	_radius = 0.2f;
 	_segments = 20;
 	_tool = Node::create("drill");
+	usageCount = 0;
 	
 	//have the user start by selecting a drill bit - shape and size
 	_bitMenu = Form::create("bitMenu", app->_formStyle, Layout::LAYOUT_FLOW);
@@ -323,6 +324,40 @@ unsigned short T4TApp::DrillMode::vertexClass(std::vector<unsigned short>& face,
 	return isEar ? 2 : 1; //ear : convex
 }
 
+//1 if face f1 occludes face f2 using drill axis as view direction, -1 if f2 occludes f1, 0 if no occlusion
+short T4TApp::DrillMode::occlusion(unsigned short f1, unsigned short f2) {
+	//just see if there are any edge intersections in the projected plane, and compare z value at intersection
+	short i, j, s1 = data->faces[f1].size(), s2 = data->faces[f2].size();
+	float d, a, b, z1, z2;
+	Vector3 p1, p2, q1, q2, v1, v2, v;
+	for(i = 0; i < s1; i++) {
+		p1.set(drillVertices[data->faces[f1][i]]);
+		q1.set(drillVertices[data->faces[f1][(i+1)%s1]]);
+		v1.set(q1 - p1);
+		for(j = 0; j < s2; j++) {
+			//skip edges with either endpoint in common
+			if(data->faces[f2][j] == data->faces[f1][i] || data->faces[f2][j] == data->faces[f1][(i+1)%s1]
+			  || data->faces[f2][(j+1)%s2] == data->faces[f1][i] || data->faces[f2][(j+1)%s2] == data->faces[f1][(i+1)%s1])
+				continue;
+			p2.set(drillVertices[data->faces[f2][j]]);
+			q2.set(drillVertices[data->faces[f2][(j+1)%s2]]);
+			v2.set(q2 - p2);
+			//p1 + a*v1 = p2 + b*v2 => [v1 v2][a -b] = p2 - p1 => [a -b] = ([v1 v2]^-1)(p2 - p1)
+			// => d = 1/(v1x*v2y - v2x*v1y), v = p2 - p1, a = d * (v2y * vx - v2x * vy), b = -d * (-v1y * vx + v1x * vy)
+			d = 1 / (v1.x * v2.y - v2.x * v1.y);
+			v.set(p2 - p1);
+			a = d * (v2.y * v.x - v2.x * v.y);
+			b = -d * (-v1.y * v.x + v1.x * v.y);
+			if(a < 0 || a > 1 || b < 0 || b > 1) continue;
+			//z1 = p1z + a * v1z, z2 = p2z + b * v2z
+			z1 = p1.z + a * v1.z;
+			z2 = p2.z + b * v2.z;
+			return z1 > z2 ? -1 : 1;
+		}
+	}
+	return 0;
+}
+
 void T4TApp::DrillMode::partitionNode() {
 	bool found;
 	unsigned short i, j, k, patch, faceSize;
@@ -351,12 +386,21 @@ void T4TApp::DrillMode::partitionNode() {
 
 void T4TApp::DrillMode::buildPatch(unsigned short face) {
 	unsigned short i, j, k, n1, n2, n3, n4, neighbor, faceSize, edge,
-		patch = patches.size() - 1, patchSize = patches[patch].size();
-	bool toward = data->normals[face].dot(_axis.getDirection()) > 0, found;
+		patch = patches.size() - 1, patchSize;
+	bool toward = data->normals[face].dot(_axis.getDirection()) > 0, hasOcclusion, found;
 	for(i = 0; i < data->faceNeighbors[face].size(); i++) {
 		neighbor = data->faceNeighbors[face][i];
+		patchSize = patches[patch].size();
 		faceSize = data->faces[neighbor].size();
+		//make sure this neighbor is not already in a patch, and faces the same direction wrt the drill axis
 		if(facePatch[neighbor] >= 0 || toward != (data->normals[neighbor].dot(_axis.getDirection()) > 0)) continue;
+		//also make sure it is not occluding/occluded by any face already in this patch
+		hasOcclusion = false;
+		for(j = 0; j < patchSize; j++) {
+			hasOcclusion = occlusion(patches[patch][j], neighbor) != 0;
+			if(hasOcclusion) break;
+		}
+		if(hasOcclusion) continue;
 		//add the triangle to the face
 		patches[patch].push_back(neighbor);
 		facePatch[neighbor] = patch;
@@ -392,10 +436,12 @@ bool T4TApp::DrillMode::toolNode() {
 	ToolMode::toolNode();
 	_node->updateData();
 	data = (Node::nodeData*)_node->getUserPointer();
+	
+	usageCount++;
 
 	//build drilled node into a new node data structure, save to disk, and reload
 	newData.type = data->type;
-	newData.objType = "mesh"; //can't keep sphere/box collision object once it is deformed!
+	newData.objType = "mesh"; //can't keep sphere/box collision object once it has a hole in it!
 	newData.mass = data->mass;
 	newData.rotation = data->rotation;
 	newData.translation = data->translation;
@@ -407,12 +453,18 @@ bool T4TApp::DrillMode::toolNode() {
 	newData.triangles.clear();
 	newData.hulls.clear();
 	newData.constraints = data->constraints;
-	
+
+	//initialize recycled member variables
+	patches.clear();
+	patchEdge.clear();
 	usedEdges.clear();
 	newEdge.resize(2);
 	edgeLine.clear();
 	leftEdge.clear();
 	enterInt.clear();
+	edgeInt.clear();
+	drillInt.clear();
+	drillError.clear();
 	
 	//temp variables
 	short i, j, k, m, n, p, q;
@@ -442,11 +494,7 @@ bool T4TApp::DrillMode::toolNode() {
 		if(v1.dot(-v1*f1 - _axis.getOrigin()) < 0) {
 			planes[i].set(-v1, -f1);
 		}
-		cout << "plane " << i << " set" << endl;
 	}
-	edgeInt.clear();
-	drillInt.clear();
-	drillError.clear();
 
 	//take the drill axis as the z-axis and store the transformed coordinates of all vertices in the model
 	Vector3 right(0, 0, 1), up(0, 1, 0), axis(_axis.getDirection());
@@ -601,8 +649,8 @@ bool T4TApp::DrillMode::toolNode() {
 	short lineInd[2];
 	std::vector<bool> hasInt(2);
 	Vector4 intersect4;
-	float intersectAngle, angleDiff, minAngleDiff, edgeLen, curDistance, angleEpsilon = 3.0f*M_PI/180;
-	bool angleInside, better, useInt;
+	float intersectAngle, angleDiff, minAngleDiff, edgeLen, curDistance, angleEpsilon = 0.1f*M_PI/180;
+	bool angleInside, prevAngleInside, distanceInside, prevDistanceInside, better, useInt;
 	std::vector<std::vector<float> > minDistance(data->edges.size());
 	std::map<unsigned short, std::map<unsigned short, bool> > isNewEdge;
 	std::map<unsigned short, unsigned short> segmentInd; //which drill segment each new vertex lies in
@@ -633,15 +681,16 @@ bool T4TApp::DrillMode::toolNode() {
 		v2.set(v[1]);
 		for(j = 0; j < _segments; j++) {
 			//(v0 + a*v2) * r = planeDistance => a = (planeDistance - v0*r) / v2*r
+			// v0 = endpoint, v2 = edge vector, r = radial vector to drill plane
 			angle = j * dAngle + dAngle/2;
-			v[3].set(cos(angle), sin(angle), 0);
+			v[3].set(sin(angle), cos(angle), 0);
 			distance = (planeDistance - v1.dot(v[3])) / v[2].dot(v[3]);
 			//only consider intersections outside the endpoints if we have already said that one endpoint is being discarded,
 			//since in that case we need to find an intersection somewhere, and there may be imprecision
 			if((distance <= 0 || distance >= edgeLen) && keep[e[0]] >= 0 && keep[e[1]] >= 0) continue;
 			intersect.set(edge.getOrigin() + distance * edge.getDirection());
 			//see if the intersection is in the correct angular range
-			intersectAngle = atan2(intersect.y, intersect.x);
+			intersectAngle = atan2(intersect.x, intersect.y);
 			while(intersectAngle < 0) intersectAngle += 2*M_PI;
 			angle = (2*M_PI*j) / _segments;
 			//again, if one endpoint is being discarded, allow tolerance in the angle check
@@ -655,10 +704,21 @@ bool T4TApp::DrillMode::toolNode() {
 			useInt = false;
 			for(k = 0; k < 2; k++) {
 				curDistance = k*edgeLen + (1-2*k)*distance;
-				if(minAngleDiff >= angleEpsilon) better = angleDiff < minAngleDiff;
-				else if(angleDiff < angleEpsilon && minDistance[i][k] >= 0 && minDistance[i][k] <= edgeLen)
-					better = curDistance >= 0 && curDistance < minDistance[i][k];
-				else if(angleDiff < angleEpsilon && curDistance >= 0 && curDistance <= edgeLen) better = true;
+				distanceInside = curDistance >= 0 && curDistance <= edgeLen;
+				prevDistanceInside = minDistance[i][k] >= 0 && minDistance[i][k] <= edgeLen;
+				prevAngleInside = minAngleDiff < 0;
+				//priorities for deciding if this is better than an existing intersection:
+				//1) we gain either the angle or distance being strictly within the bounds without losing the other
+				if((angleInside && !prevAngleInside && (distanceInside || !prevDistanceInside)) ||
+				   (distanceInside && !prevDistanceInside && (angleInside || !prevAngleInside))) better = true;
+				//2) we move closer to the acceptable angle range
+				else if(minAngleDiff >= angleEpsilon) better = angleDiff < minAngleDiff;
+				//3) we are in the acceptable angle range and improve on an already valid distance
+				else if(angleDiff < angleEpsilon && prevDistanceInside)
+					better = distanceInside && curDistance < minDistance[i][k];
+				//4) we are in the acceptable angle range and gain a valid distance
+				else if(angleDiff < angleEpsilon && distanceInside) better = true;
+				//5) default: we move closer to a valid distance
 				else better = angleDiff < angleEpsilon && fmin(fabs(curDistance), fabs(curDistance - edgeLen))
 					< fmin(fabs(minDistance[i][k]), fabs(minDistance[i][k] - edgeLen));
 				if(better) {

@@ -300,14 +300,13 @@ public:
 public:
 		Ray _axis;
 		float _radius;
-		int _segments;
+		int _segments, usageCount;
 		Node::nodeData *data, newData;
 		//store all the lines and planes of the drill bit
 		std::vector<Ray> lines;
 		std::vector<Plane> planes;
 		//contiguous patches of the surface based on alignment of normal with drill
 		std::vector<std::vector<unsigned short> > patches, patchEdge;
-		std::vector<bool> faceToward, patchToward; //whether each face/patch is aligned toward or away from the drill
 		std::vector<short> facePatch; //which patch each face is part of
 		std::vector<Vector3> drillVertices; //coords of model vertices wrt drill axis
 		//edgeInt[edge vertex 1][edge vertex 2] = (drill ray number, index of intersection point in new model's vertex list)
@@ -324,6 +323,7 @@ public:
 		//store which edges have already been added so as not to duplicate
 		std::map<unsigned short, std::vector<unsigned short> > usedEdges;
 		std::vector<unsigned short> newEdge;
+
 		//GUI
 		Form *_bitMenu;
 		void controlEvent(Control *control, Control::Listener::EventType evt);
@@ -335,6 +335,7 @@ public:
 		bool toolNode();
 		void partitionNode();
 		void buildPatch(unsigned short face);
+		short occlusion(unsigned short f1, unsigned short f2);
 		void addEdge(unsigned short e1, unsigned short e2);
 		void addDrillEdge(unsigned short v1, unsigned short v2, unsigned short lineNum, short face);
 		void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
