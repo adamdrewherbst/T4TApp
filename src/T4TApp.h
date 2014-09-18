@@ -340,10 +340,14 @@ public:
 		void addDrillEdge(unsigned short v1, unsigned short v2, unsigned short lineNum, short face);
 		void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 		void addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
+		Vector3 getNormal(std::vector<unsigned short>& face);
 		void triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
+		void triangulateHelper(std::vector<unsigned short>& face, std::vector<unsigned short>& inds, 
+		  std::vector<std::vector<unsigned short> >& triangles, Vector3 normal);
 		unsigned short vertexClass(std::vector<unsigned short>& face, Vector3& normal, unsigned short index,
 		  std::vector<std::pair<unsigned short, unsigned short> >& classes);
-		unsigned short vertexClass(std::vector<unsigned short>& face, int i, std::vector<std::pair<unsigned short, unsigned short> > classes);
+		unsigned short vertexClass(std::vector<unsigned short>& face, int i,
+		  std::vector<std::pair<unsigned short, unsigned short> > classes);
 		void drawFace(int face);
 	};
 	

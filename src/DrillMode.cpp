@@ -178,7 +178,7 @@ void T4TApp::DrillMode::drawFace(int f) {
 	float distance;
 	for(int i = 0; i < _segments; i++) {
 		distance = lines[i].intersects(plane);
-		v1.set(lines[i].getOrigin() + distance * lines[i].getDirection() + 0.01f*plane.getNormal());
+		v1.set(lines[i].getOrigin() + lines[i].getDirection() * distance + 0.01f*plane.getNormal());
 		for(int j = 0; j < 2; j++) {
 			for(int k = 0; k < 3; k++) vertices[v++] = Node::gv(&v1, k);
 			for(int k = 0; k < 3; k++) vertices[v++] = Node::gv(&color, k);
@@ -208,37 +208,96 @@ void T4TApp::DrillMode::addEdge(unsigned short e1, unsigned short e2) {
 }
 
 void T4TApp::DrillMode::addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
-	if(triangles.empty()) {
-		//if no triangles given, we need to triangulate, and since it may be concave, we'll add each triangle as a separate face
-		triangulate(face, triangles);
-		std::vector<std::vector<unsigned short> > oneTriangle(1);
-		for(int i = 0; i < 3; i++) oneTriangle[0].push_back(i);
-		for(int i = 0; i < triangles.size(); i++) {
-			addFaceHelper(triangles[i], oneTriangle);
-		}
-	} else addFaceHelper(face, triangles);
+	if(triangles.empty()) triangulate(face, triangles);
+	addFaceHelper(face, triangles);
 }
 
 void T4TApp::DrillMode::addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
 	newData.faces.push_back(face);
 	newData.triangles.push_back(triangles);
-	Vector3 v1(newData.vertices[face[1]] - newData.vertices[face[0]]),
-		v2(newData.vertices[face[2]] - newData.vertices[face[1]]),
-		normal;
-	Vector3::cross(v1, v2, &normal);
-	newData.normals.push_back(normal);
-	unsigned short e1, e2;
-	for(short n = 0; n < triangles.size(); n++) {
-		for(short i = 0; i < 3; i++) {
-			addEdge(face[triangles[n][i]], face[triangles[n][(i+1)%3]]);
-		}
-	}
+	newData.normals.push_back(getNormal(face));
+	unsigned short n = face.size(), i;
+	for(i = 0; i < n; i++) addEdge(face[i], face[(i+1)%n]);
 }
 
+//calculate the properly oriented face normal by Newell's method
+// - https://www.opengl.org/wiki/Calculating_a_Surface_Normal#Newell.27s_Method
+Vector3 T4TApp::DrillMode::getNormal(std::vector<unsigned short>& face) {
+	Vector3 v1, v2, normal(0, 0, 0);
+	unsigned short i, n = face.size();
+	for(i = 0; i < n; i++) {
+		v1.set(newData.vertices[face[i]]);
+		v2.set(newData.vertices[face[(i+1)%n]]);
+		normal.x += (v1.y - v2.y) * (v1.z + v2.z);
+		normal.y += (v1.z - v2.z) * (v1.x + v2.x);
+		normal.z += (v1.x - v2.x) * (v1.y + v2.y);
+	}
+	return normal.normalize();
+}
+
+void T4TApp::DrillMode::triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
+	//make a copy of the face so we don't modify the original
+	unsigned short n = face.size(), i;
+	std::vector<unsigned short> copy(n), inds(n);
+	for(i = 0; i < n; i++) {
+		copy[i] = face[i];
+		inds[i] = i;
+	}
+	triangulateHelper(copy, inds, triangles, getNormal(face));
+}
+
+void T4TApp::DrillMode::triangulateHelper(std::vector<unsigned short>& face,
+  std::vector<unsigned short>& inds,
+  std::vector<std::vector<unsigned short> >& triangles,
+  Vector3 normal) {
+	unsigned short i, j, n = face.size();
+	short v = -1;
+	bool valid;
+	Vector3 v1, v2, v3, coords;
+	Matrix m;
+	std::vector<unsigned short> triangle(3);
+	//find 3 consecutive vertices whose triangle has the right orientation and does not contain any other vertices
+	if(n == 3) v = 1;
+	else {
+		for(i = 1; i <= n; i++) {
+			v1.set(newData.vertices[face[i-1]] - newData.vertices[face[i%n]]);
+			v2.set(newData.vertices[face[(i+1)%n]] - newData.vertices[face[i%n]]);
+			Vector3::cross(v2, v1, &v3);
+			if(v3.dot(normal) < 0) continue;
+			m.set(v1.x, v2.x, v3.x, 0, v1.y, v2.y, v3.y, 0, v1.z, v2.z, v3.z, 0, 0, 0, 0, 1);
+			m.invert();
+			//get barycentric coords of all other vertices of this face in the proposed triangle
+			valid = true;
+			for(j = (i+2)%n; j != i-1; j = (j+1)%n) {
+				m.transformVector(newData.vertices[face[j]] - newData.vertices[face[i%n]], &coords);
+				if(coords.x >= 0 && coords.y >= 0 && coords.x + coords.y <= 1) {
+					valid = false;
+					break;
+				}
+			}
+			if(valid) {
+				v = i;
+				break;
+			}
+		}
+	}
+	if(v < 0) {
+		GP_WARN("Couldn't triangulate face");
+		return;
+	}
+	triangle[0] = inds[v-1];
+	triangle[1] = inds[v % n];
+	triangle[2] = inds[(v+1)%n];
+	triangles.push_back(triangle);
+	face.erase(face.begin() + (v%n));
+	inds.erase(inds.begin() + (v%n));
+	if(n > 3) triangulateHelper(face, inds, triangles, normal);
+}
+
+/*
 //use ear clipping to triangulate the given polygon, which may be concave
 // - http://www.geometrictools.com/Documentation/TriangulationByEarClipping.pdf
 void T4TApp::DrillMode::triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
-
 	std::vector<unsigned short> triangle(3);
 	short i, j, k, faceSize = face.size(), ind, remaining = faceSize;
 	std::vector<std::pair<unsigned short, unsigned short> > indClass(faceSize);
@@ -271,7 +330,6 @@ void T4TApp::DrillMode::triangulate(std::vector<unsigned short>& face, std::vect
 		indClass.erase(indClass.begin() + ind);
 		if((remaining = indClass.size()) <= 3) break;
 		//see if the neighboring vertices' classification has changed
-		remaining--;
 		for(j = ind-1; j <= ind; j++) {
 			k = (j+remaining)%remaining;
 			indClass[k].second = vertexClass(face, normal, k, indClass);
@@ -281,7 +339,7 @@ void T4TApp::DrillMode::triangulate(std::vector<unsigned short>& face, std::vect
 		for(i = 0; i < 3; i++) triangle[i] = face[indClass[i].first];
 		triangles.push_back(triangle);
 	}
-}
+}*/
 
 //given a vertex(index) of a face(f), see if it is convex, reflex, or an ear (using the known reflex vertices of the face)
 unsigned short T4TApp::DrillMode::vertexClass(std::vector<unsigned short>& face,
@@ -422,6 +480,7 @@ void T4TApp::DrillMode::buildPatch(unsigned short face) {
 }
 
 void T4TApp::DrillMode::addDrillEdge(unsigned short v1, unsigned short v2, unsigned short lineNum, short face) {
+	addEdge(v1, v2);
 	edgeLine[v1][v2] = lineNum;
 	if(face >= 0) {
 		edgeLine[v2][v1] = lineNum;
@@ -449,6 +508,7 @@ bool T4TApp::DrillMode::toolNode() {
 	newData.constraints = data->constraints;
 	newData.vertices.clear();
 	newData.edges.clear();
+	newData.edgeInd.clear();
 	newData.faces.clear();
 	newData.triangles.clear();
 	newData.hulls.clear();
@@ -467,7 +527,7 @@ bool T4TApp::DrillMode::toolNode() {
 	drillError.clear();
 	
 	//temp variables
-	short i, j, k, m, n, p, q;
+	short i, j, k, m, n, p, q, r;
 	float f1, f2, f3, f4;
 	Vector3 v1, v2, v3;
 	std::vector<Vector3> v(4);
@@ -537,119 +597,13 @@ bool T4TApp::DrillMode::toolNode() {
 		faces[i].setDistance(-v[0].dot(faces[i].getNormal()));
 	}
 
-	//partition the model surface into patches based on whether the face normals are along or against the drill axis
-	partitionNode();
-
-	//for each patch, check whether each drill line intersects it, using its 2D projection onto the drill plane
-	Ray ray;
-	unsigned short patchSize, intersectCount, neighbor, edgeInd;
-	bool positive, skip;
-	float epsilon = 0.001f, delta, denom, s, t, distance;
-	std::map<unsigned short, unsigned short> drillLineInd;
-	std::map<unsigned short, std::map<unsigned short, unsigned short> >::iterator it;
-	std::map<unsigned short, unsigned short>::iterator it1;
-	for(i = 0; i < patches.size(); i++) {
-		patchSize = patches[i].size();
-		for(j = 0; j < _segments; j++) {
-			//use test-ray edge-intersection count to check if line is inside or outside patch
-			drillPt.set(_radius * sin(j*2*M_PI / _segments), _radius * cos(j*2*M_PI / _segments), 0);
-			direction.set(1, 0, 0);
-			intersectCount = 0;
-			for(k = 0; k < patchEdge[i].size(); k++) {
-				edgeInd = patchEdge[i][k];
-				v1.set(drillVertices[data->edges[edgeInd][0]] - drillPt);
-				v2.set(drillVertices[data->edges[edgeInd][1]] - drillPt);
-				v1.z = 0;
-				v2.z = 0;
-				Vector3::cross(v2, v1, &v3);
-				positive = v3.z > 0;
-				Vector3::cross(direction, v1, &v3);
-				if(positive != (v3.z > 0)) continue;
-				Vector3::cross(v2, direction, &v3);
-				if(positive != (v3.z > 0)) continue;
-				intersectCount++;
-			}
-			if(intersectCount % 2 == 0) continue;
-			//we now know the line passes through this patch - use barycentric coords on the triangles to find out exactly where
-			for(k = 0; k < patchSize; k++) {
-				m = patches[i][k];
-				for(n = 0; n < data->triangles[m].size(); n++) {
-					v1.set(drillVertices[data->faces[m][data->triangles[m][n][1]]]
-						- drillVertices[data->faces[m][data->triangles[m][n][0]]]);
-					v2.set(drillVertices[data->faces[m][data->triangles[m][n][2]]]
-						- drillVertices[data->faces[m][data->triangles[m][n][0]]]);
-					drillVec.set(drillPt - drillVertices[data->faces[m][data->triangles[m][n][0]]]);
-					//2D barycentric coords (ignore drill axis):
-					//s*v1 + t*v2 = P => [v1 v2][s,t] = P => [s,t] = [v1 v2]^-1 * P
-					// => [s,t] = 1/(v1.x * v2.y - v2.x * v1.y) [v2.y -v2.x -v1.y v1.x] [P.x P.y]
-					//											[v2.y * P.x - v2.x * P.y, -v1.y * P.x + v1.x * P.y]
-					denom = v1.x * v2.y - v2.x * v1.y;
-					if(denom == 0) continue;
-					s = (v2.y * drillVec.x - v2.x * drillVec.y) / denom;
-					t = (-v1.y * drillVec.x + v1.x * drillVec.y) / denom;
-					if(isinf(s) || isinf(t) || isnan(s) || isnan(t)) continue;
-					if(s < -epsilon || t < -epsilon || s + t > 1 + epsilon) continue;
-					if(s >=0 && t >= 0 && s+t <= 1) delta = 0;
-					else {
-						delta = fmax(delta, -s);
-						delta = fmax(delta, -t);
-						delta = fmax(delta, s+t - 1);
-					}
-					if(isinf(delta) || isnan(delta)) continue;
-					//first see if this should replace an intersection in a neighboring triangle/face due to imprecision
-					intersect.set(data->worldVertices[data->faces[m][data->triangles[m][n][0]]]
-						+ (data->worldVertices[data->faces[m][data->triangles[m][n][1]]]
-						  - data->worldVertices[data->faces[m][data->triangles[m][n][0]]]) * s
-						+ (data->worldVertices[data->faces[m][data->triangles[m][n][2]]]
-						  - data->worldVertices[data->faces[m][data->triangles[m][n][0]]]) * t);
-					//already an intersection in another triangle of this face?
-					if(drillInt[j].find(m) != drillInt[j].end()) {
-						if(drillError[j][m] > delta) {
-							newData.vertices[drillInt[j][m]].set(intersect);
-							drillError[j][m] = delta;
-						}
-						continue;
-					}
-					//already an intersection in a neighboring face of the same patch?
-					skip = false;
-					for(p = 0; p < data->faceNeighbors[m].size(); p++) {
-						neighbor = data->faceNeighbors[m][p];
-						if(facePatch[neighbor] != i) continue;
-						if(drillInt[j].find(neighbor) != drillInt[j].end()) {
-							if(drillError[j][neighbor] < delta) {
-								skip = true;
-								break;
-							} else {
-								newData.vertices[drillInt[j][neighbor]] = intersect;
-								drillLineInd[drillInt[j][neighbor]] = j;
-								drillInt[j][m] = drillInt[j][neighbor];
-								drillError[j][m] = delta;
-								drillInt[j].erase(neighbor);
-								drillError[j].erase(neighbor);
-								skip = true;
-								break;
-							}
-						}
-					}
-					if(skip) continue;
-					//are we entering or leaving the model at this intersection?
-					enterInt[newData.vertices.size()] = data->normals[m].dot(axis) < 0;
-					//add the intersection data and add the vertex to the new model
-					drillInt[j][m] = newData.vertices.size();
-					drillError[j][m] = delta;
-					newData.vertices.push_back(intersect);
-				}
-			}
-		}
-	}
-
 	//find all intersections between edges of the model and the planes of the drill bit
 	Ray edge;
 	unsigned short e[2];
 	short lineInd[2];
 	std::vector<bool> hasInt(2);
 	Vector4 intersect4;
-	float intersectAngle, angleDiff, minAngleDiff, edgeLen, curDistance, angleEpsilon = 0.1f*M_PI/180;
+	float intersectAngle, angleDiff, minAngleDiff, edgeLen, curDistance, angleEpsilon = 0.01f*M_PI/180, distance;
 	bool angleInside, prevAngleInside, distanceInside, prevDistanceInside, better, useInt;
 	std::vector<std::vector<float> > minDistance(data->edges.size());
 	std::map<unsigned short, std::map<unsigned short, bool> > isNewEdge;
@@ -723,7 +677,7 @@ bool T4TApp::DrillMode::toolNode() {
 					< fmin(fabs(minDistance[i][k]), fabs(minDistance[i][k] - edgeLen));
 				if(better) {
 					//if there is already an intersection for this edge, make sure we are not duplicating it due to imprecision
-					if(hasInt[k] && v[k].distance(intersect) < 0.001f) continue;
+					if(hasInt[k] && v[k].distance(intersect) < 0.0001f) continue;
 					v[k].set(intersect);
 					minAngleDiff = angleDiff;
 					minDistance[i][k] = curDistance;
@@ -770,252 +724,163 @@ bool T4TApp::DrillMode::toolNode() {
 			}
 		}
 	}
-
-	//reconstruct the faces by leaving out the discarded points and incorporating the intersections
-	std::vector<std::vector<unsigned short> > newFaces, newTriangles(1);
-	std::vector<std::vector<short> > oldFaceInds;
-	std::vector<unsigned short> newFace, faceKeep, newTriangle(3);
-	std::vector<short> oldFaceInd, drillPoint;
-	std::map<unsigned short, std::map<unsigned short, unsigned short> > faceEdgeInt;
-	short faceSize, diff, bestLineDiff, newInd, start, current, next, ind, lastInter, startLine, endLine,
-		line, newFaceSize, keepNext, dir, lineNum, drillIntCount;
-	unsigned short eind[2];
-	float minAngle, minDist, maxIntFraction;
-	bool keepAll, drillInside, reverseFace;
-	Matrix toolWorldModel;
-	_tool->getWorldMatrix().invert(&toolWorldModel);
-	Vector4 test4;
-	for(i = 0; i < 3; i++) newTriangles[0].push_back(i);
-
-	for(i = 0; i < data->faces.size(); i++) {
 	
-		//holds the (probably concave) polygons that this face will be split into - each of these will be triangulated
-		//and each new triangle will be a separate face, to avoid concave faces
-		newFaces.clear();
-		//index of each vertex in the old face, if it is an original vertex
-		oldFaceInds.clear();
-		
-		//determine the subset of vertices of this face that we are keeping
-		faceSize = data->faces[i].size();
-		faceKeep.clear();
-		hasInt.resize(faceSize);
-		drillPoint.resize(faceSize, -1);
-		drillInside = false;
-		keepAll = true; //true if all vertices are being kept AND there are no edge intersections with the drill
-		faceEdgeInt.clear(); //make a temp index of edge intersections for this face
-		
-		for(j = 0; j < faceSize; j++) {
-			for(k = 0; k < 2; k++) {
-				for(m = 0; m < 2; m++) {
-					eind[m] = (j+1-(m+k)%2)%faceSize;
-					e[m] = data->faces[i][eind[m]];
-				}
-				hasInt[j] = edgeInt.find(e[0]) != edgeInt.end()	&& edgeInt[e[0]].find(e[1]) != edgeInt[e[0]].end();
-				if(hasInt[j] && keep[e[0]] >= 0)
-					faceEdgeInt[eind[0]][eind[1]] = edgeInt[e[0]][e[1]].second;
-			}
-			if(keep[data->faces[i][j]] >= 0) {
-				faceKeep.push_back(j);
-				keepAll = keepAll && !hasInt[j];
-			}
-			else keepAll = false;
+	//loop around each original face, building modified faces according to the drill intersections
+	bool ccw, hasInts, drillInside, found;
+	short dir, offset;
+	unsigned short lastInter, lineNum;
+	float denom, s, t, delta, epsilon = 0.001f, minDist;
+	std::pair<unsigned short, unsigned short> ints[2];
+	Plane facePlane;
+	std::vector<unsigned short> newFace;
+	std::vector<std::vector<unsigned short> > newTriangles;
+	std::vector<unsigned short> drillPoint;
+	std::set<unsigned short> keeping;
+	std::set<unsigned short>::iterator kit;
+	for(i = 0; i < data->faces.size(); i++) {
+		n = data->faces[i].size();
+		keeping.clear();
+		hasInts = false;
+		for(j = 0; j < n; j++) {
+			if(keep[data->faces[i][j]] >= 0) keeping.insert(j);
+			p = data->faces[i][j];
+			q = data->faces[i][(j+1)%n];
+			if(edgeInt.find(p) != edgeInt.end() && edgeInt[p].find(q) != edgeInt[p].end()) hasInts = true;
 		}
-		short faceIntSize = faceEdgeInt.size();
-		if(faceKeep.empty()) continue;
-		if(keepAll) {
-			newFace.resize(faceSize);
-			for(j = 0; j < faceSize; j++) newFace[j] = keep[data->faces[i][j]];
-			//see if the drill cross section is entirely inside the face, in which case treat it specially
-			drillInside = true;
-			if(faceKeep.size() == faceSize) { //implies that all vertices are being kept
-				for(j = 0; j < _segments; j++) {
-					if(drillInt.find(j) == drillInt.end() || drillInt[j].find(i) == drillInt[j].end()) {
-						drillInside = false;
+		if(keeping.empty()) continue; //not keeping any part of this face
+		ccw = data->normals[i].dot(axis) < 0;
+		facePlane.set(data->normals[i],
+		  -data->worldVertices[data->faces[i][0]].dot(data->normals[i]));
+
+		//if there are edge intersections, build the set of new faces that this one is split into
+		if(hasInts) while(!keeping.empty()) {
+			//pick any vertex we are keeping, from which to build a face
+			kit = keeping.begin();
+			j = *kit;
+			keeping.erase(kit);
+			newFace.clear();
+			newFace.push_back(keep[data->faces[i][j]]);
+			p = data->faces[i][j];
+			//extend in both directions until we intersect with the drill
+			for(dir = -1; dir <= 1; dir += 2) {
+				q = p;
+				k = (j+dir+n)%n;
+				do {
+					if(edgeInt.find(q) != edgeInt.end() && edgeInt[q].find(data->faces[i][k]) != edgeInt[q].end()) {
+						found = true;
 						break;
 					}
+					q = data->faces[i][k];
+					if(dir == 1) newFace.push_back(keep[q]);
+					else newFace.insert(newFace.begin(), keep[q]);
+					keeping.erase(k);
+					k = (k+dir+n)%n;
+				} while(k != (j+dir+n)%n);
+				ints[(dir+1)/2] = edgeInt[q][data->faces[i][k]];
+				if(dir == 1) newFace.push_back(ints[1].second);
+				else newFace.insert(newFace.begin(), ints[0].second);
+			}
+			//complete the new face by walking around the drill in the appropriate direction
+			// - since the face is convex, all intervening drill lines must intersect it
+			dir = ccw ? 1 : -1;
+			offset = dir == 1 ? 1 : 0;
+			lastInter = ints[1].second;
+			for(lineNum = (ints[1].first + offset) % _segments; lineNum != (ints[0].first + offset) % _segments;
+			  lineNum = (lineNum + dir + _segments) % _segments) {
+				distance = lines[lineNum].intersects(facePlane);
+				newData.vertices.push_back(lines[lineNum].getOrigin() + lines[lineNum].getDirection() * distance);
+				k = newData.vertices.size() - 1;
+				newFace.push_back(k);
+				drillInt[lineNum][i] = k;
+				addDrillEdge(lastInter, k, (lineNum-offset+_segments)%_segments, i);
+				lastInter = k;
+			}
+			addDrillEdge(lastInter, ints[0].second, ints[0].first, i);
+			newTriangles.clear();
+			addFace(newFace, newTriangles);
+		} else { //no edge intersections => only question is whether entire drill bit passes through this face
+			//use drill center as indicator
+			drillInside = false;
+			for(j = 0; j < data->triangles[i].size(); j++) {
+				v1.set(drillVertices[data->faces[i][data->triangles[i][j][1]]]
+					- drillVertices[data->faces[i][data->triangles[i][j][0]]]);
+				v2.set(drillVertices[data->faces[i][data->triangles[i][j][2]]]
+					- drillVertices[data->faces[i][data->triangles[i][j][0]]]);
+				drillVec.set(-drillVertices[data->faces[i][data->triangles[i][j][0]]]);
+				//2D barycentric coords (ignore drill axis):
+				//s*v1 + t*v2 = P => [v1 v2][s,t] = P => [s,t] = [v1 v2]^-1 * P
+				// => [s,t] = 1/(v1.x * v2.y - v2.x * v1.y) [v2.y -v2.x -v1.y v1.x] [P.x P.y]
+				//											[v2.y * P.x - v2.x * P.y, -v1.y * P.x + v1.x * P.y]
+				denom = v1.x * v2.y - v2.x * v1.y;
+				if(denom == 0) continue;
+				s = (v2.y * drillVec.x - v2.x * drillVec.y) / denom;
+				t = (-v1.y * drillVec.x + v1.x * drillVec.y) / denom;
+				if(isinf(s) || isinf(t) || isnan(s) || isnan(t)) continue;
+				if(s < -epsilon || t < -epsilon || s + t > 1 + epsilon) continue;
+				if(s >=0 && t >= 0 && s+t <= 1) delta = 0;
+				else {
+					delta = fmax(delta, -s);
+					delta = fmax(delta, -t);
+					delta = fmax(delta, s+t - 1);
 				}
+				if(isinf(delta) || isnan(delta)) continue;
+				drillInside = true;
+				break;
 			}
-			if(!drillInside) {
-				addFace(newFace, data->triangles[i]);
-				cout << "face " << i << " untouched" << endl;
-				for(j = 0; j < faceSize; j++) cout << data->faces[i][j] << " ";
-				cout << endl;
-				for(j = 0; j < data->triangles[i].size(); j++) {
-					cout << "\t";
-					for(k = 0; k < 3; k++) cout << data->triangles[i][j][k] << " ";
-					cout << endl;
-				}
-				continue;
-			}
-			else {
-				newFaces.push_back(newFace);
-				oldFaceInd.resize(faceSize);
-				for(j = 0; j < faceSize; j++) oldFaceInd[j] = j;
-				oldFaceInds.push_back(oldFaceInd);
-			}
-			faceKeep.clear();
-		}
-		
-		while(!faceEdgeInt.empty()) {
-			newFace.clear();
-			oldFaceInd.clear();
-			//begin each new face on an edge intersection point
-			it = faceEdgeInt.begin();
-			it1 = it->second.begin();
-			newFace.push_back(it1->second);
-			oldFaceInd.push_back(-1);
-			dir = it1->first == (it->first+1)%faceSize ? -1 : 1;
-			reverseFace = dir == -1;
-			start = it->first;
-			endLine = edgeInt[data->faces[i][it->first]][data->faces[i][it1->first]].first;
-			lastInter = it1->second;
-			it->second.erase(it1->first);
-			if(it->second.empty()) faceEdgeInt.erase(it->first);
-			//loop around to the next edge intersection point
-			for(ind = start;
-			  faceEdgeInt.find(ind) == faceEdgeInt.end() || faceEdgeInt[ind].find((ind+dir+faceSize)%faceSize) == faceEdgeInt[ind].end();
-			  ind = (ind+dir+faceSize)%faceSize) {
-				newFace.push_back(keep[data->faces[i][ind]]);
-				oldFaceInd.push_back(ind);
-				lastInter = keep[data->faces[i][ind]];
-			}
-			newFace.push_back(keep[data->faces[i][ind]]);
-			oldFaceInd.push_back(ind);
-			lastInter = keep[data->faces[i][ind]];
-			//add the next edge intersection
-			n = faceEdgeInt[ind][(ind+dir+faceSize)%faceSize];
-			newFace.push_back(n);
-			oldFaceInd.push_back(-1);
-			lastInter = n;
-			//and get rid of it so we don't try to reuse it
-			faceEdgeInt[ind].erase((ind+dir+faceSize)%faceSize);
-			if(faceEdgeInt[ind].empty()) faceEdgeInt.erase(ind);
-			
-			startLine = edgeInt[data->faces[i][ind]][data->faces[i][(ind+dir+faceSize)%faceSize]].first;
-
-			//determine the range of angles wrt drill center covered by the face path so far
-			//-then iterate the reverse direction along the drill edge to complete the face
-			float angleRange = 0, lastAngle;
-			for(k = 0; k < newFace.size(); k++) {
-				test.set(newData.vertices[newFace[k]] - _node->getTranslationWorld());
-				drillRot.transformPoint(&test);
-				testAngle = atan2(test.y, test.x);
-				if(k > 0) {
-					while(fabs(testAngle - lastAngle) > M_PI) testAngle += testAngle > lastAngle ? -2*M_PI : 2*M_PI;
-					angleRange += testAngle - lastAngle;
-				}
-				lastAngle = testAngle;
-			}
-			dir = angleRange > 0 ? -1 : 1;
-			
-			//iterate in the chosen direction, adding intersection points
-			for(lineNum = (startLine + (dir == -1 ? 0 : 1) + _segments) % _segments;
-			  lineNum != (endLine + (dir == -1 ? 0 : 1) + _segments) % _segments;
-			  lineNum = (lineNum+dir+_segments) % _segments) {
-				if(drillInt.find(lineNum) != drillInt.end() && drillInt[lineNum].find(i) != drillInt[lineNum].end()) {
-					newFace.push_back(drillInt[lineNum][i]);
-					oldFaceInd.push_back(-1);
-					addDrillEdge(lastInter, drillInt[lineNum][i], (lineNum - (dir == -1 ? 0 : 1) + _segments) % _segments, i);
-					lastInter = drillInt[lineNum][i];
-				}
-			}
-			addDrillEdge(lastInter, newFace[0], endLine, i);
-			//add the new face to the list of new faces, reversing it if we built it backwards
-			if(!newFace.empty()) {
-				m = newFaces.size();
-				n = newFace.size();
-				newFaces.resize(m+1);
-				newFaces[m].resize(n);
-				oldFaceInds.resize(m+1);
-				oldFaceInds[m].resize(n);
-				for(j = 0; j < n; j++) {
-					newFaces[m][j] = reverseFace ? newFace[n-j-1] : newFace[j];
-					oldFaceInds[m][j] = reverseFace ? oldFaceInd[n-j-1] : oldFaceInd[j];
-				}
-			}
-		}
-		if(drillInside) for(j = 0; j < _segments; j++) {
-			newFaces[0].push_back(drillInt[j][i]);
-			oldFaceInds[0].push_back(-1);
-			addDrillEdge(drillInt[j][i], drillInt[(j+1)%_segments][i], j, i);
-		}
-
-		//triangulate each of the new polygons - also, note left/right edges within the drill bit
-		for(j = 0; j < newFaces.size(); j++) {
-			newFaceSize = newFaces[j].size();
-			
-			for(k = 0; k < faceSize; k++) drillPoint[k] = -1;
-
-			//for each edge that is from the original face
-			for(k = 0; k < newFaceSize; k++) {
-				if(oldFaceInds[j][k] < 0 || (!drillInside && oldFaceInds[j][(k+1)%newFaceSize] < 0)) continue;
-				for(m = (k+1)%newFaceSize; oldFaceInds[j][m] < 0; m = (m+1)%newFaceSize); //other endpoint of edge
-				//find the drill bit intersection point closest to this line segment
-				// - will be used to make the triangle with that edge - call this an "anchor point"
-				v2.set(newData.vertices[newFaces[j][m]] - newData.vertices[newFaces[j][k]]);
-				edgeLen = v2.length();
-				v2.normalize(&v2);
-				minDist = 9999999.0f;
-				for(n = 0; n < newFaceSize; n++) {
-					if(oldFaceInds[j][n] >= 0) continue;
-					v3.set(newData.vertices[newFaces[j][k]] - newData.vertices[newFaces[j][n]]);
-					f1 = v3.dot(v2);
-					if(f1 > 0 || f1 < -edgeLen) { //closest distance to edge's line is not between endpoints
-						distance = v3.length();
-						v3.set(newData.vertices[newFaces[j][m]] - newData.vertices[newFaces[j][n]]);
-						if(v3.length() < distance) distance = v3.length();
-					} else {
-						v3.set(v3 - v2 * f1);
-						distance = v3.length();
-					}
-					if(distance < minDist) {
-						minDist = distance;
-						drillPoint[oldFaceInds[j][k]] = n;
-					}
-				}
-			}
-
-			//find the end of the sequence of vertices from the drill intersection
-			start = 0;
-			while((oldFaceInds[j][start] >= 0 || oldFaceInds[j][start+1] < 0) && start < newFaceSize-1) start++;
-			if(oldFaceInds[j][start] >= 0) {
-				GP_WARN("Couldn't find drill intersection starting point for face %d", i);
-				return false;
-			}
-			
-			//if the drill cross-section is entirely inside the face, determine its orientation relative to the face
 			if(drillInside) {
-				v[0].set(newData.vertices[drillInt[1][i]] - newData.vertices[drillInt[0][i]]);
-				v[1].set(newData.vertices[drillInt[2][i]] - newData.vertices[drillInt[1][i]]);
-				v[0].cross(v[1]);
-				dir = v[0].dot(faces[i].getNormal()) > 0 ? 1 : -1;
-			}
-			else dir = -1;
-			
-			//fill in the triangles between the anchor points
-			n = (start+1)%newFaceSize;
-			if(!drillInside) m = start;
-			else m = drillPoint[oldFaceInds[j][n]];
-			do {
-				if(m == drillPoint[oldFaceInds[j][n]]) {
-					newTriangle[0] = n;
-					do {
-						n = (n+1)%newFaceSize;
-					} while(oldFaceInds[j][n] < 0);
-					newTriangle[1] = n;
-					newTriangle[2] = m;
-				} else {
-					newTriangle[0] = m;
-					newTriangle[1] = n;
-					do {
-						m = (m+dir+newFaceSize)%newFaceSize;
-					} while(oldFaceInds[j][m] >= 0);
-					newTriangle[2] = m;
+				newTriangles.resize(1);
+				newTriangles[0].resize(3);
+				drillPoint.resize(n);
+				for(j = 0; j < 3; j++) newTriangles[0][j] = j;
+				for(j = 0; j < _segments; j++) {
+					distance = lines[j].intersects(facePlane);
+					drillInt[j][i] = newData.vertices.size();;
+					newData.vertices.push_back(lines[j].getOrigin() + lines[j].getDirection() * distance);
 				}
-				for(k = 0; k < 3; k++) newTriangle[k] = newFaces[j][newTriangle[k]];
-				addFace(newTriangle, newTriangles); //each triangle is a separate face - not optimal but much easier
-			} while((!drillInside && (n+1)%newFaceSize != m)
-				|| (drillInside && (m != drillPoint[(start+1)%newFaceSize] || n != (start+1)%newFaceSize)));
+				for(j = 0; j < _segments; j++) addDrillEdge(drillInt[j][i], drillInt[(j+1)%_segments][i], j, i);
+				//for each edge, use the closest drill intersection to make a triangle (ie. anchor point)
+				for(j = 0; j < n; j++) {
+					v1.set(data->worldVertices[data->faces[i][(j+1)%n]] - data->worldVertices[data->faces[i][j]]);
+					edgeLen = v1.length();
+					v1.normalize(&v1);
+					minDist = 9999999.0f;
+					for(k = 0; k < _segments; k++) {
+						v2.set(data->worldVertices[data->faces[i][j]] - newData.vertices[drillInt[k][i]]);
+						f1 = v2.dot(v1);
+						if(f1 > 0 || f1 < -edgeLen) {
+							distance = v2.length();
+							v2.set(data->worldVertices[data->faces[i][(j+1)%n]] - newData.vertices[drillInt[k][i]]);
+							if(v2.length() < distance) distance = v2.length();
+						} else {
+							v2.set(v2 - v1 * f1);
+							distance = v2.length();
+						}
+						if(distance < minDist) {
+							minDist = distance;
+							drillPoint[j] = k;
+						}
+					}
+				}
+				//now all anchor points are known, cycle around the drill triangulating
+				for(j = 0; j < n; j++) {
+					newFace.clear();
+					newFace.push_back(keep[data->faces[i][j]]);
+					newFace.push_back(keep[data->faces[i][(j+1)%n]]);
+					newFace.push_back(drillInt[drillPoint[j]][i]);
+					addFace(newFace, newTriangles);
+					dir = (drillPoint[(j-1+n)%n] - drillPoint[j] + _segments) % _segments
+					  < (drillPoint[(j+1)%n] - drillPoint[j] + _segments) % _segments ? -1 : 1;
+					for(k = drillPoint[j]; k != drillPoint[(j+1)%n]; k = (k+dir+_segments)%_segments) {
+						newFace.clear();
+						newFace.push_back(keep[data->faces[i][(j+1)%n]]);
+						newFace.push_back(drillInt[(k+dir+_segments)%_segments][i]);
+						newFace.push_back(drillInt[k][i]);
+						addFace(newFace, newTriangles);
+					}
+				}
+			} else {
+				addFace(data->faces[i], data->triangles[i]);
+			}
 		}
 	}
 	
@@ -1023,6 +888,8 @@ bool T4TApp::DrillMode::toolNode() {
 	unsigned short newFaceStart = newData.faces.size(), numInt;
 	std::vector<std::vector<std::pair<unsigned short, float> > > lineInt(_segments);
 	std::vector<std::pair<unsigned short, float> >::iterator vit;
+	std::map<unsigned short, std::map<unsigned short, unsigned short> >::iterator it;
+	std::map<unsigned short, unsigned short>::iterator it1;
 	for(it = drillInt.begin(); it != drillInt.end(); it++) {
 		lineNum = it->first;
 		v1.set(lines[lineNum].getOrigin());
@@ -1033,13 +900,13 @@ bool T4TApp::DrillMode::toolNode() {
 			edgeLen = v2.length();
 			for(vit = lineInt[lineNum].begin();	vit != lineInt[lineNum].end() && vit->second < edgeLen; vit++);
 			lineInt[lineNum].insert(vit, std::pair<unsigned short, float>(n, edgeLen));
+			enterInt[n] = data->normals[it1->first].dot(axis) < 0;
 		}
 		//now they are ordered, note the edges they form
 		numInt = lineInt[lineNum].size();
 		for(i = 0; i < numInt; i++) {
 			for(j = 0; j < 2; j++) e[j] = lineInt[lineNum][i+j].first;
 			if(i < numInt-1 && enterInt[e[0]] && !enterInt[e[1]]) {
-				addEdge(e[0], e[1]);
 				addDrillEdge(e[0], e[1], lineNum, -1); //-1 indicates this edge is along a drill line, not in a drill plane
 			}
 			segmentPoints[lineNum].push_back(e[0]);
@@ -1094,17 +961,7 @@ bool T4TApp::DrillMode::toolNode() {
 			} else newFace.push_back(q);
 		}
 	}
-	
-	cout << "NEW FACES: " << endl;
-	for(i = newFaceStart; i < newData.faces.size(); i++) {
-		for(j = 0; j < newData.faces[i].size(); j++) cout << newData.faces[i][j] << " ";
-		cout << endl;
-		for(j = 0; j < newData.triangles[i].size(); j++) {
-			for(k = 0; k < 3; k++) cout << " " << newData.triangles[i][j][k];
-			cout << endl;
-		}
-	}
-	
+//*/	
 	//recalculate face neighbors
 	newData.faceNeighbors.resize(newData.faces.size());
 	for(i = 0; i < newData.faces.size(); i++) {
