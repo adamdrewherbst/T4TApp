@@ -138,52 +138,27 @@ void T4TApp::initialize()
 
     //populate simple machine submenu
     _machines.push_back(new Lever(this, _buttonStyle, _formStyle));
+    _machines.push_back(new Pulley(this, _buttonStyle, _formStyle));
     _machineNames.push_back("Lever");
-    _machineNames.push_back("Lever");
+    _machineNames.push_back("Pulley");
     _machineButton = addButton <Button> (_sideMenu, "parent_machineContainer", "Add Machine >>");
     for(size_t i = 0; i < _machineNames.size(); i++) {
     	Button *machineButton = addButton <Button> (_machineContainer, _machineNames[i].c_str());
     }
 
-	//populate mode submenu
-/*	_modeButton = addButton <Button> (_sideMenu, "parent_modeContainer", "Set Mode >>");
-    _modeNames.push_back("Rotate");
-    _modeNames.push_back("Select");
-    _modeNames.push_back("Constraint");
-    _modeNames.push_back("Ball Drop");
-	for(size_t i = 0; i < _modeNames.size(); i++) {
-		RadioButton* modeButton = addButton <RadioButton> (_modeContainer, _modeNames[i].c_str());
-		modeButton->setGroupId("interactionMode");
-		modeButton->setSelected(false);
-		//each mode (Rotate/Select/Constraint) has an associated option panel that only displays when that mode is selected
-		Form *options = addPanel(_sideMenu, concat(2, "options_", _modeNames[i].c_str()));
-		switch(i) {
-			case 0: //Rotate
-				break;
-			case 1: //Select
-				break;
-			case 2: //Constraint
-				break;
-			default: break;
-		}
-		options->setHeight(250.0f);
-		options->setVisible(true);
-		_sideMenu->removeControl(options);
-		_modeOptions[_modeNames[i]] = options;
-	}
-//*/
 	_modes.push_back(new RotateMode(this));
 	_modes.push_back(new SelectMode(this));	
 	_modes.push_back(new SliceMode(this));
 	_modes.push_back(new DrillMode(this));
 	_modes.push_back(new TestMode(this));
+	_modes.push_back(new TouchMode(this));
 	_modePanel = addPanel(_sideMenu, "container_modes");
 	for(size_t i = 0; i < _modes.size(); i++) {
 		const char *id = _modes[i]->getId();
 		Button *modeButton = addControl <Button> (_modePanel, id, _buttonStyle, id+5);
 		modeButton->setHeight(40.0f);
 	}
-	_modePanel->setHeight(250.0f);
+	_modePanel->setHeight(_modes.size() * 50.0f);
 	_modePanel->setVisible(true);
 
 	_vehicleButton = addControl <Button> (_sideMenu, "buildVehicle", _buttonStyle, "Build Vehicle");
@@ -990,35 +965,48 @@ PhysicsConstraint* T4TApp::addConstraint(Node *n1, Node *n2, const char *type, .
 	va_list arguments;
 	va_start(arguments, type);
 	Node *node[2];
+	PhysicsRigidBody *body[2];
+	Vector3 trans[2];
+	Quaternion rot[2];
 	PhysicsConstraint *ret;
-	for(int i = 0; i < 2; i++) node[i] = i == 0 ? n1 : n2;
+	unsigned short i, j;
+	for(i = 0; i < 2; i++) {
+		node[i] = i == 0 ? n1 : n2;
+		body[i] = node[i]->getCollisionObject()->asRigidBody();
+	}
 	if(strcmp(type, "hinge") == 0) {
-		Quaternion rot[2];
-		Vector3 trans[2];
-		PhysicsRigidBody *body[2];
-		for(int i = 0; i < 2; i++) {
+		for(i = 0; i < 2; i++) {
 			rot[i] = *((Quaternion*) va_arg(arguments, Quaternion*));
 			trans[i] = *((Vector3*) va_arg(arguments, Vector3*));
-			body[i] = node[i]->getCollisionObject()->asRigidBody();
-			Node::nodeData *data = (Node::nodeData*)node[i]->getUserPointer();
-			int ind = data->constraints.size();
-			bool exists = false; //see if this constraint is already in the node data
-			for(int j = 0; j < ind; j++) {
-				if(data->constraints[j]->other.compare(node[(i+1)%2]->getId()) == 0
-					&& data->constraints[j]->type.compare(type) == 0) exists = true;
-			}
-			if(!exists) {
-				data->constraints.push_back(new Node::nodeConstraint());
-				data->constraints[ind]->other = node[(i+1)%2]->getId();
-				data->constraints[ind]->type = type;
-				data->constraints[ind]->rotation = rot[i];
-				data->constraints[ind]->translation = trans[i];
-			}
 		}
 		ret = getPhysicsController()->createHingeConstraint(body[0], rot[0], trans[0], body[1], rot[1], trans[1]);
+	} else if(strcmp(type, "socket") == 0) {
+		for(i = 0; i < 2; i++) {
+			trans[i] = *((Vector3*) va_arg(arguments, Vector3*));
+		}
+		ret = getPhysicsController()->createSocketConstraint(body[0], trans[0], body[1], trans[1]);
 	}
 	va_end(arguments);
-	for(int i = 0; i < 2; i++) _constraints[node[i]].push_back(ret);
+	for(i = 0; i < 2; i++) {
+		bool exists = false; //see if this constraint is already in the node data
+		Node::nodeData *data = (Node::nodeData*)node[i]->getUserPointer();
+		unsigned short ind = data->constraints.size();
+		for(j = 0; j < ind; j++) {
+			if(data->constraints[j]->other.compare(node[(i+1)%2]->getId()) == 0
+			  && data->constraints[j]->type.compare(type) == 0) {
+				exists = true;
+				break;
+			}
+		}
+		if(!exists) {
+			data->constraints.push_back(new Node::nodeConstraint());
+			data->constraints[ind]->other = node[(i+1)%2]->getId();
+			data->constraints[ind]->type = type;
+			data->constraints[ind]->rotation = rot[i];
+			data->constraints[ind]->translation = trans[i];
+		}
+		_constraints[node[i]].push_back(ret);
+	}
 	return ret;
 }
 

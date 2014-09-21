@@ -1330,8 +1330,8 @@ Node::nodeData* Node::readData(const char *filename)
     	in.str(str);
     	in >> x >> y >> z;
     	data->vertices.push_back(Vector3(x, y, z));
+    	data->worldVertices.push_back(Vector3(x, y, z));
     }
-    data->worldVertices.resize(nv);
     str = stream->readLine(line, 2048);
     int ne = atoi(str), e = 0;
     cout << ne << " edges" << endl;
@@ -1343,11 +1343,16 @@ Node::nodeData* Node::readData(const char *filename)
     	in >> v1 >> v2;
     	edge[0] = v1; edge[1] = v2;
     	data->edges.push_back(edge);
+    	data->edgeInd[v1][v2] = data->edges.size()-1;
+    	data->edgeInd[v2][v1] = data->edges.size()-1;
     }
     str = stream->readLine(line, 2048);
-    int nf = atoi(str), faceSize, numTriangles;
+    int nf = atoi(str), faceSize, numTriangles, numNeighbors;
     std::vector<unsigned short> triangle(3), face;
     data->triangles.resize(nf);
+    data->faceNeighbors.resize(nf);
+    Vector3 vec1, vec2, normal;
+    //faces, along with their constituent triangles and neighboring faces (sharing an edge)
     for(int i = 0; i < nf; i++) {
     	str = stream->readLine(line, 2048);
     	faceSize = atoi(str);
@@ -1359,6 +1364,7 @@ Node::nodeData* Node::readData(const char *filename)
     		face.push_back(v1);
     	}
     	data->faces.push_back(face);
+    	//triangles
     	str = stream->readLine(line, 2048);
     	numTriangles = atoi(str);
     	for(int j = 0; j < numTriangles; j++) {
@@ -1370,6 +1376,20 @@ Node::nodeData* Node::readData(const char *filename)
 	    	}
 	    	data->triangles[i].push_back(triangle);
     	}
+    	//neighbors
+    	str = stream->readLine(line, 2048);
+    	numNeighbors = atoi(str);
+    	str = stream->readLine(line, 2048);
+		in.str(str);
+    	for(int j = 0; j < numNeighbors; j++) {
+    		in >> v1;
+	    	data->faceNeighbors[i].push_back(v1);
+    	}    	
+    	//calculate normal
+    	vec1.set(data->vertices[face[1]] - data->vertices[face[0]]);
+    	vec2.set(data->vertices[face[2]] - data->vertices[face[1]]);
+    	Vector3::cross(vec1, vec2, &normal);
+    	data->normals.push_back(normal);
     }
     //set the vertices according to the initial rotation, translation, & scale
 /*    data->initTrans = Matrix::identity();
@@ -1460,6 +1480,9 @@ void Node::writeData(Node::nodeData *data, const char *filename, Node *node) {
 			for(int k = 0; k < 3; k++) os << data->triangles[i][j][k] << "\t";
 			os << endl;
 		}
+		os << data->faceNeighbors[i].size() << endl;
+		for(int j = 0; j < data->faceNeighbors[i].size(); j++) os << data->faceNeighbors[i][j] << "\t";
+		os << endl;
 	}
 	line = os.str();
 	stream->write(line.c_str(), sizeof(char), line.length());
@@ -1495,7 +1518,12 @@ void Node::writeData(Node::nodeData *data, const char *filename, Node *node) {
 
 void Node::writeMyData(const char *filename) {
 	if(filename == NULL) filename = Game::getInstance()->concat(3, "res/common/", getId(), ".node");
-	writeData((nodeData*)getUserPointer(), filename, this);
+	//make sure data is up to date
+	nodeData *data = (nodeData*)getUserPointer();
+	data->translation = getTranslationWorld();
+	data->rotation = getRotation();
+	data->scale = getScale();
+	writeData(data, filename, this);
 }
 
 void Node::loadData(const char *filename) {
@@ -1508,10 +1536,12 @@ void Node::updateData() {
 	if(data == NULL) return;
 	Matrix world = getWorldMatrix();
 	Vector3 translation = getTranslationWorld();
-	for(int i = 0; i < data->vertices.size(); i++) {
+	unsigned short i, nv = data->vertices.size();
+	for(i = 0; i < nv; i++) {
 		world.transformVector(data->vertices[i], &data->worldVertices[i]);
 		data->worldVertices[i] += translation;
 	}
+	setNormals();
 }
 
 void Node::reloadFromData(const char *filename, bool addPhysics) {
@@ -1541,17 +1571,14 @@ void Node::reloadFromData(const char *filename, bool addPhysics) {
 		<< data->faces.size() << " faces" << endl;
 	for(int i = 0; i < data->faces.size(); i++) {
 		for(int j = 0; j < 3; j++) vec[j].set(data->worldVertices[data->faces[i][j]]);
-		normal[i].set(vec[1] - vec[0]);
-		normal[i].cross(vec[2] - vec[1]);
-		normal[i].normalize(&normal[i]);
 		for(int j = 0; j < data->faces[i].size(); j++) {
 			for(int k = 0; k < 3; k++) {
-				radius = fmaxf(radius, data->worldVertices[data->faces[i][j]].length());
 				vertices[v++] = gv(&data->worldVertices[data->faces[i][j]],k);
+				radius = fmaxf(radius, data->worldVertices[data->faces[i][j]].length());
 				if(vertices[v-1] < gv(&min, k)) sv(&min, k, vertices[v-1]);
 				if(vertices[v-1] > gv(&max, k)) sv(&max, k, vertices[v-1]);
 			}
-			for(int k = 0; k < 3; k++) vertices[v++] = gv(&normal[i],k);
+			for(int k = 0; k < 3; k++) vertices[v++] = gv(&data->normals[i],k);
 		}
 		for(int j = 0; j < data->triangles[i].size(); j++) {
 			for(int k = 0; k < 3; k++) triangles[t++] = f + data->triangles[i][j][k];
@@ -1589,8 +1616,29 @@ void Node::reloadFromData(const char *filename, bool addPhysics) {
 			setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &params);
 		else if(data->objType.compare("sphere") == 0)
 			setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::sphere(), &params);
+		else if(data->objType.compare("capsule") == 0)
+			setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::capsule(), &params);
 	}
 	updateData();
+}
+
+void Node::setNormals() {
+	nodeData *data = (nodeData*)getUserPointer();
+	unsigned short nf = data->faces.size(), i, j, n;
+	Vector3 v1, v2, normal;
+	for(i = 0; i < nf; i++) {
+		n = data->faces[i].size();
+		normal.set(0, 0, 0);
+		for(j = 0; j < n; j++) {
+			v1.set(data->worldVertices[data->faces[i][j]]);
+			v2.set(data->worldVertices[data->faces[i][(j+1)%n]]);
+			normal.x += (v1.y - v2.y) * (v1.z + v2.z);
+			normal.y += (v1.z - v2.z) * (v1.x + v2.x);
+			normal.z += (v1.x - v2.x) * (v1.y + v2.y);
+		}
+		normal.normalize(&normal);
+		data->normals[i].set(normal);
+	}
 }
 
 NodeCloneContext::NodeCloneContext()

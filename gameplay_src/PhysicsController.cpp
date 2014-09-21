@@ -1112,15 +1112,15 @@ PhysicsCollisionShape* PhysicsController::createMesh(Mesh* mesh, const Vector3& 
 	for(unsigned int i = 0; i < data->hulls.size(); i++)
 	{
 		btConvexHullShape *hull = bullet_new<btConvexHullShape>();
-		cout << "PART " << i << endl;
+		//cout << "PART " << i << endl;
 		for(int j = 0; j < data->hulls[i].size(); j++) {
 			v.set(data->vertices[data->hulls[i][j]]);
 			v *= m;
 			//v += data->translation;
 			hull->addPoint(btVector3(v.x, v.y, v.z));
-		    cout << "<" << v.x << ", " << v.y << ", " << v.z << ">" << endl;
+		    //cout << "<" << v.x << ", " << v.y << ", " << v.z << ">" << endl;
 		}
-		cout << endl << endl;
+		//cout << endl << endl;
 		btShape->addChildShape(btTransform::getIdentity(), hull);
 	}
 

@@ -138,6 +138,7 @@ set(GAME_SRC
 	src/VehicleProject.cpp
 	src/ProjectComponent.cpp
 	src/Lever.cpp
+	src/Pulley.cpp
 	src/Mode.cpp
 	src/ToolMode.cpp
 	src/SliceMode.cpp
@@ -145,6 +146,7 @@ set(GAME_SRC
 	src/RotateMode.cpp
 	src/SelectMode.cpp
 	src/TestMode.cpp
+	src/TouchMode.cpp
 )
 
 add_executable(${GAME_NAME}

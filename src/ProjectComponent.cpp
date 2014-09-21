@@ -38,10 +38,15 @@ void T4TApp::ProjectComponent::controlEvent(Control *control, EventType evt) {
 	placeElement(node);
 	app->addCollisionObject(node);
 	finishElement(node);
-	node->getCollisionObject()->setEnabled(true);
 	app->_componentMenu->setVisible(false);
 	_container->setVisible(true);
 	addListener(this, Control::Listener::CLICK);
+	//prevent components from moving until they are all in place
+	if(false) { //_allNodes.size() == _elementNames.size()) {
+		for(unsigned short i = 0; i < _allNodes.size(); i++) {
+			_allNodes[i]->getCollisionObject()->setEnabled(true);
+		}
+	} else node->getCollisionObject()->setEnabled(false);
 }
 
 bool T4TApp::ProjectComponent::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
@@ -66,8 +71,6 @@ void T4TApp::ProjectComponent::finishComponent() {
 	//can't deep copy nodes to the app scene, so must write them out and read them in
 	std::vector<std::string> nodes;
 	for(int i = 0; i < _allNodes.size(); i++) {
-		Node::nodeData *data = (Node::nodeData*)_allNodes[i]->getUserPointer();
-		data->translation.set(_allNodes[i]->getTranslationWorld());
 		_allNodes[i]->writeMyData();
 		nodes.push_back(std::string(_allNodes[i]->getId()));
 	}

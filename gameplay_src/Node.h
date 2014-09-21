@@ -669,10 +669,13 @@ public:
 		Vector3 translation;
 		Vector3 scale;
 		Matrix initTrans; //combination of inital rotation, translation, and scaling
-		std::vector<Vector3> vertices, worldVertices; //model space and world space coords
+		std::vector<Vector3> vertices, worldVertices, //model space and world space coords
+			normals; //normal for each face
 		std::vector<std::vector<unsigned short> > edges; //vertex index pairs
+		std::map<unsigned short, std::map<unsigned short, unsigned short> > edgeInd; //index into edge list by vertex pair
 		std::vector<std::vector<unsigned short> > faces; //vertex indices of polygons (not triangles)
 		std::vector<std::vector<std::vector<unsigned short> > > triangles; //triangulation of each polygon
+		std::vector<std::vector<unsigned short> > faceNeighbors;
 		std::string type;
 		int typeCount; //number of clones of this model currently in the simulation
 		//physics
@@ -687,6 +690,7 @@ public:
 	void writeMyData(const char *filename = NULL);
 	void loadData(const char *filename = NULL);
 	void updateData();
+	void setNormals();
 	void reloadFromData(const char *filename, bool addPhysics = true);
 	
 	static float gv(Vector3 *v, int dim);

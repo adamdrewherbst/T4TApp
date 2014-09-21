@@ -45,25 +45,14 @@ material sphere : colored
     }
 }
 
-material cylinder : colored
-{
-    technique
-    {
-        pass
-        {
-            u_diffuseColor = 0.38, 0.63, 1, 1
-        }
-    }
-}
-
 material halfpipe : colored
 {
     technique
     {
         pass
         {
-			u_ambientColor = 1.0, 0.0, 1.0
-            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
+	    u_ambientColor = 1.0, 0.0, 1.0
+	    u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
 }
@@ -86,7 +75,8 @@ material red : colored
     {
         pass
         {
-            u_diffuseColor = 1, 0, 0, 1
+	    u_ambientColor = 1.0, 0.0, 0.0
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
 }

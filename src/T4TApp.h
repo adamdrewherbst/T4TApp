@@ -236,6 +236,7 @@ public:
 	{
 public:
 		PhysicsHingeConstraint *_armConstraint;
+
 		Lever(T4TApp *app_, Theme::Style* buttonStyle, Theme::Style* formStyle);
 		bool baseTouch(Touch::TouchEvent evt, int x, int y);
 		bool armTouch(Touch::TouchEvent evt, int x, int y);
@@ -243,6 +244,23 @@ public:
 		void finishElement(Node *node);
 		void releaseScene();
 	};
+
+	class Pulley : public ProjectComponent 
+	{
+public:
+		float _radius, _linkLength, _linkWidth;
+		unsigned short _wheelLinks, _dropLinks, _numLinks;
+		std::vector<PhysicsSocketConstraint*> _constraints;
+		
+		Pulley(T4TApp *app_, Theme::Style* buttonStyle, Theme::Style* formStyle);
+		bool baseTouch(Touch::TouchEvent evt, int x, int y);
+		bool wheelTouch(Touch::TouchEvent evt, int x, int y);
+		bool bucketTouch(Touch::TouchEvent evt, int x, int y);
+		void placeElement(Node *node);
+		void finishElement(Node *node);
+		void releaseScene();
+	};
+
 	std::vector<ProjectComponent*> _machines;
 	
 	class Mode : public Button, Control::Listener
@@ -312,7 +330,6 @@ public:
 		//edgeInt[edge vertex 1][edge vertex 2] = (drill ray number, index of intersection point in new model's vertex list)
 		//drillInt[drill ray number][face index in old model] = index of intersection point in new model's vertex list
 		std::map<unsigned short, std::map<unsigned short, unsigned short> > drillInt;
-		std::map<unsigned short, std::map<unsigned short, float> > drillError;
 		std::map<unsigned short, std::map<unsigned short, std::pair<unsigned short, unsigned short> > > edgeInt;
 		//for each edge in a drill plane, which drill plane it is in
 		std::map<unsigned short, std::map<unsigned short, unsigned short> > edgeLine;
@@ -320,6 +337,8 @@ public:
 		std::map<unsigned short, std::map<unsigned short, bool> > leftEdge;
 		//for each drill line intersection point, whether the interior of the object is in the forward drill axis direction
 		std::map<unsigned short, bool> enterInt;
+		//all the directed edges in each segment of the drill
+		std::map<unsigned short, std::map<unsigned short, unsigned short> > segmentEdges;
 		//store which edges have already been added so as not to duplicate
 		std::map<unsigned short, std::vector<unsigned short> > usedEdges;
 		std::vector<unsigned short> newEdge;
@@ -337,7 +356,7 @@ public:
 		void buildPatch(unsigned short face);
 		short occlusion(unsigned short f1, unsigned short f2);
 		void addEdge(unsigned short e1, unsigned short e2);
-		void addDrillEdge(unsigned short v1, unsigned short v2, unsigned short lineNum, short face);
+		void addDrillEdge(unsigned short v1, unsigned short v2, unsigned short lineNum);
 		void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 		void addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 		Vector3 getNormal(std::vector<unsigned short>& face);
@@ -384,6 +403,17 @@ public:
 		void controlEvent(Control *control, Control::Listener::EventType evt);
 	};
 	
+	class TouchMode : public Mode
+	{
+public:
+		Node *_face;
+		
+		TouchMode(T4TApp *app_);
+		void setActive(bool active);
+		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+		void controlEvent(Control *control, Control::Listener::EventType evt);
+	};
+		
     Vector2 _mousePoint, _touchPoint;
     std::string _mouseString;
     Font* _font;
