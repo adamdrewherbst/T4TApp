@@ -1289,6 +1289,107 @@ void Node::sv(Vector3 *v, int dim, float val) {
 	}
 }
 
+void Node::addEdge(unsigned short e1, unsigned short e2) {
+	nodeData *data = getData();
+	if(data->edgeInd.find(e1) != data->edgeInd.end() && data->edgeInd[e1].find(e2) != data->edgeInd[e1].end()) return;
+	std::vector<unsigned short> edge(2);
+	edge[0] = e1;
+	edge[1] = e2;
+	data->edgeInd[e1][e2] = data->edges.size();
+	data->edgeInd[e2][e1] = data->edges.size();
+	data->edges.push_back(edge);
+}
+
+void Node::addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
+	if(triangles.empty()) triangulate(face, triangles);
+	addFaceHelper(face, triangles);
+}
+
+void Node::addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
+	nodeData *data = getData();
+	data->faces.push_back(face);
+	data->triangles.push_back(triangles);
+	data->normals.push_back(getNormal(face));
+	unsigned short n = face.size(), i;
+	for(i = 0; i < n; i++) addEdge(face[i], face[(i+1)%n]);
+}
+
+//calculate the properly oriented face normal by Newell's method
+// - https://www.opengl.org/wiki/Calculating_a_Surface_Normal#Newell.27s_Method
+Vector3 Node::getNormal(std::vector<unsigned short>& face) {
+	nodeData *data = getData();
+	Vector3 v1, v2, normal(0, 0, 0);
+	unsigned short i, n = face.size();
+	for(i = 0; i < n; i++) {
+		v1.set(data->worldVertices[face[i]]);
+		v2.set(data->worldVertices[face[(i+1)%n]]);
+		normal.x += (v1.y - v2.y) * (v1.z + v2.z);
+		normal.y += (v1.z - v2.z) * (v1.x + v2.x);
+		normal.z += (v1.x - v2.x) * (v1.y + v2.y);
+	}
+	return normal.normalize();
+}
+
+void Node::triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
+	//make a copy of the face so we don't modify the original
+	unsigned short n = face.size(), i;
+	std::vector<unsigned short> copy(n), inds(n);
+	for(i = 0; i < n; i++) {
+		copy[i] = face[i];
+		inds[i] = i;
+	}
+	triangulateHelper(copy, inds, triangles, getNormal(face));
+}
+
+void Node::triangulateHelper(std::vector<unsigned short>& face,
+  std::vector<unsigned short>& inds,
+  std::vector<std::vector<unsigned short> >& triangles,
+  Vector3 normal) {
+	nodeData *data = getData();
+	unsigned short i, j, n = face.size();
+	short v = -1;
+	bool valid;
+	Vector3 v1, v2, v3, coords;
+	Matrix m;
+	std::vector<unsigned short> triangle(3);
+	//find 3 consecutive vertices whose triangle has the right orientation and does not contain any other vertices
+	if(n == 3) v = 1;
+	else {
+		for(i = 1; i <= n; i++) {
+			v1.set(data->worldVertices[face[i-1]] - data->worldVertices[face[i%n]]);
+			v2.set(data->worldVertices[face[(i+1)%n]] - data->worldVertices[face[i%n]]);
+			Vector3::cross(v2, v1, &v3);
+			if(v3.dot(normal) < 0) continue;
+			m.set(v1.x, v2.x, v3.x, 0, v1.y, v2.y, v3.y, 0, v1.z, v2.z, v3.z, 0, 0, 0, 0, 1);
+			m.invert();
+			//get barycentric coords of all other vertices of this face in the proposed triangle
+			valid = true;
+			for(j = (i+2)%n; j != i-1; j = (j+1)%n) {
+				m.transformVector(data->worldVertices[face[j]] - data->worldVertices[face[i%n]], &coords);
+				if(coords.x >= 0 && coords.y >= 0 && coords.x + coords.y <= 1) {
+					valid = false;
+					break;
+				}
+			}
+			if(valid) {
+				v = i;
+				break;
+			}
+		}
+	}
+	if(v < 0) {
+		GP_WARN("Couldn't triangulate face");
+		return;
+	}
+	triangle[0] = inds[v-1];
+	triangle[1] = inds[v % n];
+	triangle[2] = inds[(v+1)%n];
+	triangles.push_back(triangle);
+	face.erase(face.begin() + (v%n));
+	inds.erase(inds.begin() + (v%n));
+	if(n > 3) triangulateHelper(face, inds, triangles, normal);
+}
+
 Node::nodeData* Node::readData(const char *filename)
 {
 	std::auto_ptr<Stream> stream(FileSystem::open(filename));

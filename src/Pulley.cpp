@@ -103,7 +103,6 @@ void T4TApp::Pulley::finishElement(Node *node) {
 				ss << _id << _typeCount << "_link" << (i+1);
 				const std::string nodeID = ss.str();
 				link->setId(nodeID.c_str());
-				app->addCollisionObject(link);
 				if(i < _dropLinks) { //chain going up from left bucket
 					x = wheel.x - _radius;
 					y = wheel.y - (_dropLinks-i) * _linkLength;
@@ -115,33 +114,37 @@ void T4TApp::Pulley::finishElement(Node *node) {
 				} else { //chain going down to right bucket
 					x = wheel.x + _radius;
 					y = wheel.y - (_dropLinks - (_numLinks-1 - i)) * _linkLength;
-					angle = 0;
+					angle = M_PI;
 				}
 				link->setScale(_linkWidth/3, _linkLength/3, _linkWidth/3);
 				link->rotate(zAxis, -angle);
 				link->setTranslation(x, y, z);
+				app->addCollisionObject(link);
 				links[i] = link;
 				_scene->addNode(link);
 				_allNodes.push_back(link);
-				link->getCollisionObject()->setEnabled(false);
 				//note the position of the joint between this link and the next
 				joint.set(0, (_linkLength/2) / link->getScaleY(), 0);
 				link->getWorldMatrix().transformPoint(&joint);
 				joints[i+1].set(joint);
 			}
+			//must enable all collision objects before adding constraints to prevent crashes
+			for(i = 0; i < _allNodes.size(); i++) {
+				_allNodes[i]->getCollisionObject()->setEnabled(true);
+			}
 			//connect each pair of adjacent links with a socket constraint
 			PhysicsSocketConstraint *constraint;
 			for(i = 0; i < _numLinks-1; i++) {
-				trans1.set(joints[i+1] - links[i]->getTranslationWorld());
-				trans2.set(joints[i+1] - links[i+1]->getTranslationWorld());
+				trans1.set(0, (_linkLength/2) / links[i]->getScaleY(), 0);
+				trans2.set(0, -(_linkLength/2) / links[i]->getScaleY(), 0);
 				constraint = (PhysicsSocketConstraint*) app->addConstraint(links[i], links[i+1], "socket", &trans1, &trans2);
 				_constraints.push_back(constraint);
 			}
 			//connect each bucket to the adjacent chain link with a socket constraint
 			for(i = 0; i < 2; i++) {
 				j = i * (_numLinks-1);
-				trans1.set(joints[i*_numLinks] - links[j]->getTranslationWorld());
-				trans2.set(joints[i*_numLinks] - _allNodes[i+2]->getTranslationWorld());
+				trans1.set(0, (2*i - 1) * (_linkLength/2) / links[i]->getScaleY(), 0);
+				trans2.set((joints[i*_numLinks] - _allNodes[i+2]->getTranslationWorld()) / _allNodes[i+2]->getScaleY());
 				constraint = (PhysicsSocketConstraint*) app->addConstraint(links[j], _allNodes[i+2], "socket", &trans1, &trans2);
 				_constraints.push_back(constraint);
 			}

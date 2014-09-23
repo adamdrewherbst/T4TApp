@@ -691,6 +691,13 @@ public:
 	void loadData(const char *filename = NULL);
 	void updateData();
 	void setNormals();
+	void addEdge(unsigned short e1, unsigned short e2);
+	void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
+	void addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
+	Vector3 getNormal(std::vector<unsigned short>& face);
+	void triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
+	void triangulateHelper(std::vector<unsigned short>& face, std::vector<unsigned short>& inds,
+	  std::vector<std::vector<unsigned short> >& triangles, Vector3 normal);
 	void reloadFromData(const char *filename, bool addPhysics = true);
 	
 	static float gv(Vector3 *v, int dim);

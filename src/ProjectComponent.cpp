@@ -37,16 +37,11 @@ void T4TApp::ProjectComponent::controlEvent(Control *control, EventType evt) {
 	_allNodes.push_back(node);
 	placeElement(node);
 	app->addCollisionObject(node);
+	node->getCollisionObject()->setEnabled(false);
 	finishElement(node);
 	app->_componentMenu->setVisible(false);
 	_container->setVisible(true);
 	addListener(this, Control::Listener::CLICK);
-	//prevent components from moving until they are all in place
-	if(false) { //_allNodes.size() == _elementNames.size()) {
-		for(unsigned short i = 0; i < _allNodes.size(); i++) {
-			_allNodes[i]->getCollisionObject()->setEnabled(true);
-		}
-	} else node->getCollisionObject()->setEnabled(false);
 }
 
 bool T4TApp::ProjectComponent::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
