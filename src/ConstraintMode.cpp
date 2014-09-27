@@ -5,11 +5,16 @@ T4TApp::ConstraintMode::ConstraintMode(T4TApp *app_)
 
 	_currentNode = 0;
 	
-	_subModes.push_back(std::string("Axle"));
-	_subModes.push_back(std::string("Glue"));
-	_subModes.push_back(std::string("Socket"));
-	_subModes.push_back(std::string("Spring"));
+	_subModes.push_back("Axle");
+	_subModes.push_back("Glue");
+	_subModes.push_back("Socket");
+	_subModes.push_back("Spring");
 	_subMode = 0;
+	
+	_constraintTypes.push_back("hinge");
+	_constraintTypes.push_back("fixed");
+	_constraintTypes.push_back("socket");
+	_constraintTypes.push_back("spring");
 }
 
 void T4TApp::ConstraintMode::setActive(bool active) {
@@ -34,43 +39,50 @@ bool T4TApp::ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 			cout << "selected: " << node->getId() << " at " << hitPoint.x << "," << hitPoint.y << "," << hitPoint.z << endl;
 			_nodes[_currentNode] = node;
 			node->updateData();
-			if(_subMode == 0 || _subMode == 1) { //axle and glue attach faces - find the clicked face
+			//find the clicked face
+			if(_subMode == 0 || _subMode == 1 || _subMode == 2 || _subMode == 3) {
 				_faces[_currentNode] = node->pt2Face(hitPoint);
 				if(_faces[_currentNode] < 0) break; //didn't hit a face - must reselect this node
-			} else if(_subMode == 2 || _subMode == 3) { //socket, spring
 			}
 			_currentNode++;
 			if(_currentNode == 2) { //we have both attachment points - add the constraint
-				if(_subMode == 0) { //axle
-					_nodes[1]->rotateFaceToFace(_faces[1], _nodes[0], _faces[0]);
-					_nodes[1]->translate(_nodes[0]->getData()->worldNormals[_faces[0]] * 0.2f); //back away a tad
-					//default hinge axis is model space z-axis, we want face normal
-					Vector3 normal;
-					for(i = 0; i < 2; i++) {
-						_nodes[i]->updateData();
-						Node::nodeData *data = _nodes[i]->getData();
-						_rot[i] = Node::getVectorRotation(Vector3(0, 0, 1), data->normals[_faces[i]]);
-						_trans[i] = _nodes[i]->faceCenter(_faces[i], true);
-						data->normals[_faces[i]].normalize(&normal);
-						normal.x /= data->scale.x;
-						normal.y /= data->scale.y;
-						normal.z /= data->scale.z;
-						_trans[i] += normal * 0.1f;
-						_nodes[i]->getCollisionObject()->asRigidBody()->setEnabled(false);
-						_nodes[i]->getCollisionObject()->asRigidBody()->setEnabled(true);
-					}
-					app->addConstraint(_nodes[0], _nodes[1], "hinge", &_rot[0], &_trans[0], &_rot[1], &_trans[1]);
-				} else if(_subMode == 1) { //glue
-					_nodes[1]->rotateFaceToFace(_faces[1], _nodes[0], _faces[0]);
-					_nodes[1]->translate(_nodes[0]->getData()->worldNormals[_faces[0]] * 0.25f);
-					for(i = 0; i < 2; i++) {
-						_nodes[i]->getCollisionObject()->asRigidBody()->setEnabled(false);
-						_nodes[i]->getCollisionObject()->asRigidBody()->setEnabled(true);
-					}
-					app->addConstraint(_nodes[0], _nodes[1], "fixed");
-				} else if(_subMode == 2) { //socket
-				} else if(_subMode == 3) { //spring
+				_nodes[1]->rotateFaceToFace(_faces[1], _nodes[0], _faces[0]);
+				_nodes[1]->translate(_nodes[0]->getData()->worldNormals[_faces[0]] * 0.02f); //back away a tad
+				Vector3 normal; //default hinge axis is model space z-axis, we want face normal
+				for(i = 0; i < 2; i++) {
+					_nodes[i]->updateData();
+					Node::nodeData *data = _nodes[i]->getData();
+					_rot[i] = Node::getVectorRotation(Vector3(0, 0, 1), data->normals[_faces[i]]);
+					_trans[i] = _nodes[i]->faceCenter(_faces[i], true);
+					data->normals[_faces[i]].normalize(&normal);
+					normal.x /= data->scale.x;
+					normal.y /= data->scale.y;
+					normal.z /= data->scale.z;
+					_trans[i] += normal * 0.01f;
+					PhysicsRigidBody *body = _nodes[i]->getCollisionObject()->asRigidBody();
+					body->setEnabled(false);
+					//unless we reduce friction, we get poor motion and instability at the joint
+					body->setFriction(0.01f);
+					body->setEnabled(true);
 				}
+				PhysicsConstraint *constraint;
+				if(_subMode == 0 || _subMode == 3) { //axle, spring require rotation and translation
+					constraint = app->addConstraint(_nodes[0], _nodes[1], _constraintTypes[_subMode].c_str(),
+					  &_rot[0], &_trans[0], &_rot[1], &_trans[1]);
+					//if(_subMode == 0) ((PhysicsHingeConstraint*)constraint)->setLimits(0.0f, 90.0f, 1.0f);
+				} else if(_subMode == 2) { //socket requires only translation
+					constraint = app->addConstraint(_nodes[0], _nodes[1], _constraintTypes[_subMode].c_str(),
+					  &_trans[0], &_trans[1]);
+				} else if(_subMode == 1) { //glue requires nothing
+					constraint = app->addConstraint(_nodes[0], _nodes[1], _constraintTypes[_subMode].c_str());
+				}
+				//the second node clicked becomes a child of the first node clicked
+				_nodes[0]->addChild(_nodes[1]);
+				_nodes[1]->parentOffset = _trans[0];
+				Matrix rot;
+				Matrix::createRotation(_rot[0], &rot);
+				_nodes[1]->parentAxis.set(0, 0, 1);
+				rot.transformVector(&_nodes[1]->parentAxis);
 			}
 			break;
 		}

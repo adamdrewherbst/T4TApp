@@ -5,7 +5,7 @@ T4TApp::DrillMode::DrillMode(T4TApp *app_)
 	_axis.set(Vector3(0, 0, 0), Vector3(1, 0, 0));
 	_radius = 0.2f;
 	_segments = 20;
-	_tool = Node::create("drill");
+	_tool = MyNode::create("drill");
 	usageCount = 0;
 	
 	//have the user start by selecting a drill bit - shape and size

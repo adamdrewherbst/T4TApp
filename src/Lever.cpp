@@ -14,7 +14,7 @@ bool T4TApp::Lever::armTouch(Touch::TouchEvent evt, int x, int y) {
 	return true;
 }
 
-void T4TApp::Lever::placeElement(Node *node) {
+void T4TApp::Lever::placeElement(MyNode *node) {
 	BoundingBox box = node->getModel()->getMesh()->getBoundingBox();
 	float x, y;
 	switch(_currentElement) {
@@ -28,7 +28,7 @@ void T4TApp::Lever::placeElement(Node *node) {
 	}
 }
 
-void T4TApp::Lever::finishElement(Node *node) {
+void T4TApp::Lever::finishElement(MyNode *node) {
 	switch(_currentElement) {
 		case 0:
 			break;

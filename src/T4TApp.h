@@ -26,15 +26,14 @@ public:
     
     T4TApp* getInstance();
     
-    Node* duplicateModelNode(const char* type, bool isStatic = false);
-    Node* createWireframe(std::vector<float>& vertices, char *id=NULL);
-    void addCollisionObject(Node *node);
-	Node* loadNodeFromData(const char *nodeID);
-    void changeNodeModel(Node *node, const char* type);
+    MyNode* duplicateModelNode(const char* type, bool isStatic = false);
+    MyNode* createWireframe(std::vector<float>& vertices, char *id=NULL);
+    void addCollisionObject(MyNode *node);
+	MyNode* loadNodeFromData(const char *nodeID);
     bool printNode(Node *node);
-    bool prepareNode(Node *node);
-    void translateNode(Node *node, Vector3 trans);
-    PhysicsConstraint* addConstraint(Node *n1, Node *n2, const char *type, ...);
+    bool prepareNode(MyNode *node);
+    void translateNode(MyNode *node, Vector3 trans);
+    PhysicsConstraint* addConstraint(MyNode *n1, MyNode *n2, const char *type, ...);
     //misc functions
     const std::string printVector(const Vector3& v);
     const std::string printVector2(const Vector2& v);
@@ -43,15 +42,14 @@ public:
 	void releaseScene();
 	void hideScene();
 	void showScene();
-	bool hideNode(Node *node);
-	bool showNode(Node *node);
+	bool hideNode(MyNode *node);
+	bool showNode(MyNode *node);
     void setActiveScene(Scene *scene);
-    void removeNode(Node *node, const char *newID = NULL);
-    void addConstraints(Node *node);
-    void removeConstraints(Node *node);
-    void enablePhysics(Node *node, bool enable = true);
-    void addPhysics(Node *node);
-    void removePhysics(Node *node);
+    void addConstraints(MyNode *node);
+    void removeConstraints(MyNode *node);
+    void enablePhysics(MyNode *node, bool enable = true);
+    void addPhysics(MyNode *node);
+    void removePhysics(MyNode *node);
     
     /**
      * @see Game::keyEvent
@@ -101,15 +99,13 @@ public:
      * Draws the scene each frame.
      */
     bool drawScene(Node* node);
-    void setSelected(Node* node);
-    void placeNode(Node *node, float x, float y);
+    void placeNode(MyNode *node, float x, float y);
     void setMode(const char *mode);
 
     //see if the current touch coordinates intersect a given model in the scene
     bool checkTouchModel(Node* node);
     BoundingBox getWorldBox(Node *node);
-    bool checkTouchEdge(Node* node);
-    Node* getMouseNode(int x, int y, Vector3 *touch = NULL);
+    MyNode* getMouseNode(int x, int y, Vector3 *touch = NULL);
     
     //UI factory functions
     Form* addMenu(Form *parent, const char *name);
@@ -119,7 +115,7 @@ public:
     
     //standard projects
     void buildVehicle();
-    Node* promptComponent();
+    void promptComponent();
 
 	//scene setup
     Scene* _scene;
@@ -133,16 +129,14 @@ public:
     float _steering, _braking, _driving;
     
     //for placing objects
-    Node *_lastNode, *_intersectModel;
-    std::vector<Node*> _intersectNodeGroup;
+    MyNode *_lastNode, *_intersectModel;
+    std::vector<MyNode*> _intersectNodeGroup;
     BoundingBox _intersectBox;
     Vector3 _intersectPoint;
     Plane _groundPlane;
     
     //for creating physical constraints between objects
-    Node* _constraintNodes[2];
-    unsigned short _constraintEdges[2];
-    std::map<Node*, std::vector<PhysicsConstraint*> > _constraints;
+    std::map<MyNode*, std::vector<PhysicsConstraint*> > _constraints;
     
     //current state
     std::string _mode;
@@ -161,48 +155,6 @@ public:
     std::vector<std::string> _modeNames, _machineNames;
     Theme *_theme;
     Theme::Style *_formStyle, *_buttonStyle, *_titleStyle, *_hiddenStyle;
-    
-    //use Control::Listener instances and enumerated lists of required components 
-    //for progressing through standard project scripts
-    class VehicleProject : public Button, Control::Listener {
-public:
-    	T4TApp *app;
-    	Form *container;
-    	std::vector<std::string> componentName;
-    	Scene *_scene;
-    	Node *_chassisNode, *_frontWheels[2], *_backWheels[2];
-    	Node *_allNodes[5], *_carNode;
-
-		void controlEvent(Control *control, EventType evt);
-		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
-	    bool disableObject(Node* node);
-		bool hideNode(Node* node);
-		bool showNode(Node* node);
-		void loadScene();
-		void releaseScene();
-		
-    	VehicleProject(T4TApp *app_, const char* id, Theme::Style* buttonStyle, Theme::Style* formStyle);
-    	
-		typedef enum {
-			CHASSIS,
-			FRONT_WHEELS,
-			BACK_WHEELS,
-			COMPLETE
-		} VehicleComponent;
-
-		VehicleComponent _currentComponent;
-		
-		void advanceComponent() {
-			switch(_currentComponent) {
-				case CHASSIS: _currentComponent = FRONT_WHEELS; break;
-				case FRONT_WHEELS: _currentComponent = BACK_WHEELS; break;
-				case BACK_WHEELS: _currentComponent = COMPLETE; break;
-				default: break;
-			}
-		}
-		void setActive(bool active);
-	};
-	VehicleProject *_vehicleProject;
 	
 	class ProjectComponent : public Button, Control::Listener
 	{
@@ -216,7 +168,7 @@ public:
     	//blank scene onto which to build the component
     	std::string _sceneFile;
     	Scene *_scene;
-    	std::vector<Node*> _allNodes;
+    	std::vector<MyNode*> _allNodes;
 
 		//each element of this component is positioned/finalized via touches => has its own touch callback
 		typedef bool (T4TApp::ProjectComponent::*TouchCallback)(Touch::TouchEvent, int, int);
@@ -230,8 +182,8 @@ public:
 		void addElement(const char *name, bool (T4TApp::ProjectComponent::*)(Touch::TouchEvent evt, int x, int y),
 				bool isStatic = false);
 		void controlEvent(Control *control, EventType evt);
-		virtual void placeElement(Node *node) = 0; //position the element in space before it has physics attached
-		virtual void finishElement(Node *node) = 0; //post processing once the collision object is attached
+		virtual void placeElement(MyNode *node) = 0; //position the element in space before it has physics attached
+		virtual void finishElement(MyNode *node) = 0; //post processing once the collision object is attached
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void finishComponent();
 	};
@@ -244,8 +196,8 @@ public:
 		Lever(T4TApp *app_, Theme::Style* buttonStyle, Theme::Style* formStyle);
 		bool baseTouch(Touch::TouchEvent evt, int x, int y);
 		bool armTouch(Touch::TouchEvent evt, int x, int y);
-		void placeElement(Node *node);
-		void finishElement(Node *node);
+		void placeElement(MyNode *node);
+		void finishElement(MyNode *node);
 		void releaseScene();
 	};
 
@@ -260,8 +212,8 @@ public:
 		bool baseTouch(Touch::TouchEvent evt, int x, int y);
 		bool wheelTouch(Touch::TouchEvent evt, int x, int y);
 		bool bucketTouch(Touch::TouchEvent evt, int x, int y);
-		void placeElement(Node *node);
-		void finishElement(Node *node);
+		void placeElement(MyNode *node);
+		void finishElement(MyNode *node);
 		void releaseScene();
 	};
 
@@ -289,17 +241,17 @@ public:
 	{
 public:
 		std::string _toolType;
-		Node *_node; //the model to be altered
+		MyNode *_node; //the model to be altered
 		Plane _viewPlane;
 		Vector3 _touchStart, _touchPoint, _viewPlaneOrigin;
-		Node *_tool; //to display the tool to the user
+		MyNode *_tool; //to display the tool to the user
 		Quaternion _toolBaseRotation;
 		int _subMode; //0 = rotate, 1 = translate
 		bool _touching, _rotate;
 
 		ToolMode(T4TApp *app_, const char* id, const char* filename = NULL);
 		virtual void setActive(bool active);
-		void setNode(Node *node);
+		void setNode(MyNode *node);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		virtual void controlEvent(Control *control, Control::Listener::EventType evt);
 		virtual void setAxis(int axis);
@@ -323,7 +275,7 @@ public:
 		Ray _axis;
 		float _radius;
 		int _segments, usageCount;
-		Node::nodeData *data, newData;
+		MyNode::nodeData *data, newData;
 		//store all the lines and planes of the drill bit
 		std::vector<Ray> lines;
 		std::vector<Plane> planes;
@@ -390,12 +342,10 @@ public:
 		std::vector<std::string> _subModes, _axisNames;
 		unsigned short _subMode;
 		short _axis;
-		Node *_selectedNode;
+		MyNode *_selectedNode;
 		float _positionValue;
 	    Quaternion _baseRotation;
 	    Vector3 _baseTranslation, _baseScale, _basePoint, _transDir;
-		std::vector<Node*> _nodeGroup;
-		std::vector<Vector3> _groupOffset;
 	    Vector2 _dragOffset;
 	    short _groundFace;
 	    
@@ -408,7 +358,7 @@ public:
 		void setActive(bool active);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
-		void setSelectedNode(Node *node);
+		void setSelectedNode(MyNode *node);
 		void setSubMode(unsigned short mode);
 		void setAxis(short axis);
 		void setPosition(float value, bool finalize = false);
@@ -417,9 +367,9 @@ public:
 	
 	class ConstraintMode : public Mode {
 public:
-		std::vector<std::string> _subModes;
+		std::vector<std::string> _subModes, _constraintTypes;
 		unsigned short _subMode;
-		Node *_nodes[2];
+		MyNode *_nodes[2];
 		short _faces[2], _currentNode;
 		Quaternion _rot[2];
 		Vector3 _trans[2];
@@ -441,7 +391,7 @@ public:
 	class TouchMode : public Mode
 	{
 public:
-		Node *_face;
+		MyNode *_face;
 		
 		TouchMode(T4TApp *app_);
 		void setActive(bool active);
@@ -455,8 +405,6 @@ public:
     
     //debugging variables
     bool _physicsStopped;
-    PhysicsRigidBody *_lastBody;
-	
 };
 
 #endif

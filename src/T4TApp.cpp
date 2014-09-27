@@ -39,37 +39,7 @@ void T4TApp::initialize()
     
 	getPhysicsController()->setGravity(Vector3(0.0f, -10.0f, 0.0f));
 
-	/*Node* carNode = _vehicle->findNode("carbody");
-	if (carNode && carNode->getCollisionObject() && carNode->getCollisionObject()->getType() == PhysicsCollisionObject::VEHICLE)
-	{
-		_carVehicle = static_cast<PhysicsVehicle*>(carNode->getCollisionObject());
-	}//*/
 	_steering = _braking = _driving = 0.0f;
-
-	//as a test, add two boxes with a hinge constraint between them
-/*    Node *node = addCatalogItem(1);
-    node->setTranslation(0.0, 0.5, 0.0);
-    PhysicsRigidBody *body1 = node->getCollisionObject()->asRigidBody();
-    body1->setEnabled(false);
-    
-    node = addCatalogItem(1);
-    node->setTranslation(1.0, 0.5, 0.0);
-   	PhysicsRigidBody *body2 = node->getCollisionObject()->asRigidBody();
-   	body2->setEnabled(false);
-
-	PhysicsHingeConstraint* constraint = getPhysicsController()->createHingeConstraint(
-		body1,
-		Quaternion(0.0f, 0.0f, 0.0f, 1.0f),
-		Vector3(0.5f, 0.5f, 0.0f),
-		body2,
-		Quaternion(0.0f, 0.0f, 0.0f, 1.0f),
-		Vector3(-0.5f, 0.5f, 0.0f)
-	);
-	constraint->setLimits(0.0f, PI, 1.0f);
-	
-	node->translate(0.0f, 1.0f, 0.0f);
-	node->rotate(0.0f, 0.0f, sin(45.0f*PI/180), cos(45.0f*PI/180));
-	body1->setEnabled(true); body2->setEnabled(true);//*/
     
     //create the form for selecting catalog items
     _theme = Theme::create("res/common/default.theme");
@@ -110,22 +80,22 @@ void T4TApp::initialize()
 	//_models = Scene::load("res/common/models.scene");
 	//_models->setId("models");
 	_models = Scene::create("models");
-	_models->addNode("sphere");
-	_models->addNode("cylinder");
-	_models->addNode("halfpipe");
-	_models->addNode("box");
-	_models->addNode("gear");
-	_models->addNode("tube");
-	_models->addNode("vase");
-	_models->addNode("disc");
-	_models->addNode("cone");
-	_models->addNode("heart");
-	_models->addNode("gear_thin");
+	_models->addNode(MyNode("sphere"));
+	_models->addNode(MyNode("cylinder"));
+	_models->addNode(MyNode("halfpipe"));
+	_models->addNode(MyNode("box"));
+	_models->addNode(MyNode("gear"));
+	_models->addNode(MyNode("tube"));
+	_models->addNode(MyNode("vase"));
+	_models->addNode(MyNode("disc"));
+	_models->addNode(MyNode("cone"));
+	_models->addNode(MyNode("heart"));
+	_models->addNode(MyNode("gear_thin"));
 
 	//populate item submenu
 	_itemButton = addButton <Button> (_sideMenu, "itemButton", "Add Object >>"); //button to open object catalog
 
-    Node *modelNode = _models->getFirstNode();
+    MyNode *modelNode = _models->getFirstNode();
     while(modelNode) {
     	if(strstr(modelNode->getId(), "_part") == NULL) {
 			cout << "adding button for " << modelNode->getId() << endl;
@@ -136,7 +106,7 @@ void T4TApp::initialize()
 			itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
 			itemImage->setWidth(150.0f);
 			itemImage->setHeight(150.0f);
-			Node::nodeData *data = modelNode->getData();
+			MyNode::nodeData *data = modelNode->getData();
 			data->type = modelNode->getId();
 		}
 		modelNode->setTranslation(Vector3(1000.0f,0.0f,0.0f));
@@ -200,7 +170,8 @@ void T4TApp::loadScene()
     _light = _lightNode->getLight();
 
 	//create the grid on which to place objects
-    Node* node = _scene->addNode("grid");
+    MyNode* node = MyNode::create("grid");
+    _scene->addNode(node);
     Model* gridModel = createGridModel();
     gridModel->setMaterial("res/common/grid.material");
     node->setModel(gridModel);
@@ -249,13 +220,13 @@ void T4TApp::showScene() {
 	_activeScene = _scene;
 }
 
-bool T4TApp::hideNode(Node *node) {
+bool T4TApp::hideNode(MyNode *node) {
 	PhysicsCollisionObject *obj = node->getCollisionObject();
 	if(obj)	obj->setEnabled(false);
 	return true;
 }
 
-bool T4TApp::showNode(Node *node) {
+bool T4TApp::showNode(MyNode *node) {
 	PhysicsCollisionObject *obj = node->getCollisionObject();
 	if(obj) obj->setEnabled(true);
 	return true;
@@ -385,7 +356,7 @@ void T4TApp::render(float elapsedTime)
 	}
 }
 
-bool T4TApp::prepareNode(Node* node)
+bool T4TApp::prepareNode(MyNode* node)
 {
 	PhysicsCollisionObject* obj = node->getCollisionObject();
 	if(obj && obj->asRigidBody()) {
@@ -528,7 +499,7 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 		_componentMenu->setVisible(true);
 	}
 	else if(_componentMenu->getControl(controlID) == control && strncmp(controlID, "comp_", 5) == 0) {
-		Node *node = duplicateModelNode(controlID+5);
+		MyNode *node = duplicateModelNode(controlID+5);
 		addCollisionObject(node);
 		_scene->addNode(node);
 		placeNode(node, 0.0f, 0.0f);
@@ -539,7 +510,7 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 		debugTrigger();
 	}
 	else if(_itemContainer->getControl(controlID) == control) {
-		Node *node = duplicateModelNode(controlID);
+		MyNode *node = duplicateModelNode(controlID);
 		addCollisionObject(node);
 		_scene->addNode(node);
 		placeNode(node, 0.0f, 0.0f);
@@ -562,15 +533,15 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	}
 }
 
-Node* T4TApp::getMouseNode(int x, int y, Vector3 *touch) {
+MyNode* T4TApp::getMouseNode(int x, int y, Vector3 *touch) {
 	Camera* camera = _scene->getActiveCamera();
 	Ray ray;
 	camera->pickRay(getViewport(), x, y, &ray);
 	PhysicsController::HitResult hitResult;
 	if(!getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) return NULL;
 	if(touch) touch->set(hitResult.point);
-	Node *node = hitResult.object->getNode();
-	if(node == NULL || strcmp(node->getId(), "grid") == 0) return NULL;
+	MyNode *node = dynamic_cast<MyNode*>(hitResult.object->getNode());
+	if(!node || strcmp(node->getId(), "grid") == 0) return NULL;
 	return node;
 }
 
@@ -615,60 +586,24 @@ BoundingBox T4TApp::getWorldBox(Node *node) {
 	return BoundingBox(center + min, center + max);
 }
 
-//find the closest edge on this model to the touch point in 3D space - if it is the closest so far, store edge and distance
-bool T4TApp::checkTouchEdge(Node* node)
+MyNode* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 {
-	Node::nodeData* data = node->getData();
-	for(int i = 0; i < data->edges.size(); i++) {
-		//get starting point and direction vector of camera sight, and edge
-	}
-	return false;
-}
-
-void T4TApp::changeNodeModel(Node *node, const char* type)
-{
-	Node *modelNode = _models->findNode(type);
-	if(modelNode == NULL) return;
-	Node *clone = modelNode->clone();
-	Model *model = clone->getModel();
-	cout << "setting " << node->getId() << " model to " << model << endl;
-	node->setModel(model);
-//	node->setScale(modelNode->getScale());
-//	node->setRotation(modelNode->getRotation());
-	Node::nodeData *data = modelNode->getData();
-	node->data = data;
-	clone->release();
-}
-
-Node* T4TApp::duplicateModelNode(const char* type, bool isStatic)
-{
-	Node *modelNode = _models->findNode(type);
-	if(modelNode == NULL) return NULL;
-	Node *node = modelNode->clone();
+	MyNode *modelNode = dynamic_cast<MyNode*>(_models->findNode(type));
+	if(!modelNode) return NULL;
+	MyNode *node = MyNode::cloneNode(modelNode);
 	BoundingBox box = node->getModel()->getMesh()->getBoundingBox();
 	node->setTranslation(Vector3(0.0f, (box.max.y - box.min.y)/2.0f, 0.0f));
-	Node::nodeData *data = modelNode->getData();
+	MyNode::nodeData *data = modelNode->getData();
 	const char count[2] = {(char)(++data->typeCount + 48), '\0'};
 	node->setId(concat(2, modelNode->getId(), count));
 	node->loadData(concat(3, "res/common/", type, ".node"));
 	node->updateData();
 	data = node->getData();
 	if(isStatic) data->mass = 0;
-
-	/*PhysicsRigidBody::Parameters params;
-	params.mass = isStatic ? 0.0f : 10.0f;
-	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::mesh(node->getModel()->getMesh()), &params);
-//*/
-	/*if(isStatic) node->setCollisionObject(concat(2, "res/common/models.physics#static", modelNode->getId()));
-	else node->setCollisionObject(concat(2, "res/common/models.physics#", modelNode->getId()));
-	PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
-	body->addCollisionListener(this);
-	body->_body->setSleepingThresholds(0.1f, 0.1f);
-	body->setActivation(ACTIVE_TAG);//*/
 	return node;
 }
 
-Node* T4TApp::createWireframe(std::vector<float>& vertices, char *id) {
+MyNode* T4TApp::createWireframe(std::vector<float>& vertices, char *id) {
 	int numVertices = vertices.size()/6;
 	VertexFormat::Element elements[] = {
 		VertexFormat::Element(VertexFormat::POSITION, 3),
@@ -690,14 +625,14 @@ Node* T4TApp::createWireframe(std::vector<float>& vertices, char *id) {
 		} while(_scene->findNode(newID) != NULL);
 		id = newID;
 	}
-	Node *node = Node::create(id);
+	MyNode *node = MyNode::create(id);
 	node->setModel(model);
 	model->release();
 	return node;
 }
 
 //place at the given xz-coords and set its y-coord so it is on top of any objects it would otherwise intersect
-void T4TApp::placeNode(Node *node, float x, float z)
+void T4TApp::placeNode(MyNode *node, float x, float z)
 {
 	_intersectNodeGroup.clear();
 	_intersectNodeGroup.push_back(node);
@@ -774,7 +709,7 @@ void T4TApp::buildVehicle() {
 	_vehicleProject->setActive(true);
 }
 
-Node* T4TApp::promptComponent() {
+void T4TApp::promptComponent() {
 	_componentMenu->setVisible(true);
 }
 
@@ -788,54 +723,18 @@ void T4TApp::collisionEvent(PhysicsCollisionObject::CollisionListener::EventType
             pair.objectB->getNode()->getId(), pointB.x, pointB.y, pointB.z);
 }
 
-void T4TApp::translateNode(Node *node, Vector3 trans) {
-	//determine the set of all nodes constrained to this one - translate all of them
-	Node::nodeData *data = node->getData();
-	std::vector<Node*> nodes;
-	nodes.push_back(node);
-	for(int i = 0; i < data->constraints.size(); i++) {
-		Node *other = _scene->findNode(data->constraints[i]->other.c_str());
-		if(other != NULL) nodes.push_back(other);
-	}
-	for(int i = 0; i < nodes.size(); i++) {
-		Node *n = nodes[i];
-		n->setCollisionObject(PhysicsCollisionObject::NONE);
-	}
-}
-
-Node* T4TApp::loadNodeFromData(const char *nodeID) {
-	Node *node = _scene->addNode(nodeID);
+MyNode* T4TApp::loadNodeFromData(const char *nodeID) {
+	MyNode *node = MyNode::create(nodeID);
+	_scene->addNode(node);
 	char *filename = concat(3, "res/common/", nodeID, ".node");
 	node->reloadFromData(filename, true);
 	addConstraints(node);
 }
 
-void T4TApp::removeNode(Node *node, const char *newID) {
-	//if we are planning to reload this node under a new ID, update all constraints to use the new ID
-	if(newID != NULL) {
-		Node::nodeData *data = node->getData();
-		for(int i = 0; i < data->constraints.size(); i++) {
-			Node *other = _scene->findNode(data->constraints[i]->other.c_str());
-			if(other == NULL) continue;
-			Node::nodeData *otherData = other->getData();
-			for(int j = 0; j < otherData->constraints.size(); j++) {
-				if(otherData->constraints[j]->other.compare(node->getId()) == 0) {
-					otherData->constraints[j]->other = newID;
-				}
-			}
-		}
-	}
-	//remove the node and its constraints
-	PhysicsCollisionObject *obj = node->getCollisionObject();
-	if(obj) getPhysicsController()->removeCollisionObject(obj, true);
-	_scene->removeNode(node);
-	removeConstraints(node);
-}
-
 /********** PHYSICS ***********/
 
-void T4TApp::addCollisionObject(Node *node) {
-	Node::nodeData *data = node->getData();
+void T4TApp::addCollisionObject(MyNode *node) {
+	MyNode::nodeData *data = node->getData();
 	PhysicsRigidBody::Parameters params;
 	params.mass = data->staticObj ? 0.0f : data->mass;
 	if(data->objType.compare("mesh") == 0) {
@@ -847,10 +746,10 @@ void T4TApp::addCollisionObject(Node *node) {
 	}
 }
 
-PhysicsConstraint* T4TApp::addConstraint(Node *n1, Node *n2, const char *type, ...) {
+PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, const char *type, ...) {
 	va_list arguments;
 	va_start(arguments, type);
-	Node *node[2];
+	MyNode *node[2];
 	PhysicsRigidBody *body[2];
 	Vector3 trans[2];
 	Quaternion rot[2];
@@ -866,6 +765,12 @@ PhysicsConstraint* T4TApp::addConstraint(Node *n1, Node *n2, const char *type, .
 			trans[i] = *((Vector3*) va_arg(arguments, Vector3*));
 		}
 		ret = getPhysicsController()->createHingeConstraint(body[0], rot[0], trans[0], body[1], rot[1], trans[1]);
+	} else if(strcmp(type, "spring") == 0) {
+		for(i = 0; i < 2; i++) {
+			rot[i] = *((Quaternion*) va_arg(arguments, Quaternion*));
+			trans[i] = *((Vector3*) va_arg(arguments, Vector3*));
+		}
+		ret = getPhysicsController()->createSpringConstraint(body[0], rot[0], trans[0], body[1], rot[1], trans[1]);
 	} else if(strcmp(type, "socket") == 0) {
 		for(i = 0; i < 2; i++) {
 			trans[i] = *((Vector3*) va_arg(arguments, Vector3*));
@@ -877,7 +782,7 @@ PhysicsConstraint* T4TApp::addConstraint(Node *n1, Node *n2, const char *type, .
 	va_end(arguments);
 	for(i = 0; i < 2; i++) {
 		bool exists = false; //see if this constraint is already in the node data
-		Node::nodeData *data = node[i]->getData();
+		MyNode::nodeData *data = node[i]->getData();
 		unsigned short ind = data->constraints.size();
 		for(j = 0; j < ind; j++) {
 			if(data->constraints[j]->other.compare(node[(i+1)%2]->getId()) == 0
@@ -887,7 +792,7 @@ PhysicsConstraint* T4TApp::addConstraint(Node *n1, Node *n2, const char *type, .
 			}
 		}
 		if(!exists) {
-			data->constraints.push_back(new Node::nodeConstraint());
+			data->constraints.push_back(new MyNode::nodeConstraint());
 			data->constraints[ind]->other = node[(i+1)%2]->getId();
 			data->constraints[ind]->type = type;
 			data->constraints[ind]->rotation = rot[i];
@@ -898,13 +803,13 @@ PhysicsConstraint* T4TApp::addConstraint(Node *n1, Node *n2, const char *type, .
 	return ret;
 }
 
-void T4TApp::addConstraints(Node *node) {
-	Node::nodeData *data = node->getData();
+void T4TApp::addConstraints(MyNode *node) {
+	MyNode::nodeData *data = node->getData();
 	for(int i = 0; i < data->constraints.size(); i++) {
-		Node *other = _scene->findNode(data->constraints[i]->other.c_str());
-		if(other == NULL) continue;
+		MyNode *other = dynamic_cast<MyNode*>(_scene->findNode(data->constraints[i]->other.c_str()));
+		if(!other) continue;
 		std::string type = data->constraints[i]->type;
-		Node::nodeData *otherData = other->getData();
+		MyNode::nodeData *otherData = other->getData();
 		for(int j = 0; j < otherData->constraints.size(); j++) {
 			if(otherData->constraints[j]->other.compare(node->getId()) == 0
 				&& otherData->constraints[j]->type.compare(type) == 0) {
@@ -915,7 +820,7 @@ void T4TApp::addConstraints(Node *node) {
 	}
 }
 
-void T4TApp::removeConstraints(Node *node) {
+void T4TApp::removeConstraints(MyNode *node) {
 	PhysicsController *controller = getPhysicsController();
 	if(_constraints.find(node) == _constraints.end() || _constraints[node].size() == 0) return;
 	for(PhysicsConstraint *constraint = _constraints[node].back(); constraint != NULL; constraint = _constraints[node].back()) {
@@ -924,7 +829,7 @@ void T4TApp::removeConstraints(Node *node) {
 	}
 }
 
-void T4TApp::enablePhysics(Node *node, bool enable) {
+void T4TApp::enablePhysics(MyNode *node, bool enable) {
 	PhysicsCollisionObject *obj = node->getCollisionObject();
 	if(enable) {
 		if(obj == NULL) {
@@ -943,12 +848,12 @@ void T4TApp::enablePhysics(Node *node, bool enable) {
 	}
 }
 
-void T4TApp::removePhysics(Node *node) {
+void T4TApp::removePhysics(MyNode *node) {
 	removeConstraints(node);
 	node->setCollisionObject(PhysicsCollisionObject::NONE);
 }
 
-void T4TApp::addPhysics(Node *node) {
+void T4TApp::addPhysics(MyNode *node) {
 	addCollisionObject(node);
 	addConstraints(node);
 }

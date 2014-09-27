@@ -133,9 +133,10 @@ source_group(src FILES ${GAME_SRC})
 set(GAME_SRC
 	src/T4TApp.cpp
 	src/T4TApp.h
+	src/MyNode.cpp
+	src/MyNode.h
 	src/Grid.cpp
 	src/Grid.h
-	src/VehicleProject.cpp
 	src/ProjectComponent.cpp
 	src/Lever.cpp
 	src/Pulley.cpp

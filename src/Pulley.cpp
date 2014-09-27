@@ -24,7 +24,7 @@ bool T4TApp::Pulley::bucketTouch(Touch::TouchEvent evt, int x, int y) {
 	return true;
 }
 
-void T4TApp::Pulley::placeElement(Node *node) {
+void T4TApp::Pulley::placeElement(MyNode *node) {
 	BoundingBox box = node->getModel()->getMesh()->getBoundingBox();
 	float x, y;
 	switch(_currentElement) {
@@ -55,7 +55,7 @@ void T4TApp::Pulley::placeElement(Node *node) {
 	}
 }
 
-void T4TApp::Pulley::finishElement(Node *node) {
+void T4TApp::Pulley::finishElement(MyNode *node) {
 	switch(_currentElement) {
 		case 0:
 			break;
@@ -66,32 +66,9 @@ void T4TApp::Pulley::finishElement(Node *node) {
 		case 3: { //all components added - now create the rope as a set of chain links with socket constraints
 			Vector3 wheel(_allNodes[1]->getTranslationWorld());
 			unsigned short i, j, v = 0;
-			//create the chain link model
-			std::vector<float> vertices(12);
-			float color[3] = {1.0f, 0.0f, 1.0f};
-			for(i = 0; i < 2; i++) {
-				for(j = 0; j < 2; j++) vertices[v++] = 0;
-				vertices[v++] = (2*i-1) * _linkLength/2;
-				for(j = 0; j < 3; j++) vertices[v++] = color[j];
-			}
-			VertexFormat::Element elements[] = {
-				VertexFormat::Element(VertexFormat::POSITION, 3),
-				VertexFormat::Element(VertexFormat::COLOR, 3)
-			};
-			Node *linkTemplate = Node::create("segment"), *link;
-			Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), v/6, false);
-			mesh->setPrimitiveType(Mesh::LINES);
-			mesh->setVertexData(&vertices[0], 0, v/6);
-			Model *model = Model::create(mesh);
-			mesh->release();
-			model->setMaterial("res/common/grid.material");
-			node->setModel(model);
-			model->release();
-			PhysicsRigidBody::Parameters params;
-			params.mass = 0.3f;
-			std::vector<Node*> links(_numLinks);
+			std::vector<MyNode*> links(_numLinks);
 			std::vector<Vector3> joints(_numLinks+1);
-			//copy it into all the links
+			//create the chain by duplicating a box a bunch of times
 			float x, y, z = wheel.z, angle;
 			Vector3 zAxis(0, 0, 1), joint, trans1, trans2;
 			joints[0].set(wheel);

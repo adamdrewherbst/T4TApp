@@ -28,7 +28,7 @@ T4TApp::ProjectComponent::ProjectComponent(T4TApp *app_, const char* filename, c
 void T4TApp::ProjectComponent::controlEvent(Control *control, EventType evt) {
 	const char *controlID = control->getId();
 	if(strncmp(controlID, "comp_", 5) != 0) return;
-	Node *node = app->duplicateModelNode(controlID+5, _isStatic[_currentElement]);
+	MyNode *node = app->duplicateModelNode(controlID+5, _isStatic[_currentElement]);
 	std::stringstream ss;
 	ss << _id << _typeCount << "_" << _elementNames[_currentElement];
 	const std::string nodeID = ss.str();

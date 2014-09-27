@@ -15,7 +15,7 @@ void T4TApp::ToolMode::setActive(bool active) {
 	_touching = false;
 }
 
-void T4TApp::ToolMode::setNode(Node *node) {
+void T4TApp::ToolMode::setNode(MyNode *node) {
 	_node = node;
 	app->getScriptController()->executeFunction<void>("camera_setNode", "s", _node != NULL ? _node->getId() : NULL);
 	if(_node != NULL) {
