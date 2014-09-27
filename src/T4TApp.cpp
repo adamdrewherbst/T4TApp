@@ -113,10 +113,17 @@ void T4TApp::initialize()
 	_models->addNode("sphere");
 	_models->addNode("cylinder");
 	_models->addNode("halfpipe");
-	_models->addNode("box");//*/
+	_models->addNode("box");
+	_models->addNode("gear");
+	_models->addNode("tube");
+	_models->addNode("vase");
+	_models->addNode("disc");
+	_models->addNode("cone");
+	_models->addNode("heart");
+	_models->addNode("gear_thin");
 
 	//populate item submenu
-	_itemButton = addButton <Button> (_sideMenu, "parent_itemContainer", "Add Object >>"); //dropdown menu for object catalog
+	_itemButton = addButton <Button> (_sideMenu, "itemButton", "Add Object >>"); //button to open object catalog
 
     Node *modelNode = _models->getFirstNode();
     while(modelNode) {
@@ -129,7 +136,7 @@ void T4TApp::initialize()
 			itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
 			itemImage->setWidth(150.0f);
 			itemImage->setHeight(150.0f);
-			Node::nodeData *data = (Node::nodeData*)modelNode->getUserPointer();
+			Node::nodeData *data = modelNode->getData();
 			data->type = modelNode->getId();
 		}
 		modelNode->setTranslation(Vector3(1000.0f,0.0f,0.0f));
@@ -147,7 +154,8 @@ void T4TApp::initialize()
     }
 
 	_modes.push_back(new RotateMode(this));
-	_modes.push_back(new SelectMode(this));	
+	_modes.push_back(new PositionMode(this));
+	_modes.push_back(new ConstraintMode(this));
 	_modes.push_back(new SliceMode(this));
 	_modes.push_back(new DrillMode(this));
 	_modes.push_back(new TestMode(this));
@@ -446,246 +454,20 @@ void T4TApp::keyEvent(Keyboard::KeyEvent evt, int key)
 void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
 {
 	_touchPoint.set(x, y);
-	bool rotate = false;
-	//cout << "touch event at " << x << ", " << y << endl;
     switch (evt)
     {
-    case Touch::TOUCH_PRESS:
-		if(_mode.compare("Constraint") == 0) {
-			//see if the touch point intersects an edge
-			//_scene->visit(this, &T4TApp::checkTouchEdge);
-		    Camera* camera = _scene->getActiveCamera();
-
-		    // Get a pick ray
-		    Ray ray;
-		    camera->pickRay(getViewport(), x, y, &ray);
-
-		    // Cast a ray into the physics world to test for hits
-		    PhysicsController::HitResult hitResult;
-		    if (getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult))
-		    {
-		        // Get the node we touched
-		        Node* node = hitResult.object->getNode();
-		        if(node != NULL && strcmp(node->getId(), "grid") == 0) break;
-		        // Get the exact point touched, in world space
-		        Vector3 p = hitResult.point;
-		        cout << "hit " << node->getId() << " at " << p.x << "," << p.y << "," << p.z << endl;
-		        //the vertex data is in a GL buffer, so to get it, we have to transform the model vertices
-		        Node::nodeData *data = (Node::nodeData*)node->getUserPointer();
-		        if(data != NULL) {
-			        node->updateData();
-		        	cout << "finding closest edge" << endl;
-				    //get the closest edge to the contact point by using the vertex coords obtained above
-				    Vector3 v, w, projection;
-				    float t, distance, minDistance = 999999;
-				    int minEdge;
-				    for(int i = 0; i < data->edges.size(); i++) {
-				    	//cout << "testing " << i << ": " << data->edges[i*2] << "-" << data->edges[i*2+1] << endl;
-				    	v = data->worldVertices[data->edges[i][0]];
-				    	w = data->worldVertices[data->edges[i][1]];
-					    const float l2 = (v - w).lengthSquared();
-						const float t = (p - v).dot(w - v) / l2;
-						if (t < 0.0) distance = p.distance(v);       // Beyond the 'v' end of the segment
-						else if (t > 1.0) distance = p.distance(w);  // Beyond the 'w' end of the segment
-						else {
-							projection = v + ((w - v) * t);  // Projection falls on the segment
-							distance = p.distance(projection);
-						}
-						if(distance < minDistance) {
-							minDistance = distance;
-							minEdge = i;
-						}
-				    }
-				    cout << "closest edge at distance " << minDistance << ": (" << printVector(data->worldVertices[data->edges[minEdge][0]]) << ", " << printVector(data->worldVertices[data->edges[minEdge][1]]) << ")" << endl;
-				    
-				    if(_constraintNodes[0] == NULL || _constraintNodes[0] == node) { //if this is the first edge, highlight it
-				    	_constraintNodes[0] = node;
-				    	_constraintEdges[0] = minEdge;
-				    } else { //otherwise, create the constraint
-				    	_constraintNodes[1] = node;
-				    	_constraintEdges[1] = minEdge;
-
-				    	//node/edge data
-				    	Node::nodeData *dataArr[2];
-				    	dataArr[0] = (Node::nodeData*)_constraintNodes[0]->getUserPointer();
-				    	dataArr[1] = data;
-				    	Vector3 vert[2][2], edgeDir[2], edgeMid[2], bodyCenter[2];
-				    	//for calculations
-				    	Vector3 cross, rotAxis;
-				    	float rotAngle;
-				    	
-				    	//find the rotation and translation from each body's local z-axis to the hinge edge axis
-				    	//mainly to be used when creating the constraint
-				    	Quaternion localRot[2];
-				    	Vector3 localTrans[2], localEdge[2], localEdgeDir[2], localZ = Vector3(0.0f, 0.0f, 1.0f);
-				    	for(int i = 0; i < 2; i++) {
-				    		for(int j = 0; j < 2; j++) {
-				    			int v = dataArr[i]->edges[_constraintEdges[i]][j];
-				    			localEdge[j] = dataArr[i]->vertices[v];
-				    		}
-				    		cout << "edge on " << _constraintNodes[i]->getId() << ": (" << printVector(localEdge[0]) << ", " << printVector(localEdge[1]) << ")" << endl;
-				    		localTrans[i] = (localEdge[0] + localEdge[1]) / 2.0f;
-				    		localEdgeDir[i] = localEdge[1] - localEdge[0];
-				    		Vector3::cross(localZ, localEdgeDir[i], &cross);
-				    		localRot[i] = Quaternion(cross.x, cross.y, cross.z,
-				    			sqrt(localEdgeDir[i].lengthSquared()) + Vector3::dot(localZ, localEdgeDir[i]));
-				    		localRot[i].normalize();
-				    		
-				    		rotAngle = localRot[i].toAxisAngle(&rotAxis);
-				    		cout << "rotation by " << rotAngle << " about " << printVector(rotAxis) << endl;
-				    		cout << "translation by " << printVector(localTrans[i]) << endl;
-				    	}
-
-				    	//transform the edges' vertices to world space
-				    	for(int i = 0; i < 2; i++) {
-							int v = dataArr[0]->edges[_constraintEdges[0]][i];
-							_constraintNodes[0]->getWorldMatrix().transformVector(dataArr[0]->vertices[v], &vert[0][i]);
-				    		vert[1][i] = data->worldVertices[data->edges[minEdge][i]];
-				    	}
-				    	for(int i = 0; i < 2; i++) edgeDir[i] = vert[i][1] - vert[i][0];
-
-				    	//find the rotation quaternion between the 2 edges to be joined
-				    	Vector3::cross(edgeDir[1], edgeDir[0], &cross);
-				    	Quaternion rot(cross.x, cross.y, cross.z,
-				    		sqrt(edgeDir[0].lengthSquared() * edgeDir[1].lengthSquared()) + Vector3::dot(edgeDir[0], edgeDir[1]));
-				    	rot.normalize();
-				    	
-				    	rotAngle = rot.toAxisAngle(&rotAxis);
-				    	cout << "need to rotate " << _constraintNodes[1]->getId() << " by " << rotAngle << " about " << printVector(rotAxis) << endl;
-				    	
-				    	//perform the rotation
-				    	Quaternion curRot = _constraintNodes[1]->getRotation();
-				    	_constraintNodes[1]->setRotation(rot);
-				    	_constraintNodes[1]->rotate(curRot);
-				    	
-				    	//recalculate the edge coords
-				    	for(int i = 0; i < 2; i++) {
-				    		int v = dataArr[1]->edges[_constraintEdges[1]][i];
-				    		_constraintNodes[1]->getWorldMatrix().transformVector(dataArr[1]->vertices[v], &vert[1][i]);
-				    	}
-				    	for(int i = 0; i < 2; i++) {
-				    		edgeMid[i] = (vert[i][0] + vert[i][1]) / 2.0f;
-				    		edgeDir[i] = vert[i][1] - vert[i][0];
-				    		bodyCenter[i] = _constraintNodes[i]->getTranslation();
-				    	}
-				    	
-				    	//rotate the 2nd body about the hinge axis to be opposite the 1st body
-				    	Vector3 bodyToEdge[2], bodyToEdgePerp[2];
-				    	for(int i = 0; i < 2; i++) {
-				    		bodyToEdge[i] = edgeMid[i] - bodyCenter[i];
-				    		bodyToEdgePerp[i] = bodyToEdge[i] - (edgeDir[i] * (Vector3::dot(bodyToEdge[i], edgeDir[i]) / edgeDir[i].lengthSquared()));
-				    	}
-				    	Vector3::cross(bodyToEdgePerp[1], bodyToEdgePerp[0] * -1.0f, &cross);
-				    	rot.set(cross.x, cross.y, cross.z,
-				    		sqrt(bodyToEdgePerp[0].lengthSquared() * bodyToEdgePerp[1].lengthSquared()) + Vector3::dot(bodyToEdgePerp[0], bodyToEdgePerp[1]));
-				    	rot.normalize();
-				    	rotAngle = rot.toAxisAngle(&rotAxis);
-				    	_constraintNodes[1]->rotate(localEdgeDir[1], rotAngle);
-				    	
-				    	//recalculate the edge coords
-				    	for(int i = 0; i < 2; i++) {
-				    		int v = dataArr[1]->edges[_constraintEdges[1]][i];
-				    		_constraintNodes[1]->getWorldMatrix().transformVector(dataArr[1]->vertices[v], &vert[1][i]);
-				    	}
-				    	edgeMid[1] = (vert[1][0] + vert[1][1]) / 2.0f;
-
-				    	//translate the 2nd body so their edge midpoints touch
-				    	_constraintNodes[1]->translate(edgeMid[0] - edgeMid[1]);
-				    	
-				    	//create the hinge constraint
-				    	getPhysicsController()->createHingeConstraint(
-				    		_constraintNodes[0]->getCollisionObject()->asRigidBody(),
-				    		localRot[0],
-				    		localTrans[0],
-				    		_constraintNodes[1]->getCollisionObject()->asRigidBody(),
-				    		localRot[1],
-				    		localTrans[1]
-				    	);
-				    	
-				    	//update the collision object for the 2nd body
-				    	PhysicsRigidBody *body = _constraintNodes[1]->getCollisionObject()->asRigidBody();
-				    	body->setEnabled(false); body->setEnabled(true); body->setActivation(ACTIVE_TAG);
-				    	_constraintNodes[0] = NULL; //and reset for next time
-				    }
-				}
-		    }
-		}
-		else if(_mode.compare("Ball Drop") == 0) {
-			Ray ray;
-			Plane vertical(Vector3(0, 0, 1), 0);
-			_scene->getActiveCamera()->pickRay(getViewport(), x, y, &ray);
-			float distance = ray.intersects(vertical);
-			if(distance != Ray::INTERSECTS_NONE) {
-				float worldX = ray.getOrigin().x + ray.getDirection().x * distance;
-				Node *node = duplicateModelNode("sphere");
-				addCollisionObject(node);
-				PhysicsRigidBody *body = node->getCollisionObject()->asRigidBody();
-				body->setEnabled(false);
-				node->setTranslation(worldX, 10.0f, 0.0f);
-				body->setEnabled(true);
-				_scene->addNode(node);
-			}
-		}
-	    _debugFlag = false;
-	    break;
-    case Touch::TOUCH_MOVE:
-   	{
-    }
-    case Touch::TOUCH_RELEASE:
-    	_debugFlag = true;
-    	enableScriptCamera(true);
-    	_physicsStopped = false;
-    	updateCount = 0;
-        break;
+		case Touch::TOUCH_PRESS:
+			_debugFlag = false;
+			break;
+		case Touch::TOUCH_MOVE:
+			break;
+		case Touch::TOUCH_RELEASE:
+			_debugFlag = true;
+			enableScriptCamera(true);
+			_physicsStopped = false;
+			updateCount = 0;
+		    break;
     };
-}
-
-Node* T4TApp::getMouseNode(int x, int y, Vector3 *touch) {
-	Camera* camera = _scene->getActiveCamera();
-	Ray ray;
-	camera->pickRay(getViewport(), x, y, &ray);
-	PhysicsController::HitResult hitResult;
-	if(!getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) return NULL;
-	if(touch) touch->set(hitResult.point);
-	Node *node = hitResult.object->getNode();
-	if(node == NULL || strcmp(node->getId(), "grid") == 0) return NULL;
-	return node;
-}
-
-//see if the current touch location intersects the bottom face of the given object
-bool T4TApp::checkTouchModel(Node* node)
-{
-	if(strcmp(node->getScene()->getId(), "models") == 0) return true;
-	if(strcmp(node->getId(), "knife") == 0) return true;
-	for(int i = 0; i < _intersectNodeGroup.size(); i++)
-		if(node == _intersectNodeGroup[i]) return true;
-	Vector3 pos = node->getTranslation();
-	Model* model = node->getModel();
-	if(model == NULL) return true;
-	BoundingBox bbox = model->getMesh()->getBoundingBox();
-	float halfX = (_intersectBox->max.x - _intersectBox->min.x) / 2.0f,
-		halfY = (_intersectBox->max.y - _intersectBox->min.y) / 2.0f,
-		halfZ = (_intersectBox->max.z - _intersectBox->min.z) / 2.0f;
-	if(_intersectPoint.x + halfX > pos.x + bbox.min.x && _intersectPoint.x - halfX < pos.x + bbox.max.x
-		&& _intersectPoint.z + halfZ > pos.z + bbox.min.z && _intersectPoint.z - halfZ < pos.z + bbox.max.z)
-	{
-		if(_intersectModel == NULL || halfY + pos.y + bbox.max.y > _intersectPoint.y)
-		{
-			_intersectModel = node;
-			_intersectPoint.y = pos.y + bbox.max.y + halfY;
-		}
-	}
-	return true;
-}
-
-//find the closest edge on this model to the touch point in 3D space - if it is the closest so far, store edge and distance
-bool T4TApp::checkTouchEdge(Node* node)
-{
-	Node::nodeData* data = (Node::nodeData*)node->getUserPointer();
-	for(int i = 0; i < data->edges.size(); i++) {
-		//get starting point and direction vector of camera sight, and edge
-	}
-	return false;
 }
 
 void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
@@ -740,9 +522,18 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 			}
 		}
 	}
-	//user clicked on an item in the catalog
-	else if(_componentMenu->getControl(controlID) == control) {
-		//now handled by individual project components
+	//handle opening of the item catalog/adding an item
+	else if(control == _itemButton) {
+		_componentMenu->addListener(this, Control::Listener::CLICK);
+		_componentMenu->setVisible(true);
+	}
+	else if(_componentMenu->getControl(controlID) == control && strncmp(controlID, "comp_", 5) == 0) {
+		Node *node = duplicateModelNode(controlID+5);
+		addCollisionObject(node);
+		_scene->addNode(node);
+		placeNode(node, 0.0f, 0.0f);
+		_componentMenu->setVisible(false);
+		_componentMenu->removeListener(this);
 	}
 	else if(strcmp(controlID, "debugButton") == 0) {
 		debugTrigger();
@@ -771,6 +562,69 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	}
 }
 
+Node* T4TApp::getMouseNode(int x, int y, Vector3 *touch) {
+	Camera* camera = _scene->getActiveCamera();
+	Ray ray;
+	camera->pickRay(getViewport(), x, y, &ray);
+	PhysicsController::HitResult hitResult;
+	if(!getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) return NULL;
+	if(touch) touch->set(hitResult.point);
+	Node *node = hitResult.object->getNode();
+	if(node == NULL || strcmp(node->getId(), "grid") == 0) return NULL;
+	return node;
+}
+
+//see if the current touch location intersects the bottom face of the given object
+bool T4TApp::checkTouchModel(Node* node)
+{
+	if(strcmp(node->getScene()->getId(), "models") == 0) return true;
+	if(strcmp(node->getId(), "knife") == 0) return true;
+	if(strcmp(node->getId(), "drill") == 0) return true;
+	for(int i = 0; i < _intersectNodeGroup.size(); i++)
+		if(node == _intersectNodeGroup[i]) return true;
+	Vector3 pos = node->getTranslation();
+	BoundingBox bbox = getWorldBox(node);
+	if(bbox.isEmpty()) return true;
+	float halfX = (_intersectBox.max.x - _intersectBox.min.x) / 2.0f,
+		halfY = (_intersectBox.max.y - _intersectBox.min.y) / 2.0f,
+		halfZ = (_intersectBox.max.z - _intersectBox.min.z) / 2.0f;
+	if(_intersectPoint.x + halfX > pos.x + bbox.min.x && _intersectPoint.x - halfX < pos.x + bbox.max.x
+		&& _intersectPoint.z + halfZ > pos.z + bbox.min.z && _intersectPoint.z - halfZ < pos.z + bbox.max.z)
+	{
+		if(_intersectModel == NULL || halfY + pos.y + bbox.max.y > _intersectPoint.y)
+		{
+			_intersectModel = node;
+			_intersectPoint.y = pos.y + bbox.max.y + halfY;
+		}
+	}
+	return true;
+}
+
+//seems bounding box is not corrected for scale - do that here
+BoundingBox T4TApp::getWorldBox(Node *node) {
+	Model *model = node->getModel();
+	if(model == NULL) return BoundingBox::empty();
+	BoundingBox box = model->getMesh()->getBoundingBox();
+	Vector3 scale = node->getScale(), center = box.getCenter(), min = box.min - center, max = box.max - center;
+	min.x *= scale.x;
+	min.y *= scale.y;
+	min.z *= scale.z;
+	max.x *= scale.x;
+	max.y *= scale.y;
+	max.z *= scale.z;
+	return BoundingBox(center + min, center + max);
+}
+
+//find the closest edge on this model to the touch point in 3D space - if it is the closest so far, store edge and distance
+bool T4TApp::checkTouchEdge(Node* node)
+{
+	Node::nodeData* data = node->getData();
+	for(int i = 0; i < data->edges.size(); i++) {
+		//get starting point and direction vector of camera sight, and edge
+	}
+	return false;
+}
+
 void T4TApp::changeNodeModel(Node *node, const char* type)
 {
 	Node *modelNode = _models->findNode(type);
@@ -781,8 +635,8 @@ void T4TApp::changeNodeModel(Node *node, const char* type)
 	node->setModel(model);
 //	node->setScale(modelNode->getScale());
 //	node->setRotation(modelNode->getRotation());
-	Node::nodeData *data = (Node::nodeData*) modelNode->getUserPointer();
-	node->setUserPointer(data);
+	Node::nodeData *data = modelNode->getData();
+	node->data = data;
 	clone->release();
 }
 
@@ -793,12 +647,12 @@ Node* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 	Node *node = modelNode->clone();
 	BoundingBox box = node->getModel()->getMesh()->getBoundingBox();
 	node->setTranslation(Vector3(0.0f, (box.max.y - box.min.y)/2.0f, 0.0f));
-	Node::nodeData *data = (Node::nodeData*) modelNode->getUserPointer();
+	Node::nodeData *data = modelNode->getData();
 	const char count[2] = {(char)(++data->typeCount + 48), '\0'};
 	node->setId(concat(2, modelNode->getId(), count));
 	node->loadData(concat(3, "res/common/", type, ".node"));
 	node->updateData();
-	data = (Node::nodeData*)node->getUserPointer();
+	data = node->getData();
 	if(isStatic) data->mass = 0;
 
 	/*PhysicsRigidBody::Parameters params;
@@ -842,28 +696,16 @@ Node* T4TApp::createWireframe(std::vector<float>& vertices, char *id) {
 	return node;
 }
 
-void T4TApp::addCollisionObject(Node *node) {
-	Node::nodeData *data = (Node::nodeData*)node->getUserPointer();
-	PhysicsRigidBody::Parameters params;
-	params.mass = data->mass;
-	if(data->objType.compare("mesh") == 0) {
-		node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::mesh(node->getModel()->getMesh()), &params);
-	} else if(data->objType.compare("box") == 0) {
-		node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &params);
-	} else if(data->objType.compare("sphere") == 0) {
-		node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::sphere(), &params);
-	}
-}
-
 //place at the given xz-coords and set its y-coord so it is on top of any objects it would otherwise intersect
 void T4TApp::placeNode(Node *node, float x, float z)
 {
 	_intersectNodeGroup.clear();
 	_intersectNodeGroup.push_back(node);
-	_intersectBox = &node->getModel()->getMesh()->getBoundingBox();
-	float minY = _intersectBox->min.y;
+	_intersectBox = getWorldBox(node);
+	float minY = _intersectBox.min.y;
 	node->setTranslation(x, -minY, z); //put the bounding box bottom on the ground
 	_intersectPoint.set(x, -minY, z);
+	_intersectModel = NULL;
 	_scene->visit(this, &T4TApp::checkTouchModel); //will change _intersectPoint.y to be above any intersecting models
 	node->setTranslation(_intersectPoint);
 }
@@ -948,7 +790,7 @@ void T4TApp::collisionEvent(PhysicsCollisionObject::CollisionListener::EventType
 
 void T4TApp::translateNode(Node *node, Vector3 trans) {
 	//determine the set of all nodes constrained to this one - translate all of them
-	Node::nodeData *data = (Node::nodeData*)node->getUserPointer();
+	Node::nodeData *data = node->getData();
 	std::vector<Node*> nodes;
 	nodes.push_back(node);
 	for(int i = 0; i < data->constraints.size(); i++) {
@@ -958,6 +800,50 @@ void T4TApp::translateNode(Node *node, Vector3 trans) {
 	for(int i = 0; i < nodes.size(); i++) {
 		Node *n = nodes[i];
 		n->setCollisionObject(PhysicsCollisionObject::NONE);
+	}
+}
+
+Node* T4TApp::loadNodeFromData(const char *nodeID) {
+	Node *node = _scene->addNode(nodeID);
+	char *filename = concat(3, "res/common/", nodeID, ".node");
+	node->reloadFromData(filename, true);
+	addConstraints(node);
+}
+
+void T4TApp::removeNode(Node *node, const char *newID) {
+	//if we are planning to reload this node under a new ID, update all constraints to use the new ID
+	if(newID != NULL) {
+		Node::nodeData *data = node->getData();
+		for(int i = 0; i < data->constraints.size(); i++) {
+			Node *other = _scene->findNode(data->constraints[i]->other.c_str());
+			if(other == NULL) continue;
+			Node::nodeData *otherData = other->getData();
+			for(int j = 0; j < otherData->constraints.size(); j++) {
+				if(otherData->constraints[j]->other.compare(node->getId()) == 0) {
+					otherData->constraints[j]->other = newID;
+				}
+			}
+		}
+	}
+	//remove the node and its constraints
+	PhysicsCollisionObject *obj = node->getCollisionObject();
+	if(obj) getPhysicsController()->removeCollisionObject(obj, true);
+	_scene->removeNode(node);
+	removeConstraints(node);
+}
+
+/********** PHYSICS ***********/
+
+void T4TApp::addCollisionObject(Node *node) {
+	Node::nodeData *data = node->getData();
+	PhysicsRigidBody::Parameters params;
+	params.mass = data->staticObj ? 0.0f : data->mass;
+	if(data->objType.compare("mesh") == 0) {
+		node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::mesh(node->getModel()->getMesh()), &params);
+	} else if(data->objType.compare("box") == 0) {
+		node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &params);
+	} else if(data->objType.compare("sphere") == 0) {
+		node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::sphere(), &params);
 	}
 }
 
@@ -985,11 +871,13 @@ PhysicsConstraint* T4TApp::addConstraint(Node *n1, Node *n2, const char *type, .
 			trans[i] = *((Vector3*) va_arg(arguments, Vector3*));
 		}
 		ret = getPhysicsController()->createSocketConstraint(body[0], trans[0], body[1], trans[1]);
+	} else if(strcmp(type, "fixed") == 0) {
+		ret = getPhysicsController()->createFixedConstraint(body[0], body[1]);
 	}
 	va_end(arguments);
 	for(i = 0; i < 2; i++) {
 		bool exists = false; //see if this constraint is already in the node data
-		Node::nodeData *data = (Node::nodeData*)node[i]->getUserPointer();
+		Node::nodeData *data = node[i]->getData();
 		unsigned short ind = data->constraints.size();
 		for(j = 0; j < ind; j++) {
 			if(data->constraints[j]->other.compare(node[(i+1)%2]->getId()) == 0
@@ -1010,42 +898,13 @@ PhysicsConstraint* T4TApp::addConstraint(Node *n1, Node *n2, const char *type, .
 	return ret;
 }
 
-Node* T4TApp::loadNodeFromData(const char *nodeID) {
-	Node *node = _scene->addNode(nodeID);
-	char *filename = concat(3, "res/common/", nodeID, ".node");
-	node->reloadFromData(filename, true);
-	addConstraints(node);
-}
-
-void T4TApp::removeNode(Node *node, const char *newID) {
-	//if we are planning to reload this node under a new ID, update all constraints to use the new ID
-	if(newID != NULL) {
-		Node::nodeData *data = (Node::nodeData*)node->getUserPointer();
-		for(int i = 0; i < data->constraints.size(); i++) {
-			Node *other = _scene->findNode(data->constraints[i]->other.c_str());
-			if(other == NULL) continue;
-			Node::nodeData *otherData = (Node::nodeData*)other->getUserPointer();
-			for(int j = 0; j < otherData->constraints.size(); j++) {
-				if(otherData->constraints[j]->other.compare(node->getId()) == 0) {
-					otherData->constraints[j]->other = newID;
-				}
-			}
-		}
-	}
-	//remove the node and its constraints
-	PhysicsCollisionObject *obj = node->getCollisionObject();
-	if(obj) getPhysicsController()->removeCollisionObject(obj, true);
-	_scene->removeNode(node);
-	removeConstraints(node);
-}
-
 void T4TApp::addConstraints(Node *node) {
-	Node::nodeData *data = (Node::nodeData*)node->getUserPointer();
+	Node::nodeData *data = node->getData();
 	for(int i = 0; i < data->constraints.size(); i++) {
 		Node *other = _scene->findNode(data->constraints[i]->other.c_str());
 		if(other == NULL) continue;
 		std::string type = data->constraints[i]->type;
-		Node::nodeData *otherData = (Node::nodeData*)other->getUserPointer();
+		Node::nodeData *otherData = other->getData();
 		for(int j = 0; j < otherData->constraints.size(); j++) {
 			if(otherData->constraints[j]->other.compare(node->getId()) == 0
 				&& otherData->constraints[j]->type.compare(type) == 0) {
@@ -1063,6 +922,35 @@ void T4TApp::removeConstraints(Node *node) {
 		controller->removeConstraint(constraint);
 		_constraints[node].pop_back();
 	}
+}
+
+void T4TApp::enablePhysics(Node *node, bool enable) {
+	PhysicsCollisionObject *obj = node->getCollisionObject();
+	if(enable) {
+		if(obj == NULL) {
+			addPhysics(node);
+		} else {
+			PhysicsRigidBody *body = obj->asRigidBody();
+			body->setActivation(ACTIVE_TAG);
+			body->setEnabled(true);
+		}
+	} else {
+		if(obj->isStatic()) {
+			removePhysics(node);
+		} else {
+			obj->asRigidBody()->setEnabled(false);
+		}
+	}
+}
+
+void T4TApp::removePhysics(Node *node) {
+	removeConstraints(node);
+	node->setCollisionObject(PhysicsCollisionObject::NONE);
+}
+
+void T4TApp::addPhysics(Node *node) {
+	addCollisionObject(node);
+	addConstraints(node);
 }
 
 

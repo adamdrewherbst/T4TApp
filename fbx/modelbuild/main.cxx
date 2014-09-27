@@ -314,24 +314,24 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 					out << 2 << endl; //triangles
 					out << 0 << "\t" << 1 << "\t" << 2 << endl;
 					out << 0 << "\t" << 2 << "\t" << 3 << endl;
-					out << 4 << endl; //neighbors
-					out << (i-1)*segments + j << "\t" << i*segments + (j-1+segments)%segments << "\t"
-						<< i*segments + (j+1)%segments << "\t" << (i+1)*segments + j << endl;
+					//out << 4 << endl; //neighbors
+					//out << (i-1)*segments + j << "\t" << i*segments + (j-1+segments)%segments << "\t"
+					//	<< i*segments + (j+1)%segments << "\t" << (i+1)*segments + j << endl;
 				} else if(i == 0) {
 					out << 3 << endl; //face
 					out << 0 << "\t" << 1+(j+1)%segments << "\t" << 1+j << endl;
 					out << 1 << endl; //triangle
 					out << 0 << "\t" << 1 << "\t" << 2 << endl;
-					out << 3 << endl; //neighbors
-					out << (j-1+segments)%segments << "\t" << (j+1)%segments << "\t" << segments+j << endl;
+					//out << 3 << endl; //neighbors
+					//out << (j-1+segments)%segments << "\t" << (j+1)%segments << "\t" << segments+j << endl;
 				} else if(i == segments-1) {
 					out << 3 << endl; //face
 					out << start+j << "\t" << start+(j+1)%segments << "\t" << 1+segments*(segments-1) << endl;
 					out << 1 << endl; //triangle
 					out << 0 << "\t" << 1 << "\t" << 2 << endl;
-					out << 3 << endl; //neighbors
-					out << (segments-1)*segments + (j-1+segments)%segments << "\t" << (segments-1)*segments + (j+1)%segments
-						<< "\t" << (segments-2)*segments+j << endl;
+					//out << 3 << endl; //neighbors
+					//out << (segments-1)*segments + (j-1+segments)%segments << "\t" << (segments-1)*segments + (j+1)%segments
+					//	<< "\t" << (segments-2)*segments+j << endl;
 				}
 			}
 		}
@@ -371,8 +371,8 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 			out << 2 << endl; //triangles
 			out << 0 << "\t" << 1 << "\t" << 2 << endl;
 			out << 0 << "\t" << 2 << "\t" << 3 << endl;
-			out << 4 << endl; //neighbors
-			out << (i-1+segments)%segments << "\t" << (i+1)%segments << "\t" << segments << "\t" << segments+1 << endl;
+			//out << 4 << endl; //neighbors
+			//out << (i-1+segments)%segments << "\t" << (i+1)%segments << "\t" << segments << "\t" << segments+1 << endl;
 		}
 		for(int n = 0; n < 2; n++) { //end caps
 			out << segments << endl; //face
@@ -382,9 +382,9 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 			for(int i = 0; i < segments; i++) {
 				out << i << "\t" << (i+1)%segments << "\t" << segments << endl;
 			}
-			out << segments << endl; //neighbors
-			for(int i = 0; i < segments; i++) out << i << "\t";
-			out << endl;
+			//out << segments << endl; //neighbors
+			//for(int i = 0; i < segments; i++) out << i << "\t";
+			//out << endl;
 		}
 		//physics object
 		out << "mesh" << endl;
@@ -436,13 +436,13 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 				out << 2 << endl; //triangles
 				out << 0 << "\t" << 1 << "\t" << 2 << endl;
 				out << 0 << "\t" << 2 << "\t" << 3 << endl;
-				out << 4 << endl; //neighbors
-				out << 4*i + 2*(1 - n/2) << "\t" << 4*i + 2*(1 - n/2) + 1 << "\t";
-				if(i == 0) out << 2*segments << "\t";
-				else out << (i-1)*4 + n << "\t";
-				if(i == segments/2 - 1) out << 2*segments + 1 << "\t";
-				else out << (i+4)*4 + n << "\t";
-				out << endl;
+				//out << 4 << endl; //neighbors
+				//out << 4*i + 2*(1 - n/2) << "\t" << 4*i + 2*(1 - n/2) + 1 << "\t";
+				//if(i == 0) out << 2*segments << "\t";
+				//else out << (i-1)*4 + n << "\t";
+				//if(i == segments/2 - 1) out << 2*segments + 1 << "\t";
+				//else out << (i+4)*4 + n << "\t";
+				//out << endl;
 			}
 		}
 		for(int i = 0; i < 2; i++) {
@@ -452,9 +452,9 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 			out << 2 << endl; //triangles
 			out << 0 << "\t" << 1 << "\t" << 2 << endl;
 			out << 0 << "\t" << 2 << "\t" << 3 << endl;
-			out << 4 << endl; //neighbors
-			for(int j = 0; j < 4; j++) out << i*(segments/2 - 1)*4 + j << "\t";
-			out << endl;
+			//out << 4 << endl; //neighbors
+			//for(int j = 0; j < 4; j++) out << i*(segments/2 - 1)*4 + j << "\t";
+			//out << endl;
 		}
 		//physics object
 		out << "mesh" << endl;
@@ -509,9 +509,9 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 			out << 2 << endl; //triangles
 			out << 0 << "\t" << 1 << "\t" << 2 << endl;
 			out << 0 << "\t" << 2 << "\t" << 3 << endl;
-			out << 4 << endl; //neighbors
-			for(int j = 0; j < 6; j++) if(j != i && j != i + (1 - 2*(i%2))) out << j << "\t";
-			out << endl;
+			//out << 4 << endl; //neighbors
+			//for(int j = 0; j < 6; j++) if(j != i && j != i + (1 - 2*(i%2))) out << j << "\t";
+			//out << endl;
 		}
 		//physics object
 		out << "box" << endl;
@@ -530,6 +530,8 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 	out << 0 << endl;
 	//mass is 10 by default
 	out << 10 << endl;
+	//object is not static
+	out << 0 << endl;
 
 	out.close();
 	

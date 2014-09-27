@@ -891,7 +891,7 @@ PhysicsCollisionShape* PhysicsController::createShape(Node* node, const PhysicsC
     case PhysicsCollisionShape::SHAPE_MESH:
         {
             // Build mesh from passed in shape.
-            collisionShape = createMesh(shape.data.mesh, scale, (Node::nodeData*)node->getUserPointer());
+            collisionShape = createMesh(shape.data.mesh, scale, node->getData());
         }
         break;
 

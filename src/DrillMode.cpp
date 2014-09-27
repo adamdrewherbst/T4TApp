@@ -129,7 +129,7 @@ void T4TApp::DrillMode::setAxis(int axis) {
 //for debugging, zoom in on a face, highlight it, and show its drill intersections
 void T4TApp::DrillMode::drawFace(int f) {
 
-	Node::nodeData *data = (Node::nodeData*)_node->getUserPointer();
+	Node::nodeData *data = _node->getData();
 
 	//get the plane for this face
 	std::vector<unsigned short> face = data->faces[f];
@@ -487,7 +487,7 @@ void T4TApp::DrillMode::addDrillEdge(unsigned short v1, unsigned short v2, unsig
 bool T4TApp::DrillMode::toolNode() {
 	ToolMode::toolNode();
 	_node->updateData();
-	data = (Node::nodeData*)_node->getUserPointer();
+	data = _node->getData();
 	
 	usageCount++;
 

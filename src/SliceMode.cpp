@@ -63,7 +63,7 @@ bool T4TApp::SliceMode::toolNode() {
 	_slicePlane.transform(trans);
 	_slicePlane.setDistance(-_tool->getTranslationWorld().dot(_slicePlane.getNormal()));
 	cout << "slicing " << _node->getId() << " at " << app->printVector(_slicePlane.getNormal()) << " => " << _slicePlane.getDistance() << endl;
-	Node::nodeData *data = (Node::nodeData*)_node->getUserPointer();
+	Node::nodeData *data = _node->getData();
 	unsigned short e1, e2, numKeep = 0;
 	Vector3 v1, v2, planeOrigin = -_slicePlane.getDistance() * _slicePlane.getNormal();
 

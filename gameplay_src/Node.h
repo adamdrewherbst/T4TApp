@@ -670,7 +670,7 @@ public:
 		Vector3 scale;
 		Matrix initTrans; //combination of inital rotation, translation, and scaling
 		std::vector<Vector3> vertices, worldVertices, //model space and world space coords
-			normals; //normal for each face
+			normals, worldNormals; //model space (after scaling) and world space normal for each face
 		std::vector<std::vector<unsigned short> > edges; //vertex index pairs
 		std::map<unsigned short, std::map<unsigned short, unsigned short> > edgeInd; //index into edge list by vertex pair
 		std::vector<std::vector<unsigned short> > faces; //vertex indices of polygons (not triangles)
@@ -681,25 +681,37 @@ public:
 		//physics
 		std::string objType; //mesh, box, sphere, capsule
 		float mass;
+		bool staticObj;
 		std::vector<std::vector<unsigned short> > hulls; //vertex indices of convex hulls
 		std::vector<nodeConstraint*> constraints;
 	};
-	
+	nodeData *data;
+
+	nodeData* getData();	
 	static nodeData* readData(const char *filename);
 	static void writeData(nodeData *data, const char *filename, Node *node = NULL);
 	void writeMyData(const char *filename = NULL);
 	void loadData(const char *filename = NULL);
 	void updateData();
+	void reloadFromData(const char *filename, bool addPhysics = true);
 	void setNormals();
+	Matrix getInverseRotTrans();
+	short pt2Face(Vector3 point);
+	Plane facePlane(unsigned short f, bool modelSpace = false);
+	Vector3 faceCenter(unsigned short f, bool modelSpace = false);
+	void rotateFaceToPlane(unsigned short f, Plane p);
+	void rotateFaceToFace(unsigned short f, Node *other, unsigned short g);
 	void addEdge(unsigned short e1, unsigned short e2);
 	void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 	void addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
-	Vector3 getNormal(std::vector<unsigned short>& face);
+	Vector3 getNormal(std::vector<unsigned short>& face, bool modelSpace = false);
 	void triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 	void triangulateHelper(std::vector<unsigned short>& face, std::vector<unsigned short>& inds,
 	  std::vector<std::vector<unsigned short> >& triangles, Vector3 normal);
-	void reloadFromData(const char *filename, bool addPhysics = true);
+	bool isStatic();
+	void setStatic(bool stat);
 	
+	static Quaternion getVectorRotation(Vector3 v1, Vector3 v2);
 	static float gv(Vector3 *v, int dim);
 	static void sv(Vector3 *v, int dim, float val);
 

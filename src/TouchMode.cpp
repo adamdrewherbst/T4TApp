@@ -29,7 +29,7 @@ bool T4TApp::TouchMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned
 			Vector3 point = hitResult.point, v1, v2, v3, p, coords, normal;
 			cout << "touched " << node->getId() << " at " << point.x << "," << point.y << "," << point.z << endl;
 			Matrix m;
-			Node::nodeData *data = (Node::nodeData*)node->getUserPointer();
+			Node::nodeData *data = node->getData();
 			unsigned short i, j, k;
 			short touchFace = -1;
 			std::vector<unsigned short> face, triangle;

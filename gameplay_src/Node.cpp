@@ -28,6 +28,8 @@ Node::Node(const char* id)
     {
         _id = id;
     }
+    data = new nodeData();
+    data->staticObj = false;
 }
 
 Node::~Node()
@@ -1289,8 +1291,100 @@ void Node::sv(Vector3 *v, int dim, float val) {
 	}
 }
 
+Quaternion Node::getVectorRotation(Vector3 v1, Vector3 v2) {
+	Vector3 axis;
+	Vector3::cross(v1, v2, &axis);
+	float angle = acos(v1.dot(v2) / (v1.length() * v2.length()));
+	Quaternion rot;
+	Quaternion::createFromAxisAngle(axis, angle, &rot);
+	return rot;
+}
+
+Matrix Node::getInverseRotTrans() {
+	Matrix m;
+	m.translate(-getTranslationWorld());
+	Quaternion q(getRotation());
+	q.inverse();
+	m.rotate(q);
+	return m;
+}
+
+//given a point in space, find the best match for the face that contains it
+short Node::pt2Face(Vector3 point) {
+	unsigned short i, j, k, n;
+	short touchFace = -1;
+	std::vector<unsigned short> face, triangle;
+	Vector3 v1, v2, v3, p, coords;
+	Matrix m;
+	float minDistance = 9999.0f;
+	for(i = 0; i < data->faces.size(); i++) {
+		face = data->faces[i];
+		for(j = 0; j < data->triangles[i].size(); j++) {
+			triangle = data->triangles[i][j];
+			v1.set(data->worldVertices[face[triangle[1]]] - data->worldVertices[face[triangle[0]]]);
+			v2.set(data->worldVertices[face[triangle[2]]] - data->worldVertices[face[triangle[0]]]);
+			v3.set(data->worldNormals[i]);
+			p.set(point - data->worldVertices[face[triangle[0]]]);
+			m.set(v1.x, v2.x, v3.x, 0, v1.y, v2.y, v3.y, 0, v1.z, v2.z, v3.z, 0, 0, 0, 0, 1);
+			//m.set(v1.x, v1.y, v1.z, 0, v2.x, v2.y, v2.z, 0, v3.x, v3.y, v3.z, 0, 0, 0, 0, 1);
+			m.invert();
+			m.transformVector(p, &coords);
+			if(coords.x >= 0 && coords.y >= 0 && coords.x + coords.y <= 1 && fabs(coords.z) < minDistance) {
+				touchFace = i;
+				minDistance = fabs(coords.z);
+				cout << "best match " << i << " at " << minDistance << endl;
+				break;
+			}
+		}
+	}
+	return touchFace;
+}
+
+Plane Node::facePlane(unsigned short f, bool modelSpace) {
+	Vector3 normal(data->worldNormals[f]), vertex(data->worldVertices[data->faces[f][0]]);
+	normal.normalize(&normal);
+	Plane plane(normal, -vertex.dot(normal));
+	if(modelSpace) plane.transform(getInverseRotTrans());
+	return plane;
+}
+
+Vector3 Node::faceCenter(unsigned short f, bool modelSpace) {
+	Vector3 center(0, 0, 0);
+	unsigned short i, n = data->faces[f].size();
+	for(i = 0; i < n; i++) {
+		center += modelSpace ? data->vertices[data->faces[f][i]] : data->worldVertices[data->faces[f][i]];
+	}
+	center *= 1.0f / n;
+	return center;
+}
+
+//position node so that given face is flush with given plane
+void Node::rotateFaceToPlane(unsigned short f, Plane p) {
+	float angle;
+	Vector3 axis, face, plane;
+	//get model space face normal
+	data->normals[f].normalize(&face);
+	//get axis/angle rotation required to align face normal with plane normal
+	plane.set(-p.getNormal());
+	setRotation(getVectorRotation(face, plane));
+	//translate node so it is flush with the plane
+	Vector3 vertex(data->vertices[data->faces[f][0]]);
+	getWorldMatrix().transformPoint(&vertex);
+	float distance = vertex.dot(plane) - p.getDistance();
+	translate(-plane * distance);
+	updateData();
+}
+
+void Node::rotateFaceToFace(unsigned short f, Node *other, unsigned short g) {
+	Plane p = other->facePlane(g);
+	rotateFaceToPlane(f, p);
+	//also align centers of faces
+	Vector3 center1(0, 0, 0), center2(0, 0, 0);
+	translate(other->faceCenter(g) - faceCenter(f));
+	updateData();
+}
+
 void Node::addEdge(unsigned short e1, unsigned short e2) {
-	nodeData *data = getData();
 	if(data->edgeInd.find(e1) != data->edgeInd.end() && data->edgeInd[e1].find(e2) != data->edgeInd[e1].end()) return;
 	std::vector<unsigned short> edge(2);
 	edge[0] = e1;
@@ -1306,18 +1400,17 @@ void Node::addFace(std::vector<unsigned short>& face, std::vector<std::vector<un
 }
 
 void Node::addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
-	nodeData *data = getData();
 	data->faces.push_back(face);
 	data->triangles.push_back(triangles);
-	data->normals.push_back(getNormal(face));
+	data->normals.push_back(getNormal(face, true));
+	data->worldNormals.push_back(getNormal(face));
 	unsigned short n = face.size(), i;
 	for(i = 0; i < n; i++) addEdge(face[i], face[(i+1)%n]);
 }
 
 //calculate the properly oriented face normal by Newell's method
 // - https://www.opengl.org/wiki/Calculating_a_Surface_Normal#Newell.27s_Method
-Vector3 Node::getNormal(std::vector<unsigned short>& face) {
-	nodeData *data = getData();
+Vector3 Node::getNormal(std::vector<unsigned short>& face, bool modelSpace) {
 	Vector3 v1, v2, normal(0, 0, 0);
 	unsigned short i, n = face.size();
 	for(i = 0; i < n; i++) {
@@ -1327,6 +1420,7 @@ Vector3 Node::getNormal(std::vector<unsigned short>& face) {
 		normal.y += (v1.z - v2.z) * (v1.x + v2.x);
 		normal.z += (v1.x - v2.x) * (v1.y + v2.y);
 	}
+	if(modelSpace) getInverseRotTrans().transformVector(&normal);
 	return normal.normalize();
 }
 
@@ -1345,7 +1439,6 @@ void Node::triangulateHelper(std::vector<unsigned short>& face,
   std::vector<unsigned short>& inds,
   std::vector<std::vector<unsigned short> >& triangles,
   Vector3 normal) {
-	nodeData *data = getData();
 	unsigned short i, j, n = face.size();
 	short v = -1;
 	bool valid;
@@ -1388,6 +1481,10 @@ void Node::triangulateHelper(std::vector<unsigned short>& face,
 	face.erase(face.begin() + (v%n));
 	inds.erase(inds.begin() + (v%n));
 	if(n > 3) triangulateHelper(face, inds, triangles, normal);
+}
+
+Node::nodeData* Node::getData() {
+	return data;
 }
 
 Node::nodeData* Node::readData(const char *filename)
@@ -1478,19 +1575,14 @@ Node::nodeData* Node::readData(const char *filename)
 	    	data->triangles[i].push_back(triangle);
     	}
     	//neighbors
-    	str = stream->readLine(line, 2048);
+/*    	str = stream->readLine(line, 2048);
     	numNeighbors = atoi(str);
     	str = stream->readLine(line, 2048);
 		in.str(str);
     	for(int j = 0; j < numNeighbors; j++) {
     		in >> v1;
 	    	data->faceNeighbors[i].push_back(v1);
-    	}    	
-    	//calculate normal
-    	vec1.set(data->vertices[face[1]] - data->vertices[face[0]]);
-    	vec2.set(data->vertices[face[2]] - data->vertices[face[1]]);
-    	Vector3::cross(vec1, vec2, &normal);
-    	data->normals.push_back(normal);
+    	}//*/
     }
     //set the vertices according to the initial rotation, translation, & scale
 /*    data->initTrans = Matrix::identity();
@@ -1537,6 +1629,8 @@ Node::nodeData* Node::readData(const char *filename)
     }
     str = stream->readLine(line, 2048);
     data->mass = atof(str);
+    str = stream->readLine(line, 2048);
+    data->staticObj = atoi(str) > 0;
     stream->close();
     return data;
 }
@@ -1581,9 +1675,9 @@ void Node::writeData(Node::nodeData *data, const char *filename, Node *node) {
 			for(int k = 0; k < 3; k++) os << data->triangles[i][j][k] << "\t";
 			os << endl;
 		}
-		os << data->faceNeighbors[i].size() << endl;
-		for(int j = 0; j < data->faceNeighbors[i].size(); j++) os << data->faceNeighbors[i][j] << "\t";
-		os << endl;
+		//os << data->faceNeighbors[i].size() << endl;
+		//for(int j = 0; j < data->faceNeighbors[i].size(); j++) os << data->faceNeighbors[i][j] << "\t";
+		//os << endl;
 	}
 	line = os.str();
 	stream->write(line.c_str(), sizeof(char), line.length());
@@ -1609,8 +1703,10 @@ void Node::writeData(Node::nodeData *data, const char *filename, Node *node) {
 		os << data->constraints[i]->translation.y << "\t";
 		os << data->constraints[i]->translation.z << endl;
 	}
-	float mass = (node != NULL) ? node->getCollisionObject()->asRigidBody()->getMass() : data->mass;
+	float mass = (node != NULL && node->getCollisionObject() != NULL)
+	  ? node->getCollisionObject()->asRigidBody()->getMass() : data->mass;
 	os << mass << endl;
+	os << (data->staticObj ? 1 : 0) << endl;
 	line = os.str();
 	stream->write(line.c_str(), sizeof(char), line.length());
 	os.str("");
@@ -1620,7 +1716,6 @@ void Node::writeData(Node::nodeData *data, const char *filename, Node *node) {
 void Node::writeMyData(const char *filename) {
 	if(filename == NULL) filename = Game::getInstance()->concat(3, "res/common/", getId(), ".node");
 	//make sure data is up to date
-	nodeData *data = (nodeData*)getUserPointer();
 	data->translation = getTranslationWorld();
 	data->rotation = getRotation();
 	data->scale = getScale();
@@ -1628,19 +1723,16 @@ void Node::writeMyData(const char *filename) {
 }
 
 void Node::loadData(const char *filename) {
-	nodeData *data = readData(filename);
-	setUserPointer(data);
+	data = readData(filename);
 }
 
 void Node::updateData() {
-	nodeData *data = (nodeData*)getUserPointer();
 	if(data == NULL) return;
 	Matrix world = getWorldMatrix();
-	Vector3 translation = getTranslationWorld();
 	unsigned short i, nv = data->vertices.size();
+	Vector3 min, max;
 	for(i = 0; i < nv; i++) {
-		world.transformVector(data->vertices[i], &data->worldVertices[i]);
-		data->worldVertices[i] += translation;
+		world.transformPoint(data->vertices[i], &data->worldVertices[i]);
 	}
 	setNormals();
 }
@@ -1653,12 +1745,11 @@ void Node::reloadFromData(const char *filename, bool addPhysics) {
 	setScale(Vector3(1,1,1));
 	//load the node coordinates etc.
 	loadData(filename);
-	nodeData *data = (nodeData*)getUserPointer();
 	std::string materialFile = Game::getInstance()->concat(2, "res/common/models.material#", data->type.c_str());
 	updateData();
 	//update the mesh to contain the new coordinates
 	float *vertices, radius = 0;
-	unsigned short *triangles;
+	unsigned short *triangles, i, j, k;
 	int numVertices = 0, numTriangles = 0, v = 0, t = 0, f = 0;
 	Vector3 min(1000,1000,1000), max(-1000,-1000,-1000);
 	for(int i = 0; i < data->faces.size(); i++) {
@@ -1670,19 +1761,19 @@ void Node::reloadFromData(const char *filename, bool addPhysics) {
 	std::vector<Vector3> vec(3), normal(data->faces.size());
 	cout << "making node " << filename << " with " << numVertices << " vertices, " << numTriangles << " triangles, and "
 		<< data->faces.size() << " faces" << endl;
-	for(int i = 0; i < data->faces.size(); i++) {
-		for(int j = 0; j < 3; j++) vec[j].set(data->worldVertices[data->faces[i][j]]);
-		for(int j = 0; j < data->faces[i].size(); j++) {
-			for(int k = 0; k < 3; k++) {
+	for(i = 0; i < data->faces.size(); i++) {
+		for(j = 0; j < 3; j++) vec[j].set(data->worldVertices[data->faces[i][j]]);
+		for(j = 0; j < data->faces[i].size(); j++) {
+			for(k = 0; k < 3; k++) {
 				vertices[v++] = gv(&data->worldVertices[data->faces[i][j]],k);
 				radius = fmaxf(radius, data->worldVertices[data->faces[i][j]].length());
 				if(vertices[v-1] < gv(&min, k)) sv(&min, k, vertices[v-1]);
 				if(vertices[v-1] > gv(&max, k)) sv(&max, k, vertices[v-1]);
 			}
-			for(int k = 0; k < 3; k++) vertices[v++] = gv(&data->normals[i],k);
+			for(k = 0; k < 3; k++) vertices[v++] = gv(&data->worldNormals[i],k);
 		}
-		for(int j = 0; j < data->triangles[i].size(); j++) {
-			for(int k = 0; k < 3; k++) triangles[t++] = f + data->triangles[i][j][k];
+		for(j = 0; j < data->triangles[i].size(); j++) {
+			for(k = 0; k < 3; k++) triangles[t++] = f + data->triangles[i][j][k];
 		}
 		f += data->faces[i].size();
 	}
@@ -1695,7 +1786,13 @@ void Node::reloadFromData(const char *filename, bool addPhysics) {
 	mesh->setVertexData(&vertices[0], 0, numVertices);
 	MeshPart *part = mesh->addPart(Mesh::TRIANGLES, Mesh::INDEX16, numTriangles*3);
 	part->setIndexData(triangles, 0, numTriangles*3);
+	//scale the bounding box/sphere by the initial scale vector
+/*	for(i = 0; i < 3; i++) {
+		sv(&min, i, gv(&data->scale, i) * gv(&min, i));
+		sv(&max, i, gv(&data->scale, i) * gv(&max, i));
+	}//*/
 	mesh->setBoundingBox(BoundingBox(min, max));
+//	radius *= fmin(data->scale.x, fmin(data->scale.y, data->scale.z));
 	mesh->setBoundingSphere(BoundingSphere(Vector3::zero(), radius));
 	Model *model = Model::create(mesh);
 	mesh->release();
@@ -1723,13 +1820,26 @@ void Node::reloadFromData(const char *filename, bool addPhysics) {
 	updateData();
 }
 
+bool Node::isStatic() {
+	return data->staticObj;
+}
+
+void Node::setStatic(bool stat) {
+	data->staticObj = stat;
+}
+
 void Node::setNormals() {
-	nodeData *data = (nodeData*)getUserPointer();
 	unsigned short nf = data->faces.size(), i, j, n;
+	data->normals.resize(nf);
+	data->worldNormals.resize(nf);
 	Vector3 v1, v2, normal;
+	Matrix invRot;
+	getRotation(&invRot);
+	invRot.invert();
 	for(i = 0; i < nf; i++) {
 		n = data->faces[i].size();
 		normal.set(0, 0, 0);
+		//first calculate the world normal
 		for(j = 0; j < n; j++) {
 			v1.set(data->worldVertices[data->faces[i][j]]);
 			v2.set(data->worldVertices[data->faces[i][(j+1)%n]]);
@@ -1738,7 +1848,9 @@ void Node::setNormals() {
 			normal.z += (v1.x - v2.x) * (v1.y + v2.y);
 		}
 		normal.normalize(&normal);
-		data->normals[i].set(normal);
+		data->worldNormals[i].set(normal);
+		//then undo this node's rotation to get the post-scaling model space normal
+		invRot.transformVector(data->worldNormals[i], &data->normals[i]);
 	}
 }
 

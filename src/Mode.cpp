@@ -49,3 +49,13 @@ void T4TApp::Mode::setActive(bool active) {
 	}
 }
 
+bool T4TApp::Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
+	switch(evt) {
+		case Touch::TOUCH_PRESS:
+			_touching = true;
+			break;
+		case Touch::TOUCH_RELEASE:
+			_touching = false;
+			break;
+	}
+}

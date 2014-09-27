@@ -9,16 +9,16 @@ bool T4TApp::TestMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
 			Ray ray;
-			Plane vertical(Vector3(0, 0, 1), 0);
+			Plane vertical(Vector3(0, 0, 1), 0), ground(Vector3(0, 1, 0), 0);
 			app->_scene->getActiveCamera()->pickRay(app->getViewport(), x, y, &ray);
-			float distance = ray.intersects(vertical);
+			float distance = ray.intersects(ground);
 			if(distance != Ray::INTERSECTS_NONE) {
-				float worldX = ray.getOrigin().x + ray.getDirection().x * distance;
+				Vector3 point(ray.getOrigin() + ray.getDirection() * distance);
 				Node *node = app->duplicateModelNode("sphere");
 				app->addCollisionObject(node);
 				PhysicsRigidBody *body = node->getCollisionObject()->asRigidBody();
 				body->setEnabled(false);
-				node->setTranslation(worldX, 10.0f, 0.0f);
+				node->setTranslation(point.x, 10.0f, point.z);
 				body->setEnabled(true);
 				app->_scene->addNode(node);
 			}

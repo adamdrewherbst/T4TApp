@@ -69,6 +69,84 @@ material box : colored
     }
 }
 
+material heart : colored
+{
+    technique
+    {
+        pass
+        {
+        	u_ambientColor = 1.0, 0.0, 0.0
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
+        }
+    }
+}
+material tube : colored
+{
+    technique
+    {
+        pass
+        {
+        	u_ambientColor = 1.0, 0.0, 0.0
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
+        }
+    }
+}
+material vase : colored
+{
+    technique
+    {
+        pass
+        {
+        	u_ambientColor = 1.0, 0.0, 0.0
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
+        }
+    }
+}
+material gear_thin : colored
+{
+    technique
+    {
+        pass
+        {
+        	u_ambientColor = 1.0, 0.0, 0.0
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
+        }
+    }
+}
+material gear : colored
+{
+    technique
+    {
+        pass
+        {
+        	u_ambientColor = 1.0, 0.0, 0.0
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
+        }
+    }
+}
+material disc : colored
+{
+    technique
+    {
+        pass
+        {
+        	u_ambientColor = 1.0, 0.0, 0.0
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
+        }
+    }
+}
+material cone : colored
+{
+    technique
+    {
+        pass
+        {
+        	u_ambientColor = 1.0, 0.0, 0.0
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
+        }
+    }
+}
+
 material red : colored
 {
     technique

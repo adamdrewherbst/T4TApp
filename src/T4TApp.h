@@ -49,6 +49,9 @@ public:
     void removeNode(Node *node, const char *newID = NULL);
     void addConstraints(Node *node);
     void removeConstraints(Node *node);
+    void enablePhysics(Node *node, bool enable = true);
+    void addPhysics(Node *node);
+    void removePhysics(Node *node);
     
     /**
      * @see Game::keyEvent
@@ -104,6 +107,7 @@ public:
 
     //see if the current touch coordinates intersect a given model in the scene
     bool checkTouchModel(Node* node);
+    BoundingBox getWorldBox(Node *node);
     bool checkTouchEdge(Node* node);
     Node* getMouseNode(int x, int y, Vector3 *touch = NULL);
     
@@ -131,7 +135,7 @@ public:
     //for placing objects
     Node *_lastNode, *_intersectModel;
     std::vector<Node*> _intersectNodeGroup;
-    const BoundingBox *_intersectBox;
+    BoundingBox _intersectBox;
     Vector3 _intersectPoint;
     Plane _groundPlane;
     
@@ -269,11 +273,11 @@ public:
 		T4TApp *app;
 		Form *_container, *_controls; //the click overlay and control panel
 		std::vector<Control*> _subControls; //the actual buttons etc.
-		bool _active;
+		bool _active, _touching;
 		
 		Mode(T4TApp *app_, const char* id, const char* filename = NULL);
 		
-		virtual bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) = 0;
+		virtual bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		virtual void controlEvent(Control *control, EventType evt) = 0;
 		virtual void setActive(bool active);
 		virtual void draw();
@@ -380,17 +384,48 @@ public:
 		void controlEvent(Control *control, Control::Listener::EventType evt);
 	};
 	
-	class SelectMode : public Mode
+	class PositionMode : public Mode
 	{
 public:
+		std::vector<std::string> _subModes, _axisNames;
+		unsigned short _subMode;
+		short _axis;
 		Node *_selectedNode;
+		float _positionValue;
+	    Quaternion _baseRotation;
+	    Vector3 _baseTranslation, _baseScale, _basePoint, _transDir;
 		std::vector<Node*> _nodeGroup;
 		std::vector<Vector3> _groupOffset;
 	    Vector2 _dragOffset;
-	    Slider *_gridSlider;
-	    CheckBox *_gridCheckbox;
+	    short _groundFace;
+	    
+		Button *_subModeButton, *_axisButton;
+	    Slider *_gridSlider, *_valueSlider;
+	    CheckBox *_gridCheckbox, *_staticCheckbox;
+	    bool _dragging;
 
-		SelectMode(T4TApp *app_);
+		PositionMode(T4TApp *app_);
+		void setActive(bool active);
+		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+		void controlEvent(Control *control, Control::Listener::EventType evt);
+		void setSelectedNode(Node *node);
+		void setSubMode(unsigned short mode);
+		void setAxis(short axis);
+		void setPosition(float value, bool finalize = false);
+		void updateSlider();
+	};
+	
+	class ConstraintMode : public Mode {
+public:
+		std::vector<std::string> _subModes;
+		unsigned short _subMode;
+		Node *_nodes[2];
+		short _faces[2], _currentNode;
+		Quaternion _rot[2];
+		Vector3 _trans[2];
+		
+		ConstraintMode(T4TApp *app_);
+		void setActive(bool active);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
 	};
