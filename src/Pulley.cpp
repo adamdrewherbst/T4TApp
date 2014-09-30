@@ -74,6 +74,7 @@ void T4TApp::Pulley::finishElement(MyNode *node) {
 			joints[0].set(wheel);
 			joints[0].x -= _radius;
 			joints[0].y -= (_dropLinks + 0.5f) * _linkLength;
+			MyNode *link;
 			for(i = 0; i < _numLinks; i++) {
 				link = app->duplicateModelNode("box");
 				std::stringstream ss;
@@ -96,7 +97,7 @@ void T4TApp::Pulley::finishElement(MyNode *node) {
 				link->setScale(_linkWidth/3, _linkLength/3, _linkWidth/3);
 				link->rotate(zAxis, -angle);
 				link->setTranslation(x, y, z);
-				app->addCollisionObject(link);
+				link->addCollisionObject();
 				links[i] = link;
 				_scene->addNode(link);
 				_allNodes.push_back(link);
@@ -111,10 +112,12 @@ void T4TApp::Pulley::finishElement(MyNode *node) {
 			}
 			//connect each pair of adjacent links with a socket constraint
 			PhysicsSocketConstraint *constraint;
+			Quaternion rot1, rot2;
 			for(i = 0; i < _numLinks-1; i++) {
 				trans1.set(0, (_linkLength/2) / links[i]->getScaleY(), 0);
 				trans2.set(0, -(_linkLength/2) / links[i]->getScaleY(), 0);
-				constraint = (PhysicsSocketConstraint*) app->addConstraint(links[i], links[i+1], "socket", &trans1, &trans2);
+				constraint = (PhysicsSocketConstraint*) app->addConstraint(links[i], links[i+1], -1, "socket",
+				  &rot1, &trans1, &rot2, &trans2);
 				_constraints.push_back(constraint);
 			}
 			//connect each bucket to the adjacent chain link with a socket constraint
@@ -122,7 +125,8 @@ void T4TApp::Pulley::finishElement(MyNode *node) {
 				j = i * (_numLinks-1);
 				trans1.set(0, (2*i - 1) * (_linkLength/2) / links[i]->getScaleY(), 0);
 				trans2.set((joints[i*_numLinks] - _allNodes[i+2]->getTranslationWorld()) / _allNodes[i+2]->getScaleY());
-				constraint = (PhysicsSocketConstraint*) app->addConstraint(links[j], _allNodes[i+2], "socket", &trans1, &trans2);
+				constraint = (PhysicsSocketConstraint*) app->addConstraint(links[j], _allNodes[i+2], -1, "socket",
+				  &rot1, &trans1, &rot2, &trans2);
 				_constraints.push_back(constraint);
 			}
 			break;

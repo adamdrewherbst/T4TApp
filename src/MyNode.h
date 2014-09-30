@@ -1,7 +1,13 @@
-#include "T4TApp.h"
+#ifndef MYNODE_H_
+#define MYNODE_H_
+
+#include "gameplay.h"
 #include "FileSystem.h"
+#include <cstdarg>
 
 using namespace gameplay;
+
+class T4TApp;
 
 class MyNode : public Node {
 
@@ -11,8 +17,13 @@ public:
 	static MyNode* create(const char *id = NULL);
 	void init();
 	static MyNode* cloneNode(Node *node);
+	
+	T4TApp *app;
+	//location and axis of constraint joint with parent in parent's model space
+	Vector3 parentOffset, parentAxis;
 
     struct nodeConstraint {
+    	int id; //global ID in simulation for this constraint
     	std::string other; //id of the node to which this one is constrained
     	std::string type; //one of: hinge, spring, fixed, socket
     	Vector3 translation; //offset of the constraint point from my origin
@@ -44,20 +55,24 @@ public:
 	};
 	nodeData *data;
 
-	nodeData* getData();	
-	static nodeData* readData(const char *filename);
-	static void writeData(nodeData *data, const char *filename, Node *node = NULL);
-	void writeMyData(const char *filename = NULL);
+	nodeData* getData();
+	void setData(nodeData *newData);
+	nodeData* copyData();
+	const char* getFilename();
 	void loadData(const char *filename = NULL);
+	void writeData(const char *filename = NULL);
 	void updateData();
-	void reloadFromData(const char *filename, bool addPhysics = true);
+	void updateModelFromData(bool addPhysics = true);
+
 	void setNormals();
+	Matrix getRotTrans();
 	Matrix getInverseRotTrans();
+	Matrix getInverseWorldMatrix();
 	short pt2Face(Vector3 point);
 	Plane facePlane(unsigned short f, bool modelSpace = false);
 	Vector3 faceCenter(unsigned short f, bool modelSpace = false);
 	void rotateFaceToPlane(unsigned short f, Plane p);
-	void rotateFaceToFace(unsigned short f, Node *other, unsigned short g);
+	void rotateFaceToFace(unsigned short f, MyNode *other, unsigned short g);
 	void addEdge(unsigned short e1, unsigned short e2);
 	void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 	void addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
@@ -71,5 +86,17 @@ public:
 	static Quaternion getVectorRotation(Vector3 v1, Vector3 v2);
 	static float gv(Vector3 *v, int dim);
 	static void sv(Vector3 *v, int dim, float val);
-}
+	
+	void addCollisionObject();
+	void addPhysics();
+	void removePhysics();
+	void enablePhysics(bool enable = true);
+	nodeConstraint* getNodeConstraint(MyNode *other);
+	
+	static char* concat(int n, ...);
+};
+
+#endif
+
+#include "T4TApp.h"
 

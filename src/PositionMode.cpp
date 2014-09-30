@@ -41,29 +41,26 @@ bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsig
 		    camera->pickRay(app->getViewport(), x, y, &ray);
 		    PhysicsController::HitResult hitResult;
 		    if(!app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) break;
-	    	Node *node = hitResult.object->getNode();
-	    	if(node->getCollisionObject() == NULL) break;
+	    	MyNode *node = dynamic_cast<MyNode*>(hitResult.object->getNode());
+	    	if(!node || node->getCollisionObject() == NULL) break;
 		    if(strcmp(node->getId(), "grid") == 0) break;
 			cout << "selected: " << node->getId() << endl;
-			setSelectedNode(node);
 			_dragging = true;
 			_dragOffset.set(x, y);
-			if(_subMode == 0) { //translate - treat it as if user clicked on point on grid directly below this object's center
-				_basePoint = node->getTranslationWorld();
-				_basePoint.y = 0;
-				Vector2 centerPix;
-				camera->project(app->getViewport(), _basePoint, &centerPix);
-				_dragOffset.set(centerPix.x - x, centerPix.y - y);
-				cout << "dragging " << node->getId() << " with offset " << app->printVector2(_dragOffset) << endl;
+			_basePoint = hitResult.point;
+			setSelectedNode(node);
+			if(_subMode == 0) { //translate
+				Vector2 basePix;
+				camera->project(app->getViewport(), _basePoint, &basePix);
+				_dragOffset.set(basePix.x - x, basePix.y - y);
 			} else if(_subMode == 1) { //rotate
 			} else if(_subMode == 2) { //scale
 			} else if(_subMode == 3) { //ground face - determine which face was selected
-				_groundFace = _selectedNode->pt2Face(hitResult.point);
+				_groundFace = _selectedNode->pt2Face(_basePoint);
 			}
 			//disable all physics during the move - if a node is static, we must remove its physics and re-add it at the end
 			app->_intersectNodeGroup.clear();
 			app->_intersectNodeGroup.push_back(_selectedNode);
-			app->enablePhysics(_selectedNode, false);
 			break;
 		}
 		case Touch::TOUCH_MOVE: case Touch::TOUCH_RELEASE: {
@@ -75,7 +72,7 @@ bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsig
 			Camera *camera = app->_scene->getActiveCamera();
 			if(_subMode == 0) { //translate
 				camera->pickRay(app->getViewport(), x + _dragOffset.x, y + _dragOffset.y, &ray);
-				float distance = ray.intersects(app->_groundPlane);
+				float distance = ray.intersects(_plane);
 				if(distance == Ray::INTERSECTS_NONE) break;
 				Vector3 point(ray.getOrigin() + ray.getDirection() * distance);
 				Vector3 delta(point - _basePoint);
@@ -103,9 +100,9 @@ bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsig
 							if(newFace >= 0) _groundFace = newFace;
 						}
 					}
-				} else if(_groundFace >= 0) {
+				} else if(_groundFace >= 0 && _parentNode == NULL) {
 					_selectedNode->rotateFaceToPlane(_groundFace, app->_groundPlane);
-					app->enablePhysics(_selectedNode);
+					_selectedNode->addPhysics();
 					_groundFace = -1;
 				}
 			}
@@ -121,7 +118,7 @@ void T4TApp::PositionMode::controlEvent(Control *control, Control::Listener::Eve
 	} else if(control == _valueSlider) {
 		if(_subMode == 0) {
 			_transDir.set(0, 0, 0);
-			Node::sv(&_transDir, _axis, 1);
+			MyNode::sv(&_transDir, _axis, 1);
 		}
 		setPosition(_valueSlider->getValue(), evt == Control::Listener::RELEASE);
 	} else if(control == _axisButton) {
@@ -129,13 +126,13 @@ void T4TApp::PositionMode::controlEvent(Control *control, Control::Listener::Eve
 	} else if(control == _staticCheckbox) {
 		if(_selectedNode != NULL) {
 			_selectedNode->setStatic(_staticCheckbox->isChecked());
-			app->removePhysics(_selectedNode);
-			app->addPhysics(_selectedNode);
+			_selectedNode->removePhysics();
+			_selectedNode->addPhysics();
 		}
 	}
 }
 
-void T4TApp::PositionMode::setSelectedNode(Node *node) {
+void T4TApp::PositionMode::setSelectedNode(MyNode *node) {
 	//if(_selectedNode == node) return;
 	_selectedNode = node;
 	if(_selectedNode != NULL) {
@@ -153,6 +150,26 @@ void T4TApp::PositionMode::setSelectedNode(Node *node) {
 		_baseRotation = _selectedNode->getRotation();
 		_baseScale = _selectedNode->getScale();
 		_baseTranslation = _selectedNode->getTranslationWorld();
+		_parentNode = dynamic_cast<MyNode*>(_selectedNode->getParent());
+		float distance;
+		Vector3 offset;
+		if(_parentNode) {
+			_normal = _selectedNode->parentAxis;
+			Matrix m = _parentNode->getWorldMatrix();
+			m.transformVector(&_normal);
+			_normal.normalize(&_normal);
+			offset = _selectedNode->parentOffset;
+			m.transformPoint(&offset);
+			distance = offset.dot(_normal);
+		} else {
+			_normal.set(0, 1, 0);
+			distance = 0;
+			offset.set(0, 0, 0);
+		}
+		_plane.set(_normal, -distance);
+		_planeCenter.set(_normal * distance);
+		_basePoint -= _normal * _normal.dot(_basePoint - offset);
+		_selectedNode->enablePhysics(false);
 	} else {
 		_positionValue = 0.0f;
 	}
@@ -169,16 +186,27 @@ void T4TApp::PositionMode::updateSlider() {
 
 void T4TApp::PositionMode::setPosition(float value, bool finalize) {
 	_positionValue = value;
+	//when finalizing, if this node has a constraint parent, get the constraint that will need to be modified
+	MyNode::nodeConstraint *constraint = NULL;
+	if(finalize && _parentNode != NULL) {
+		constraint = _parentNode->getNodeConstraint(_selectedNode);
+	}
 	//perform the transformation
 	switch(_subMode) {
-		case 0: {//translate
+		case 0: { //translate
 			Vector3 delta(_transDir * value);
 			_selectedNode->setTranslation(_baseTranslation + delta);
-			_positionValue = Node::gv(&delta, _axis);
+			_positionValue = MyNode::gv(&delta, _axis);
+			if(constraint != NULL) {
+				Matrix m(_parentNode->getWorldMatrix());
+				m.invert();
+				m.transformVector(&delta);
+				constraint->translation += delta;
+			}
 			break;
 		} case 1: { //rotate
 			Quaternion rot;
-			Quaternion::createFromAxisAngle(Vector3(0, 1, 0), value, &rot);
+			Quaternion::createFromAxisAngle(_normal, value, &rot);
 			_selectedNode->setRotation(rot * _baseRotation);
 			break;
 		} case 2: { //scale
@@ -199,22 +227,14 @@ void T4TApp::PositionMode::setPosition(float value, bool finalize) {
 		trans.z = round(trans.z / spacing) * spacing;
 	}
 	//if would intersect another object, place it on top of that object instead
-	app->placeNode(_selectedNode, trans.x, trans.z);
+	//app->placeNode(_selectedNode, trans.x, trans.z);
 	updateSlider();
-	//toggle physics to keep bounding box with object, or re-enable if done moving
-	if(!finalize) {
-		PhysicsCollisionObject *obj = _selectedNode->getCollisionObject();
-		if(obj) {
-			PhysicsRigidBody *body = obj->asRigidBody();
-			body->setEnabled(true); body->setEnabled(false);
+	//re-enable physics on the object when done moving
+	if(finalize) {
+		if(constraint != NULL) {
+			app->reloadConstraint(_parentNode, constraint);
 		}
-	} else {
-		//after scaling, must re-create collision object
-		if(_subMode == 2) {
-			app->removeConstraints(_selectedNode);
-			_selectedNode->setCollisionObject(PhysicsCollisionObject::NONE);
-		}
-		app->enablePhysics(_selectedNode);
+		_selectedNode->enablePhysics(true);
 		_selectedNode->updateData();
 	}
 }
@@ -253,7 +273,7 @@ void T4TApp::PositionMode::setAxis(short axis) {
 			return;
 		}
 		_transDir.set(0, 0, 0);
-		Node::sv(&_transDir, axis, 1);
+		MyNode::sv(&_transDir, axis, 1);
 	}
 	_axisButton->setText(_axisNames[axis].c_str());
 	_axis = axis;

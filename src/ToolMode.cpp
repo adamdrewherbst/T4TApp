@@ -7,6 +7,8 @@ T4TApp::ToolMode::ToolMode(T4TApp *app_, const char* id, const char* filename)
 	_node = NULL;
 	_touching = false;
 	_rotate = false;
+	_newNode = MyNode::create(app->concat(2, "newNode_", _toolType.c_str()));
+	newData = _newNode->getData();
 }
 
 void T4TApp::ToolMode::setActive(bool active) {
@@ -152,4 +154,23 @@ void T4TApp::ToolMode::controlEvent(Control *control, Control::Listener::EventTy
 	}
 }
 
-bool T4TApp::ToolMode::toolNode() {}
+bool T4TApp::ToolMode::toolNode() {
+	_node->updateData();
+	data = _node->getData();
+	
+	usageCount++;
+
+	//reset the data on the altered node
+	_newNode->data = NULL;
+	free(newData);
+	newData = new MyNode::nodeData();
+	_newNode->data = newData;
+	newData->type = data->type;
+	newData->objType = "mesh"; //can't keep sphere/box collision object once it has been warped!
+	newData->mass = data->mass;
+	newData->rotation = data->rotation;
+	newData->translation = data->translation;
+	newData->scale = data->scale;
+	newData->constraints = data->constraints;
+}
+

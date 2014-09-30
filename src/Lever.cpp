@@ -38,7 +38,7 @@ void T4TApp::Lever::finishElement(MyNode *node) {
 			Quaternion::createFromAxisAngle(Vector3(1.0f, 0.0f, 0.0f), (float)(0.0f), &rot2);
 			Vector3 trans1(0.0f, 4.0f, 0.0f), trans2(0.0f, 0.0f, 0.0f);
 			//add the hinge constraint between the base and arm
-			_armConstraint = (PhysicsHingeConstraint*) app->addConstraint(_allNodes[0], _allNodes[1], "hinge",
+			_armConstraint = (PhysicsHingeConstraint*) app->addConstraint(_allNodes[0], _allNodes[1], -1, "hinge",
 				&rot1, &trans1, &rot2, &trans2);
 			break;
 	}

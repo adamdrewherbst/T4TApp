@@ -9,7 +9,8 @@ MyNode* MyNode::create(const char *id) {
 	return new MyNode(id);
 }
 
-MyNode::init() {
+void MyNode::init() {
+    app = (T4TApp*) Game::getInstance();
     data = new nodeData();
     data->staticObj = false;
 }
@@ -19,6 +20,9 @@ MyNode* MyNode::cloneNode(Node *node) {
 	MyNode *copy = new MyNode(clone->getId());
 	copy->setModel(clone->getModel());
 	copy->setCamera(clone->getCamera());
+	copy->setScale(clone->getScale());
+	copy->setRotation(clone->getRotation());
+	copy->setTranslation(clone->getTranslation());
 	clone->release();
 	return copy;
 }
@@ -43,18 +47,30 @@ void MyNode::sv(Vector3 *v, int dim, float val) {
 Quaternion MyNode::getVectorRotation(Vector3 v1, Vector3 v2) {
 	Vector3 axis;
 	Vector3::cross(v1, v2, &axis);
-	float angle = acos(v1.dot(v2) / (v1.length() * v2.length()));
+ 	float angle = acos(v1.dot(v2) / (v1.length() * v2.length()));
 	Quaternion rot;
 	Quaternion::createFromAxisAngle(axis, angle, &rot);
 	return rot;
 }
 
+Matrix MyNode::getRotTrans() {
+	Matrix m;
+	m.translate(getTranslationWorld());
+	m.rotate(getRotation());
+	return m;
+}
+
 Matrix MyNode::getInverseRotTrans() {
 	Matrix m;
-	m.translate(-getTranslationWorld());
-	Quaternion q(getRotation());
-	q.inverse();
-	m.rotate(q);
+	m.translate(getTranslationWorld());
+	m.rotate(getRotation());
+	m.invert();
+	return m;
+}
+
+Matrix MyNode::getInverseWorldMatrix() {
+	Matrix m(getWorldMatrix());
+	m.invert();
 	return m;
 }
 
@@ -236,17 +252,53 @@ MyNode::nodeData* MyNode::getData() {
 	return data;
 }
 
-MyNode::nodeData* MyNode::readData(const char *filename)
+void MyNode::setData(MyNode::nodeData *newData) {
+	nodeData *curData = data;
+	data = NULL;
+	if(curData != NULL) free(curData);
+	data = newData;
+}
+
+MyNode::nodeData* MyNode::copyData() {
+	nodeData *copy = new nodeData();
+	copy->type = data->type;
+	copy->vertices = data->vertices;
+	copy->worldVertices = data->worldVertices;
+	copy->edges = data->edges;
+	copy->edgeInd = data->edgeInd;
+	copy->faces = data->faces;
+	copy->triangles = data->triangles;
+	copy->faceNeighbors = data->faceNeighbors;
+	copy->normals = data->normals;
+	copy->worldNormals = data->worldNormals;
+	copy->objType = data->objType;
+	copy->mass = data->mass;
+	copy->staticObj = data->staticObj;
+	copy->hulls = data->hulls;
+	copy->constraints = data->constraints;
+	copy->rotation = data->rotation;
+	copy->translation = data->translation;
+	copy->scale = data->scale;
+	copy->initTrans = data->initTrans;
+	copy->typeCount = data->typeCount;
+	return copy;
+}
+
+const char* MyNode::getFilename() {
+	return concat(3, "res/common/", getId(), ".node");
+}
+
+void MyNode::loadData(const char *filename)
 {
+	if(filename == NULL) filename = getFilename();
 	std::auto_ptr<Stream> stream(FileSystem::open(filename));
 	if (stream.get() == NULL)
 	{
 		GP_ERROR("Failed to open file '%s'.", filename);
-		return NULL;
+		return;
 	}
 	stream->rewind();
 	
-	nodeData* data = new nodeData();
 	data->typeCount = 0;
 
 	char *str, line[2048];
@@ -334,13 +386,14 @@ MyNode::nodeData* MyNode::readData(const char *filename)
     	}//*/
     }
     //set the vertices according to the initial rotation, translation, & scale
-/*    data->initTrans = Matrix::identity();
+    data->initTrans = Matrix::identity();
     data->initTrans.rotate(data->rotation);
     data->initTrans.scale(data->scale);
+    data->initTrans.translate(data->translation);
     for(int i = 0; i < data->vertices.size(); i++) {
-    	data->initTrans.transformVector(data->vertices[i], &data->worldVertices[i]);
-    	data->worldVertices[i] += data->translation;
-    }//*/
+    	data->initTrans.transformPoint(data->vertices[i], &data->worldVertices[i]);
+    }
+    setNormals();
     //physics
     str = stream->readLine(line, 2048);
 	in.str(str);
@@ -381,10 +434,10 @@ MyNode::nodeData* MyNode::readData(const char *filename)
     str = stream->readLine(line, 2048);
     data->staticObj = atoi(str) > 0;
     stream->close();
-    return data;
 }
 
-void MyNode::writeData(MyNode::nodeData *data, const char *filename, MyNode *node) {
+void MyNode::writeData(const char *filename) {
+	if(filename == NULL) filename = getFilename();
 	std::auto_ptr<Stream> stream(FileSystem::open(filename, FileSystem::WRITE));
 	if (stream.get() == NULL)
 	{
@@ -452,27 +505,13 @@ void MyNode::writeData(MyNode::nodeData *data, const char *filename, MyNode *nod
 		os << data->constraints[i]->translation.y << "\t";
 		os << data->constraints[i]->translation.z << endl;
 	}
-	float mass = (node != NULL && node->getCollisionObject() != NULL)
-	  ? node->getCollisionObject()->asRigidBody()->getMass() : data->mass;
+	float mass = (getCollisionObject() != NULL) ? getCollisionObject()->asRigidBody()->getMass() : data->mass;
 	os << mass << endl;
 	os << (data->staticObj ? 1 : 0) << endl;
 	line = os.str();
 	stream->write(line.c_str(), sizeof(char), line.length());
 	os.str("");
 	stream->close();
-}
-
-void MyNode::writeMyData(const char *filename) {
-	if(filename == NULL) filename = Game::getInstance()->concat(3, "res/common/", getId(), ".node");
-	//make sure data is up to date
-	data->translation = getTranslationWorld();
-	data->rotation = getRotation();
-	data->scale = getScale();
-	writeData(data, filename, this);
-}
-
-void MyNode::loadData(const char *filename) {
-	data = readData(filename);
 }
 
 void MyNode::updateData() {
@@ -486,16 +525,13 @@ void MyNode::updateData() {
 	setNormals();
 }
 
-void MyNode::reloadFromData(const char *filename, bool addPhysics) {
+void MyNode::updateModelFromData(bool doPhysics) {
 	//reset the physics and transformation while loading the data
-	setCollisionObject(PhysicsCollisionObject::NONE);
+	removePhysics();
 	setRotation(Quaternion::identity());
 	setTranslation(Vector3::zero());
 	setScale(Vector3(1,1,1));
-	//load the node coordinates etc.
-	loadData(filename);
-	std::string materialFile = Game::getInstance()->concat(2, "res/common/models.material#", data->type.c_str());
-	updateData();
+	std::string materialFile = concat(2, "res/common/models.material#", data->type.c_str());
 	//update the mesh to contain the new coordinates
 	float *vertices, radius = 0;
 	unsigned short *triangles, i, j, k;
@@ -507,19 +543,15 @@ void MyNode::reloadFromData(const char *filename, bool addPhysics) {
 	}
 	vertices = new float[numVertices*6];
 	triangles = new unsigned short[numTriangles*3];
-	std::vector<Vector3> vec(3), normal(data->faces.size());
-	cout << "making node " << filename << " with " << numVertices << " vertices, " << numTriangles << " triangles, and "
-		<< data->faces.size() << " faces" << endl;
 	for(i = 0; i < data->faces.size(); i++) {
-		for(j = 0; j < 3; j++) vec[j].set(data->worldVertices[data->faces[i][j]]);
 		for(j = 0; j < data->faces[i].size(); j++) {
 			for(k = 0; k < 3; k++) {
-				vertices[v++] = gv(&data->worldVertices[data->faces[i][j]],k);
-				radius = fmaxf(radius, data->worldVertices[data->faces[i][j]].length());
+				vertices[v++] = gv(&data->vertices[data->faces[i][j]],k);
+				radius = fmaxf(radius, data->vertices[data->faces[i][j]].length());
 				if(vertices[v-1] < gv(&min, k)) sv(&min, k, vertices[v-1]);
 				if(vertices[v-1] > gv(&max, k)) sv(&max, k, vertices[v-1]);
 			}
-			for(k = 0; k < 3; k++) vertices[v++] = gv(&data->worldNormals[i],k);
+			for(k = 0; k < 3; k++) vertices[v++] = gv(&data->normals[i],k);
 		}
 		for(j = 0; j < data->triangles[i].size(); j++) {
 			for(k = 0; k < 3; k++) triangles[t++] = f + data->triangles[i][j][k];
@@ -535,13 +567,7 @@ void MyNode::reloadFromData(const char *filename, bool addPhysics) {
 	mesh->setVertexData(&vertices[0], 0, numVertices);
 	MeshPart *part = mesh->addPart(Mesh::TRIANGLES, Mesh::INDEX16, numTriangles*3);
 	part->setIndexData(triangles, 0, numTriangles*3);
-	//scale the bounding box/sphere by the initial scale vector
-/*	for(i = 0; i < 3; i++) {
-		sv(&min, i, gv(&data->scale, i) * gv(&min, i));
-		sv(&max, i, gv(&data->scale, i) * gv(&max, i));
-	}//*/
 	mesh->setBoundingBox(BoundingBox(min, max));
-//	radius *= fmin(data->scale.x, fmin(data->scale.y, data->scale.z));
 	mesh->setBoundingSphere(BoundingSphere(Vector3::zero(), radius));
 	Model *model = Model::create(mesh);
 	mesh->release();
@@ -552,21 +578,8 @@ void MyNode::reloadFromData(const char *filename, bool addPhysics) {
 	setRotation(data->rotation);
 	setTranslation(data->translation);
 	setScale(data->scale);
-	//add the collision object
-	if(addPhysics) {
-		//load the compound convex hull collision object
-		PhysicsRigidBody::Parameters params;
-		params.mass = data->mass;
-		if(data->objType.compare("mesh") == 0)
-			setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::mesh(mesh), &params);
-		else if(data->objType.compare("box") == 0)
-			setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &params);
-		else if(data->objType.compare("sphere") == 0)
-			setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::sphere(), &params);
-		else if(data->objType.compare("capsule") == 0)
-			setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::capsule(), &params);
-	}
 	updateData();
+	if(doPhysics) addPhysics();
 }
 
 bool MyNode::isStatic() {
@@ -601,5 +614,84 @@ void MyNode::setNormals() {
 		//then undo this node's rotation to get the post-scaling model space normal
 		invRot.transformVector(data->worldNormals[i], &data->normals[i]);
 	}
+}
+
+char* MyNode::concat(int n, ...)
+{
+	const char** strings = new const char*[n];
+	int length = 0;
+	va_list arguments;
+	va_start(arguments, n);
+	for(int i = 0; i < n; i++) {
+		strings[i] = (const char*) va_arg(arguments, const char*);
+		length += strlen(strings[i]);
+	}
+	va_end(arguments);
+	char *dest = (char*)malloc((length+1)*sizeof(char));
+	int count = 0;
+	for(int i = 0; i < length+1; i++) dest[i] = '\0';
+	for(int i = 0; i < n; i++) {
+		strcpy(dest + count*sizeof(char), strings[i]);
+		count += strlen(strings[i]);
+	}
+	dest[length] = '\0';
+	return dest;
+}
+
+/*********** PHYSICS ************/
+
+void MyNode::addCollisionObject() {
+	PhysicsRigidBody::Parameters params;
+	params.mass = data->staticObj ? 0.0f : data->mass;
+	if(data->objType.compare("mesh") == 0) {
+		Mesh *mesh = getModel()->getMesh();
+		mesh->vertices = &data->vertices;
+		mesh->hulls = &data->hulls;
+		setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::mesh(mesh), &params);
+	} else if(data->objType.compare("box") == 0) {
+		setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &params);
+	} else if(data->objType.compare("sphere") == 0) {
+		setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::sphere(), &params);
+	} else if(data->objType.compare("capsule") == 0) {
+		setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::capsule(), &params);
+	}
+}
+
+void MyNode::addPhysics() {
+	addCollisionObject();
+	app->addConstraints(this);
+}
+
+void MyNode::removePhysics() {
+	app->removeConstraints(this);
+	setCollisionObject(PhysicsCollisionObject::NONE);
+}
+
+void MyNode::enablePhysics(bool enable) {
+	PhysicsCollisionObject *obj = getCollisionObject();
+	if(enable) {
+		if(obj == NULL) {
+			addPhysics();
+		} else {
+			PhysicsRigidBody *body = obj->asRigidBody();
+			body->setActivation(ACTIVE_TAG);
+			body->setEnabled(true);
+			app->enableConstraints(this, true);
+		}
+	} else {
+		if(obj->isStatic()) {
+			removePhysics();
+		} else {
+			app->enableConstraints(this, false);
+			obj->asRigidBody()->setEnabled(false);
+		}
+	}
+}
+
+MyNode::nodeConstraint* MyNode::getNodeConstraint(MyNode *other) {
+	for(short i = 0; i < data->constraints.size(); i++) {
+		if(data->constraints[i]->other.compare(other->getId()) == 0) return data->constraints[i];
+	}
+	return NULL;
 }
 

@@ -2,7 +2,7 @@
 
 T4TApp::TouchMode::TouchMode(T4TApp *app_) 
   : T4TApp::Mode::Mode(app_, "mode_Touch", NULL) {
-	_face = Node::create("touchFace");
+	_face = MyNode::create("touchFace");
 }
 
 void T4TApp::TouchMode::setActive(bool active) {
@@ -23,13 +23,13 @@ bool T4TApp::TouchMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned
 			camera->pickRay(app->getViewport(), x, y, &ray);
 		    PhysicsController::HitResult hitResult;
 		    if(!app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) break;
-	    	Node *node = hitResult.object->getNode();
-	    	if(node->getCollisionObject() == NULL) break;
+	    	MyNode *node = dynamic_cast<MyNode*>(hitResult.object->getNode());
+	    	if(!node || node->getCollisionObject() == NULL) break;
 		    if(strcmp(node->getId(), "grid") == 0) break;
 			Vector3 point = hitResult.point, v1, v2, v3, p, coords, normal;
 			cout << "touched " << node->getId() << " at " << point.x << "," << point.y << "," << point.z << endl;
 			Matrix m;
-			Node::nodeData *data = node->getData();
+			MyNode::nodeData *data = node->getData();
 			unsigned short i, j, k;
 			short touchFace = -1;
 			std::vector<unsigned short> face, triangle;

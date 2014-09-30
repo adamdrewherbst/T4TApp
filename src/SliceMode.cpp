@@ -29,7 +29,7 @@ T4TApp::SliceMode::SliceMode(T4TApp *app_)
 	Model *model = Model::create(mesh);
 	mesh->release();
 	model->setMaterial("res/common/grid.material");
-	_tool = Node::create("knife");
+	_tool = MyNode::create("knife");
 	_tool->setModel(model);
 	model->release();
 }
@@ -56,26 +56,16 @@ void T4TApp::SliceMode::setAxis(int axis) {
 
 bool T4TApp::SliceMode::toolNode() {
 	ToolMode::toolNode();
-	_node->updateData(); //make sure the world coords are up to date
 	_slicePlane.set(Vector3(0, 0, 1), 0);
 	Matrix trans;
 	Matrix::createRotation(_tool->getRotation(), &trans);
 	_slicePlane.transform(trans);
 	_slicePlane.setDistance(-_tool->getTranslationWorld().dot(_slicePlane.getNormal()));
 	cout << "slicing " << _node->getId() << " at " << app->printVector(_slicePlane.getNormal()) << " => " << _slicePlane.getDistance() << endl;
-	Node::nodeData *data = _node->getData();
+	MyNode::nodeData *data = _node->getData();
 	unsigned short e1, e2, numKeep = 0;
 	Vector3 v1, v2, planeOrigin = -_slicePlane.getDistance() * _slicePlane.getNormal();
 
-	//put the vertices that will be kept into a new nodeData struct
-	Node::nodeData newData;
-	newData.type = data->type;
-	newData.objType = "mesh"; //can't keep sphere/box collision object once it is deformed!
-	newData.mass = data->mass;
-	newData.rotation = data->rotation;
-	newData.translation = data->translation;
-	newData.scale = data->scale;
-	newData.constraints = data->constraints;
 	std::vector<short> keep(data->vertices.size()), //index in the new vertex list or -1 if discarding
 		replace(data->vertices.size()); //index of the new vertex that is replacing this one
 	for(int i = 0; i < data->vertices.size(); i++) {
@@ -84,7 +74,7 @@ bool T4TApp::SliceMode::toolNode() {
 		float dot = (data->worldVertices[i] - planeOrigin).dot(_slicePlane.getNormal());
 		if(dot > 0) continue;
 		keep[i] = numKeep++;
-		newData.vertices.push_back(data->worldVertices[i]);
+		newData->vertices.push_back(data->worldVertices[i]);
 	}
 	if(numKeep == 0) return false;
 
@@ -101,7 +91,7 @@ bool T4TApp::SliceMode::toolNode() {
 		if(keep[e1] >= 0 && keep[e2] >= 0) {
 			newEdge[0] = keep[e1];
 			newEdge[1] = keep[e2];
-			newData.edges.push_back(newEdge);
+			newData->edges.push_back(newEdge);
 			continue;
 		}
 		if(keep[e1] < 0 && keep[e2] < 0) continue;
@@ -123,14 +113,14 @@ bool T4TApp::SliceMode::toolNode() {
 			else intersect.set(data->worldVertices[keep[e1] >= 0 ? e1 : e2] + (keep[e1] >= 0 ? 1 : -1)*0.01f*edgeVec);
 		}
 		//add the new vertex at the intersection point
-		newData.vertices.push_back(intersect);
-		unsigned short newInd = newData.vertices.size()-1,
+		newData->vertices.push_back(intersect);
+		unsigned short newInd = newData->vertices.size()-1,
 			kept = keep[e1] >= 0 ? e1 : e2, discarded = keep[e1] >= 0 ? e2 : e1;
 		replace[discarded] = newInd;
 		//add the shortened edge to the new mesh
 		newEdge[0] = keep[kept];
 		newEdge[1] = newInd;
-		newData.edges.push_back(newEdge);
+		newData->edges.push_back(newEdge);
 		//add this intersection to the map
 		intersections[e1][e2] = newInd;
 		intersections[e2][e1] = newInd;
@@ -160,14 +150,14 @@ bool T4TApp::SliceMode::toolNode() {
 				//add them in reverse order so the new face on the slice plane has the right orientation
 				newEdge[intervening ? 1 : 0] = intersections[e1][e2];
 				newEdge[intervening ? 0 : 1] = usedNew;
-				newData.edges.push_back(newEdge);
+				newData->edges.push_back(newEdge);
 				newEdges.push_back(newEdge);
 			}
 			faceAltered = true;
 			usedNew = intersections[e1][e2];
 		}
 		if(newFace.size() > 0) {
-			newData.faces.push_back(newFace);
+			newData->faces.push_back(newFace);
 			if(faceAltered) { //retriangulate the polygon
 				newTriangles.clear();
 				/*for(int j = 0; j < data->triangles[i].size(); j++) { //keep as many of the old triangles as possible
@@ -181,15 +171,15 @@ bool T4TApp::SliceMode::toolNode() {
 					newTriangle[2] = j+1;
 					newTriangles.push_back(newTriangle);
 				}
-				newData.triangles.push_back(newTriangles);
+				newData->triangles.push_back(newTriangles);
 			} else {
-				newData.triangles.push_back(data->triangles[i]);
+				newData->triangles.push_back(data->triangles[i]);
 			}
 		}
 	}
 	
 	//add the brand new polygons formed by the slice plane
-	unsigned short newFaceStart = newData.faces.size(); //note where the slice plane polygons begin
+	unsigned short newFaceStart = newData->faces.size(); //note where the slice plane polygons begin
 	newFace.clear();
 	while(newEdges.size() > 0) {
 		if(newFace.empty()) {
@@ -215,7 +205,7 @@ bool T4TApp::SliceMode::toolNode() {
 			}
 			if(found) { //see if we have closed this polygon (note: may be more than one)
 				if(done) {
-					newData.faces.push_back(newFace);
+					newData->faces.push_back(newFace);
 					newTriangles.clear();
 					for(int j = 1; j < newFace.size()-1; j++) {
 						newTriangle[0] = 0;
@@ -223,7 +213,7 @@ bool T4TApp::SliceMode::toolNode() {
 						newTriangle[2] = j+1;
 						newTriangles.push_back(newTriangle);
 					}
-					newData.triangles.push_back(newTriangles);
+					newData->triangles.push_back(newTriangles);
 					newFace.clear();
 				}
 				break;
@@ -233,13 +223,13 @@ bool T4TApp::SliceMode::toolNode() {
 	}
 
 	//just add 1 convex hull for each convex face
-	for(int i = 0; i < newData.faces.size(); i++)
-		newData.hulls.push_back(newData.faces[i]);
+	for(int i = 0; i < newData->faces.size(); i++)
+		newData->hulls.push_back(newData->faces[i]);
 
 	//update or discard all the old convex hulls
 /*	std::vector<unsigned short> newHull;
-	short *inHull = new short[newData.vertices.size()];
-	for(int i = 0; i < newData.vertices.size(); i++) inHull[i] = false;
+	short *inHull = new short[newData->vertices.size()];
+	for(int i = 0; i < newData->vertices.size(); i++) inHull[i] = false;
 	for(int i = 0; i < data->hulls.size(); i++) {
 		newHull.clear();
 		for(int j = 0; j < data->hulls[i].size(); j++) {
@@ -250,13 +240,13 @@ bool T4TApp::SliceMode::toolNode() {
 			newHull.push_back(usedNew);
 			inHull[usedNew] = true;
 		}
-		if(newHull.size() > 0) newData.hulls.push_back(newHull);
+		if(newHull.size() > 0) newData->hulls.push_back(newHull);
 	}
 	//add 1 convex hull for each slice plane polygon if it has any vertices that aren't already in a hull
-	for(int i = newFaceStart; i < newData.faces.size(); i++) {
+	for(int i = newFaceStart; i < newData->faces.size(); i++) {
 		bool needHull = false;
-		for(int j = 0; j < newData.faces[i].size() && !needHull; j++) needHull = !inHull[newData.faces[i][j]];
-		if(needHull) newData.hulls.push_back(newData.faces[i]);
+		for(int j = 0; j < newData->faces[i].size() && !needHull; j++) needHull = !inHull[newData->faces[i][j]];
+		if(needHull) newData->hulls.push_back(newData->faces[i]);
 	}
 //*/
 	
@@ -264,33 +254,19 @@ bool T4TApp::SliceMode::toolNode() {
 	Matrix worldModel;
 	_node->getWorldMatrix().invert(&worldModel);
 	Vector3 translation(_node->getTranslationWorld()), scale(_node->getScale());
-	newData.translation.set(translation);
-	newData.scale.set(scale);
+	newData->translation.set(translation);
+	newData->scale.set(scale);
 	translation.x /= scale.x; translation.y /= scale.y; translation.z /= scale.z;
-	for(int i = 0; i < newData.vertices.size(); i++) {
-		worldModel.transformVector(&newData.vertices[i]);
-		newData.vertices[i] -= translation;
+	for(int i = 0; i < newData->vertices.size(); i++) {
+		worldModel.transformVector(&newData->vertices[i]);
+		newData->vertices[i] -= translation;
 	}
 	
-	//write the new node data to a file with suffix '_slice' and read it back in
-	std::string filename;
-	char newID[40];
-	for(int i = 0; i < 40; i++) newID[i] = '\0';
-	int count = 1;
-	do {
-		sprintf(newID, "%s_slice%d", data->type.c_str(), count++);
-		filename = newID;
-		filename = "res/common/" + filename + ".node";
-	}while(FileSystem::fileExists(filename.c_str()));
-	Node::writeData(&newData, filename.c_str());
-	app->removeNode(_node, newID);
-	app->loadNodeFromData(newID);
-	//make sure the node is not hovering if its lower part was sliced off
-	Node *newNode = app->_scene->findNode(newID);
-	if(newNode) {
-		translation.set(newNode->getTranslationWorld());
-		app->placeNode(newNode, translation.x, translation.z);
-	}
+	_newNode->setData(NULL);
+	_node->setData(newData);
+	_node->updateModelFromData();
+	translation.set(_node->getTranslationWorld());
+	app->placeNode(_node, translation.x, translation.z);
 	return true;
 }
 

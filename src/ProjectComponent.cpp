@@ -36,7 +36,7 @@ void T4TApp::ProjectComponent::controlEvent(Control *control, EventType evt) {
 	_scene->addNode(node);
 	_allNodes.push_back(node);
 	placeElement(node);
-	app->addCollisionObject(node);
+	node->addCollisionObject();
 	node->getCollisionObject()->setEnabled(false);
 	finishElement(node);
 	app->_componentMenu->setVisible(false);
@@ -64,15 +64,9 @@ bool T4TApp::ProjectComponent::touchEvent(Touch::TouchEvent evt, int x, int y, u
 
 void T4TApp::ProjectComponent::finishComponent() {
 	//can't deep copy nodes to the app scene, so must write them out and read them in
-	std::vector<std::string> nodes;
-	for(int i = 0; i < _allNodes.size(); i++) {
-		_allNodes[i]->writeMyData();
-		nodes.push_back(std::string(_allNodes[i]->getId()));
-	}
+	_node->writeData();
 	setActive(false);
-	for(int i = 0; i < nodes.size(); i++) {
-		app->loadNodeFromData(nodes[i].c_str());
-	}
+	app->loadNode(_node->getId());
 }
 
 void T4TApp::ProjectComponent::addElement(const char *name, T4TApp::ProjectComponent::TouchCallback touchCallback, bool isStatic) {

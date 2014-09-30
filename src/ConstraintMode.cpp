@@ -32,9 +32,9 @@ bool T4TApp::ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 		    camera->pickRay(app->getViewport(), x, y, &ray);
 		    PhysicsController::HitResult hitResult;
 		    if(!app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) break;
-	    	Node *node = hitResult.object->getNode();
+	    	MyNode *node = dynamic_cast<MyNode*>(hitResult.object->getNode());
 	    	Vector3 hitPoint = hitResult.point;
-	    	if(node->getCollisionObject() == NULL) break;
+	    	if(!node || node->getCollisionObject() == NULL) break;
 		    if(strcmp(node->getId(), "grid") == 0) break;
 			cout << "selected: " << node->getId() << " at " << hitPoint.x << "," << hitPoint.y << "," << hitPoint.z << endl;
 			_nodes[_currentNode] = node;
@@ -51,8 +51,8 @@ bool T4TApp::ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 				Vector3 normal; //default hinge axis is model space z-axis, we want face normal
 				for(i = 0; i < 2; i++) {
 					_nodes[i]->updateData();
-					Node::nodeData *data = _nodes[i]->getData();
-					_rot[i] = Node::getVectorRotation(Vector3(0, 0, 1), data->normals[_faces[i]]);
+					MyNode::nodeData *data = _nodes[i]->getData();
+					_rot[i] = MyNode::getVectorRotation(Vector3(0, 0, 1), data->normals[_faces[i]]);
 					_trans[i] = _nodes[i]->faceCenter(_faces[i], true);
 					data->normals[_faces[i]].normalize(&normal);
 					normal.x /= data->scale.x;
@@ -66,16 +66,8 @@ bool T4TApp::ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 					body->setEnabled(true);
 				}
 				PhysicsConstraint *constraint;
-				if(_subMode == 0 || _subMode == 3) { //axle, spring require rotation and translation
-					constraint = app->addConstraint(_nodes[0], _nodes[1], _constraintTypes[_subMode].c_str(),
-					  &_rot[0], &_trans[0], &_rot[1], &_trans[1]);
-					//if(_subMode == 0) ((PhysicsHingeConstraint*)constraint)->setLimits(0.0f, 90.0f, 1.0f);
-				} else if(_subMode == 2) { //socket requires only translation
-					constraint = app->addConstraint(_nodes[0], _nodes[1], _constraintTypes[_subMode].c_str(),
-					  &_trans[0], &_trans[1]);
-				} else if(_subMode == 1) { //glue requires nothing
-					constraint = app->addConstraint(_nodes[0], _nodes[1], _constraintTypes[_subMode].c_str());
-				}
+				constraint = app->addConstraint(_nodes[0], _nodes[1], -1, _constraintTypes[_subMode].c_str(),
+				  &_rot[0], &_trans[0], &_rot[1], &_trans[1]);
 				//the second node clicked becomes a child of the first node clicked
 				_nodes[0]->addChild(_nodes[1]);
 				_nodes[1]->parentOffset = _trans[0];

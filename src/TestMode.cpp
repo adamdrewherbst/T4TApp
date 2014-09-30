@@ -14,8 +14,9 @@ bool T4TApp::TestMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 			float distance = ray.intersects(ground);
 			if(distance != Ray::INTERSECTS_NONE) {
 				Vector3 point(ray.getOrigin() + ray.getDirection() * distance);
-				Node *node = app->duplicateModelNode("sphere");
-				app->addCollisionObject(node);
+				MyNode *node = app->duplicateModelNode("sphere");
+				node->getData()->mass = 3.0f;
+				node->addCollisionObject();
 				PhysicsRigidBody *body = node->getCollisionObject()->asRigidBody();
 				body->setEnabled(false);
 				node->setTranslation(point.x, 10.0f, point.z);

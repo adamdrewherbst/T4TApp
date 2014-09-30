@@ -2,6 +2,7 @@
 #define TEMPLATEGAME_H_
 
 #include "gameplay.h"
+#include "MyNode.h"
 #include <cstring>
 #include <cstdio>
 #include <cstdarg>
@@ -25,15 +26,14 @@ public:
     T4TApp();
     
     T4TApp* getInstance();
-    
+
+	MyNode* loadNode(const char* id);    
     MyNode* duplicateModelNode(const char* type, bool isStatic = false);
     MyNode* createWireframe(std::vector<float>& vertices, char *id=NULL);
-    void addCollisionObject(MyNode *node);
-	MyNode* loadNodeFromData(const char *nodeID);
     bool printNode(Node *node);
     bool prepareNode(MyNode *node);
     void translateNode(MyNode *node, Vector3 trans);
-    PhysicsConstraint* addConstraint(MyNode *n1, MyNode *n2, const char *type, ...);
+    PhysicsConstraint* addConstraint(MyNode *n1, MyNode *n2, int id, const char *type, ...);
     //misc functions
     const std::string printVector(const Vector3& v);
     const std::string printVector2(const Vector2& v);
@@ -42,14 +42,13 @@ public:
 	void releaseScene();
 	void hideScene();
 	void showScene();
-	bool hideNode(MyNode *node);
-	bool showNode(MyNode *node);
+	bool hideNode(Node *node);
+	bool showNode(Node *node);
     void setActiveScene(Scene *scene);
     void addConstraints(MyNode *node);
     void removeConstraints(MyNode *node);
-    void enablePhysics(MyNode *node, bool enable = true);
-    void addPhysics(MyNode *node);
-    void removePhysics(MyNode *node);
+    void enableConstraints(MyNode *node, bool enable = true);
+    void reloadConstraint(MyNode *node, MyNode::nodeConstraint *constraint);
     
     /**
      * @see Game::keyEvent
@@ -114,7 +113,6 @@ public:
     template <class ControlType> ControlType* addControl(Form *parent, const char *name, Theme::Style *style, const char *text = NULL);
     
     //standard projects
-    void buildVehicle();
     void promptComponent();
 
 	//scene setup
@@ -129,14 +127,15 @@ public:
     float _steering, _braking, _driving;
     
     //for placing objects
-    MyNode *_lastNode, *_intersectModel;
+    Node *_intersectModel;
     std::vector<MyNode*> _intersectNodeGroup;
     BoundingBox _intersectBox;
     Vector3 _intersectPoint;
     Plane _groundPlane;
     
-    //for creating physical constraints between objects
-    std::map<MyNode*, std::vector<PhysicsConstraint*> > _constraints;
+    //each constraint in the simulation will have an integer ID for lookup
+    std::map<int, PhysicsConstraint*> _constraints;
+    int _constraintCount;
     
     //current state
     std::string _mode;
@@ -149,7 +148,6 @@ public:
     std::vector<Form*> _submenus; //submenus
     Button *_itemButton, *_modeButton, *_machineButton; //submenu handles
     std::map<std::string, Form*> _modeOptions;
-    Button *_vehicleButton;
     CheckBox *_drawDebugCheckbox;
     Slider *_zoomSlider;
     std::vector<std::string> _modeNames, _machineNames;
@@ -168,6 +166,7 @@ public:
     	//blank scene onto which to build the component
     	std::string _sceneFile;
     	Scene *_scene;
+    	MyNode *_node; //parent node for this component
     	std::vector<MyNode*> _allNodes;
 
 		//each element of this component is positioned/finalized via touches => has its own touch callback
@@ -241,13 +240,16 @@ public:
 	{
 public:
 		std::string _toolType;
-		MyNode *_node; //the model to be altered
+		MyNode *_node, *_newNode; //the model to be altered and a model to hold the modified node data
+		MyNode::nodeData *data, *newData;
 		Plane _viewPlane;
 		Vector3 _touchStart, _touchPoint, _viewPlaneOrigin;
 		MyNode *_tool; //to display the tool to the user
 		Quaternion _toolBaseRotation;
 		int _subMode; //0 = rotate, 1 = translate
 		bool _touching, _rotate;
+		
+		short usageCount;
 
 		ToolMode(T4TApp *app_, const char* id, const char* filename = NULL);
 		virtual void setActive(bool active);
@@ -274,14 +276,11 @@ public:
 public:
 		Ray _axis;
 		float _radius;
-		int _segments, usageCount;
-		MyNode::nodeData *data, newData;
+		int _segments;
 		//store all the lines and planes of the drill bit
 		std::vector<Ray> lines;
 		std::vector<Plane> planes;
 		//contiguous patches of the surface based on alignment of normal with drill
-		std::vector<std::vector<unsigned short> > patches, patchEdge;
-		std::vector<short> facePatch; //which patch each face is part of
 		std::vector<Vector3> drillVertices; //coords of model vertices wrt drill axis
 		//edgeInt[edge vertex 1][edge vertex 2] = (drill ray number, index of intersection point in new model's vertex list)
 		//drillInt[drill ray number][face index in old model] = index of intersection point in new model's vertex list
@@ -295,8 +294,6 @@ public:
 		std::map<unsigned short, bool> enterInt;
 		//all the directed edges in each segment of the drill
 		std::map<unsigned short, std::map<unsigned short, unsigned short> > segmentEdges;
-		//store which edges have already been added so as not to duplicate
-		std::map<unsigned short, std::vector<unsigned short> > usedEdges;
 		std::vector<unsigned short> newEdge;
 
 		//GUI
@@ -342,10 +339,11 @@ public:
 		std::vector<std::string> _subModes, _axisNames;
 		unsigned short _subMode;
 		short _axis;
-		MyNode *_selectedNode;
+		MyNode *_selectedNode, *_parentNode;
 		float _positionValue;
 	    Quaternion _baseRotation;
-	    Vector3 _baseTranslation, _baseScale, _basePoint, _transDir;
+	    Vector3 _baseTranslation, _baseScale, _basePoint, _transDir, _normal, _planeCenter;
+	    Plane _plane;
 	    Vector2 _dragOffset;
 	    short _groundFace;
 	    
