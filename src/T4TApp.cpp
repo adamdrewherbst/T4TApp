@@ -38,7 +38,7 @@ void T4TApp::initialize()
     // Load camera script
     getScriptController()->loadScript("res/common/camera.lua");
 
-    loadScene();
+    initScene();
     
 	getPhysicsController()->setGravity(Vector3(0.0f, -10.0f, 0.0f));
 
@@ -60,6 +60,14 @@ void T4TApp::initialize()
 	_mainMenu->setVisible(false);
 	//main menu on left side [Note: this calls addRef() on formStyle's Theme, which we created above]
     _sideMenu = (Form*) addMenu("sideMenu");
+    
+    //scene operations: load, save, clear
+    _sceneMenu = addMenu("sceneMenu", _sideMenu, "Scene >>");
+    addButton<Button>(_sceneMenu, "sceneLoad", "Load");
+    addButton<Button>(_sceneMenu, "sceneSave", "Save");
+    addButton<Button>(_sceneMenu, "sceneSaveAs", "Save As");
+    addButton<Button>(_sceneMenu, "sceneClear", "Clear");
+    
     //popup submenu for adding items
 	_componentMenu = addMenu("componentMenu", _sideMenu, "Add Object >>", Layout::LAYOUT_FLOW);
     _componentMenu->setPosition(_sideMenu->getX() + _sideMenu->getWidth() + 25.0f, 25.0f);
@@ -255,7 +263,7 @@ void T4TApp::generateModel(const char *type, ...) {
 	node->writeData();
 }
 
-void T4TApp::loadScene()
+void T4TApp::initScene()
 {
     // Generate game scene
     _scene = Scene::load("res/common/game.scene");
@@ -272,18 +280,14 @@ void T4TApp::loadScene()
 
 	//create the grid on which to place objects
     MyNode* node = MyNode::create("grid");
-    _scene->addNode(node);
     Model* gridModel = createGridModel();
     gridModel->setMaterial("res/common/grid.material");
     node->setModel(gridModel);
     gridModel->release();
-	PhysicsRigidBody::Parameters gridParams;
-	gridParams.mass = 0.0f;
-	node->setCollisionObject(PhysicsCollisionObject::RIGID_BODY,
-		PhysicsCollisionShape::box(),
-		&gridParams);
-	PhysicsRigidBody* body = node->getCollisionObject()->asRigidBody();
-	body->setEnabled(true);
+    node->data->objType = "box";
+    node->setStatic(true);
+    node->addPhysics();
+    _scene->addNode(node);
     //store the plane representing the grid, for calculating intersections
     _groundPlane = Plane(Vector3(0, 1, 0), 0);
     
@@ -304,6 +308,63 @@ void T4TApp::loadScene()
     getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_RELEASE, 0, 0, 0);
 }
 
+std::string getSceneDir() {
+	return "res/scenes/" + _sceneName + "/";
+}
+
+void T4TApp::loadScene() {
+	const char *listFile = (getSceneDir() + "scene.list").c_str();
+	std::auto_ptr<Stream> stream(FileSystem::open(listFile));
+	if(stream.get() == NULL) {
+		GP_ERROR("Failed to open file '%s'", listFile);
+		return;
+	}
+	char line[256];
+	while(!stream->eof()) {
+		stream->readLine(line, 256);
+		loadNode(line);
+	}
+}
+
+MyNode* T4TApp::loadNode(const char *id) {
+	MyNode *node = MyNode::create(id);
+	_scene->addNode(node);
+	node->loadData();
+	node->updateModelFromData();
+	return node;
+}
+
+void T4TApp::saveScene() {
+	//create a file that lists all root nodes in the scene, and save each one to its own file
+	const char *listFile = (getSceneDir() + "scene.list").c_str();
+	std::auto_ptr<Stream> stream(FileSystem::open(listFile, FileSystem::WRITE));
+	if(stream.get() == NULL) {
+		GP_ERROR("Failed to open file '%s'", listFile);
+		return;
+	}
+	MyNode *node;
+	std::ostringstream os;
+	std::string line;
+	for(Node *n = _scene->getFirstNode(); n != NULL; n = n->getNextSibling()) {
+		if(n->getParent() != NULL || strcmp(n->getId(), "grid") == 0) continue;
+		node = dynamic_cast<MyNode*>(n);
+		if(node) {
+			os.str("");
+			os << node->getId() << endl;
+			line = os.str();
+			stream->write(line.c_str(), sizeof(char), line.length());
+			node->writeData();
+		}
+	}
+	stream->close();
+}
+
+bool T4TApp::saveNode(Node *n) {
+	MyNode *node = dynamic_cast<MyNode*>(n);
+	if(node && !node->getParent() && strcmp(node->getId(), "grid") != 0) node->writeData();
+	return true;
+}
+
 void T4TApp::releaseScene()
 {
 	if(_activeScene == _scene) _activeScene = NULL;
@@ -321,22 +382,15 @@ void T4TApp::showScene() {
 	_activeScene = _scene;
 }
 
-MyNode* T4TApp::loadNode(const char *id) {
-	MyNode *node = MyNode::create(id);
-	_scene->addNode(node);
-	node->loadData();
-	node->updateModelFromData();
-}
-
 bool T4TApp::hideNode(Node *node) {
-	PhysicsCollisionObject *obj = node->getCollisionObject();
-	if(obj)	obj->setEnabled(false);
+	MyNode *n = dynamic_cast<MyNode*>(node);
+	if(n) n->enablePhysics(false);
 	return true;
 }
 
 bool T4TApp::showNode(Node *node) {
-	PhysicsCollisionObject *obj = node->getCollisionObject();
-	if(obj) obj->setEnabled(true);
+	MyNode *n = dynamic_cast<MyNode*>(node);
+	if(n) n->enablePhysics(true);
 	return true;
 }
 

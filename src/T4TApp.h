@@ -41,13 +41,21 @@ public:
     const std::string printVector(const Vector3& v);
     const std::string printVector2(const Vector2& v);
     const std::string printQuat(Quaternion& q);
+
+    void initScene();
 	void loadScene();
+	std::string getSceneDir();
+	void clearScene();
+	void saveScene();
+	void saveNode(Node *n);
 	void releaseScene();
 	void hideScene();
 	void showScene();
 	bool hideNode(Node *node);
 	bool showNode(Node *node);
     void setActiveScene(Scene *scene);
+    std::string _sceneName;
+
     void addConstraints(MyNode *node);
     void removeConstraints(MyNode *node);
     void enableConstraints(MyNode *node, bool enable = true);
@@ -151,9 +159,8 @@ public:
 
     //user interface
     Form *_mainMenu, *_sideMenu, *_componentMenu, *_machineMenu, *_modePanel;
+    Button *_saveButton, *_deleteButton;
     std::vector<Form*> _submenus; //submenus
-    Button *_itemButton; //submenu handles
-    std::map<std::string, Form*> _modeOptions;
     CheckBox *_drawDebugCheckbox;
     Slider *_zoomSlider;
     std::vector<std::string> _modeNames, _machineNames;
@@ -203,7 +210,6 @@ public:
 		bool armTouch(Touch::TouchEvent evt, int x, int y);
 		void placeElement(MyNode *node);
 		void finishElement(MyNode *node);
-		void releaseScene();
 	};
 
 	class Pulley : public ProjectComponent 
@@ -219,7 +225,6 @@ public:
 		bool bucketTouch(Touch::TouchEvent evt, int x, int y);
 		void placeElement(MyNode *node);
 		void finishElement(MyNode *node);
-		void releaseScene();
 	};
 
 	std::vector<ProjectComponent*> _machines;

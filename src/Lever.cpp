@@ -44,8 +44,3 @@ void T4TApp::Lever::finishElement(MyNode *node) {
 	}
 }
 
-void T4TApp::Lever::releaseScene() {
-	ProjectComponent::releaseScene();
-	app->getPhysicsController()->removeConstraint(_armConstraint);
-}
-

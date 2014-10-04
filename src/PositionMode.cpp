@@ -102,7 +102,7 @@ bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsig
 					}
 				} else if(_groundFace >= 0 && _parentNode == NULL) {
 					_selectedNode->rotateFaceToPlane(_groundFace, app->_groundPlane);
-					_selectedNode->addPhysics();
+					_selectedNode->enablePhysics(true);
 					_groundFace = -1;
 				}
 			}

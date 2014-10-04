@@ -63,10 +63,8 @@ bool T4TApp::ProjectComponent::touchEvent(Touch::TouchEvent evt, int x, int y, u
 }
 
 void T4TApp::ProjectComponent::finishComponent() {
-	//can't deep copy nodes to the app scene, so must write them out and read them in
-	_rootNode->writeData();
+	app->_scene->addNode(_rootNode);
 	setActive(false);
-	app->loadNode(_rootNode->getId());
 }
 
 void T4TApp::ProjectComponent::addElement(const char *name, T4TApp::ProjectComponent::TouchCallback touchCallback, bool isStatic) {
@@ -125,10 +123,6 @@ void T4TApp::ProjectComponent::loadScene() {
 }
 
 void T4TApp::ProjectComponent::releaseScene() {
-	//must explicitly get rid of physics objects/constraints
-	for(int i = 0; i < _allNodes.size(); i++) {
-		_allNodes[i]->removePhysics();
-	}
 	SAFE_RELEASE(_scene);
 }
 

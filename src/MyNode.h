@@ -95,9 +95,9 @@ public:
 	bool isStatic();
 	void setStatic(bool stat);
 	void addCollisionObject();
-	void addPhysics();
-	void removePhysics();
-	void enablePhysics(bool enable = true);
+	void addPhysics(bool recur = true);
+	void removePhysics(bool recur = true);
+	void enablePhysics(bool enable = true, bool recur = true);
 	bool physicsEnabled();
 	nodeConstraint* getNodeConstraint(MyNode *other);
 	

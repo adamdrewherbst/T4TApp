@@ -320,7 +320,7 @@ MyNode::nodeData* MyNode::copyData() {
 }
 
 const char* MyNode::getFilename() {
-	return concat(3, "res/common/", getId(), ".node");
+	return (app->getSceneDir() + getId() + ".node").c_str();
 }
 
 void MyNode::loadData(const char *filename)
@@ -717,7 +717,8 @@ void MyNode::myTranslate(const Vector3& delta) {
 	for(MyNode *child = dynamic_cast<MyNode*>(getFirstChild()); child; child = dynamic_cast<MyNode*>(child->getNextSibling())) {
 		child->myTranslate(delta);
 	}
-	translate(delta);
+	cout << "moving " << getId() << " by " << app->printVector(delta) << endl;
+	if(getParent() == NULL || !isStatic()) translate(delta);
 }
 
 void MyNode::setMyTranslation(const Vector3& translation) {
@@ -734,7 +735,7 @@ void MyNode::myRotate(const Quaternion& delta) {
 		child->myRotate(delta);
 		child->myTranslate(offsetRot - offset);
 	}
-	setRotation(delta * getRotation());
+	if(getParent() == NULL || !isStatic()) setRotation(delta * getRotation());
 }
 
 void MyNode::setMyRotation(const Quaternion& rotation) {
@@ -775,35 +776,41 @@ void MyNode::addCollisionObject() {
 	}
 }
 
-void MyNode::addPhysics() {
+void MyNode::addPhysics(bool recur) {
 	if(getCollisionObject() != NULL) return;
 	addCollisionObject();
 	app->addConstraints(this);
-	for(MyNode *node = dynamic_cast<MyNode*>(getFirstChild()); node; node = dynamic_cast<MyNode*>(node->getNextSibling())) {
-		node->addPhysics();
+	if(recur) {
+		for(MyNode *node = dynamic_cast<MyNode*>(getFirstChild()); node; node = dynamic_cast<MyNode*>(node->getNextSibling())) {
+			node->addPhysics();
+		}
 	}
 }
 
-void MyNode::removePhysics() {
+void MyNode::removePhysics(bool recur) {
 	if(getCollisionObject() == NULL) return;
 	app->removeConstraints(this);
 	setCollisionObject(PhysicsCollisionObject::NONE);
-	for(MyNode *node = dynamic_cast<MyNode*>(getFirstChild()); node; node = dynamic_cast<MyNode*>(node->getNextSibling())) {
-		node->removePhysics();
+	if(recur) {
+		for(MyNode *node = dynamic_cast<MyNode*>(getFirstChild()); node; node = dynamic_cast<MyNode*>(node->getNextSibling())) {
+			node->removePhysics();
+		}
 	}
 }
 
-void MyNode::enablePhysics(bool enable) {
+void MyNode::enablePhysics(bool enable, bool recur) {
 	PhysicsCollisionObject *obj = getCollisionObject();
 	if(obj != NULL && obj->isEnabled() == enable) return;
-	//first enable/disable physics on all child nodes
-	for(MyNode *node = dynamic_cast<MyNode*>(getFirstChild()); node; node = dynamic_cast<MyNode*>(node->getNextSibling())) {
-		node->enablePhysics(enable);
+	if(recur) {
+		//first enable/disable physics on all child nodes
+		for(MyNode *node = dynamic_cast<MyNode*>(getFirstChild()); node; node = dynamic_cast<MyNode*>(node->getNextSibling())) {
+			node->enablePhysics(enable);
+		}
 	}
 	//then handle my own constraints and collision object
 	if(enable) {
 		if(obj == NULL) {
-			addPhysics();
+			addPhysics(false);
 		} else {
 			PhysicsRigidBody *body = obj->asRigidBody();
 			body->setActivation(ACTIVE_TAG);
@@ -812,7 +819,7 @@ void MyNode::enablePhysics(bool enable) {
 		}
 	} else if(obj != NULL) {
 		if(obj->isStatic()) {
-			removePhysics();
+			removePhysics(false);
 		} else {
 			app->enableConstraints(this, false);
 			obj->asRigidBody()->setEnabled(false);

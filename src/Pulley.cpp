@@ -25,7 +25,7 @@ bool T4TApp::Pulley::bucketTouch(Touch::TouchEvent evt, int x, int y) {
 }
 
 void T4TApp::Pulley::placeElement(MyNode *node) {
-	BoundingBox box = node->getModel()->getMesh()->getBoundingBox();
+	BoundingBox box = node->getWorldBox();
 	float x, y;
 	switch(_currentElement) {
 		case 0: //base
@@ -131,14 +131,6 @@ void T4TApp::Pulley::finishElement(MyNode *node) {
 			}
 			break;
 		}
-	}
-}
-
-void T4TApp::Pulley::releaseScene() {
-	ProjectComponent::releaseScene();
-	unsigned short i, n = _constraints.size();
-	for(i = 0; i < n; i++) {
-		app->getPhysicsController()->removeConstraint(_constraints[i]);
 	}
 }
 
