@@ -27,6 +27,9 @@ public:
     
     T4TApp* getInstance();
 
+	void generateModels();
+	void generateModel(const char *type, ...);
+	
 	MyNode* loadNode(const char* id);    
     MyNode* duplicateModelNode(const char* type, bool isStatic = false);
     MyNode* createWireframe(std::vector<float>& vertices, char *id=NULL);
@@ -69,6 +72,12 @@ public:
 
     void collisionEvent(PhysicsCollisionObject::CollisionListener::EventType type,
     	const PhysicsCollisionObject::CollisionPair& pair, const Vector3& pointA, const Vector3& pointB);
+    	
+    //add/remove listener to/from entire control tree
+    void addListener(Control *control, Control::Listener *listener, Control::Listener::EventType evt = Control::Listener::CLICK);
+    void removeListener(Control *control, Control::Listener *listener);
+    void enableListener(bool enable, Control *control, Control::Listener *listener,
+      Control::Listener::EventType evt = Control::Listener::CLICK);
 
 //protected:
 
@@ -92,23 +101,20 @@ public:
      */
     void render(float elapsedTime);
 
-//private:
-
     /**
      * Draws the scene each frame.
      */
     bool drawScene(Node* node);
     void placeNode(MyNode *node, float x, float y);
-    void setMode(const char *mode);
 
     //see if the current touch coordinates intersect a given model in the scene
     bool checkTouchModel(Node* node);
-    BoundingBox getWorldBox(Node *node);
     MyNode* getMouseNode(int x, int y, Vector3 *touch = NULL);
     
     //UI factory functions
-    Form* addMenu(Form *parent, const char *name);
-    Form* addPanel(Form *parent, const char *name);
+    Form* addMenu(const char *name, Form *parent = NULL, const char *buttonText = NULL,
+      Layout::Type layout = Layout::LAYOUT_VERTICAL);
+    Form* addPanel(const char *name, Form *parent = NULL);
     template <class ButtonType> ButtonType* addButton(Form *menu, const char *name, const char *text = NULL);
     template <class ControlType> ControlType* addControl(Form *parent, const char *name, Theme::Style *style, const char *text = NULL);
     
@@ -144,9 +150,9 @@ public:
     Scene *_activeScene;
 
     //user interface
-    Form *_mainMenu, *_sideMenu, *_itemContainer, *_machineContainer, *_modeContainer, *_modePanel, *_componentMenu;
+    Form *_mainMenu, *_sideMenu, *_componentMenu, *_machineMenu, *_modePanel;
     std::vector<Form*> _submenus; //submenus
-    Button *_itemButton, *_modeButton, *_machineButton; //submenu handles
+    Button *_itemButton; //submenu handles
     std::map<std::string, Form*> _modeOptions;
     CheckBox *_drawDebugCheckbox;
     Slider *_zoomSlider;
@@ -164,9 +170,9 @@ public:
     	int _currentElement, _typeCount;
     	std::vector<bool> _isStatic; //whether this element should be immovable
     	//blank scene onto which to build the component
-    	std::string _sceneFile;
+    	std::string _sceneFile, _nodeId;
     	Scene *_scene;
-    	MyNode *_node; //parent node for this component
+		MyNode *_rootNode; //parent node for this component
     	std::vector<MyNode*> _allNodes;
 
 		//each element of this component is positioned/finalized via touches => has its own touch callback

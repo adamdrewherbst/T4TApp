@@ -70,6 +70,7 @@ bool T4TApp::ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 				  &_rot[0], &_trans[0], &_rot[1], &_trans[1]);
 				//the second node clicked becomes a child of the first node clicked
 				_nodes[0]->addChild(_nodes[1]);
+				_nodes[1]->_constraintParent = _nodes[0];
 				_nodes[1]->parentOffset = _trans[0];
 				Matrix rot;
 				Matrix::createRotation(_rot[0], &rot);

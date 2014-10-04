@@ -28,6 +28,9 @@ T4TApp* T4TApp::getInstance() {
 
 void T4TApp::initialize()
 {
+	generateModels();
+/*	exit();
+//*/
     // Load font
     _font = Font::create("res/common/arial18.gpb");
     assert(_font);
@@ -56,24 +59,16 @@ void T4TApp::initialize()
 	_mainMenu->setHeight(getHeight());
 	_mainMenu->setVisible(false);
 	//main menu on left side [Note: this calls addRef() on formStyle's Theme, which we created above]
-    _sideMenu = (Form*) addMenu(NULL, "sideMenu");
-    //submenu for adding simple machines
-    _machineContainer = addMenu(_sideMenu, "machineContainer");
-    //submenu holding catalog of T4T items
-    _itemContainer = addMenu(_sideMenu, "itemContainer");
-    //submenu for current interaction mode
-    _modeContainer = addMenu(_sideMenu, "modeContainer");
-    
-    //popup menu to allow user to select a component
-    _componentMenu = Form::create("componentMenu", _formStyle, Layout::LAYOUT_FLOW);
+    _sideMenu = (Form*) addMenu("sideMenu");
+    //popup submenu for adding items
+	_componentMenu = addMenu("componentMenu", _sideMenu, "Add Object >>", Layout::LAYOUT_FLOW);
     _componentMenu->setPosition(_sideMenu->getX() + _sideMenu->getWidth() + 25.0f, 25.0f);
     _componentMenu->setWidth(getWidth() - _componentMenu->getX() - 25.0f);
     _componentMenu->setHeight(getHeight() - 50.0f);
-    _componentMenu->setVisible(false);
-    _componentMenu->setScroll(Container::SCROLL_VERTICAL);
-    _componentMenu->setConsumeInputEvents(true);
-    _mainMenu->addControl(_componentMenu);
-
+    _componentMenu->setZIndex(13);
+    //submenu for adding simple machines
+    _machineMenu = addMenu("machineMenu", _sideMenu, "Add Machine >>");
+    
     _theme->release();   // So we can release it once we're done creating forms with it.
     
 	// populate catalog of items
@@ -84,6 +79,7 @@ void T4TApp::initialize()
 	_models->addNode(new MyNode("cylinder"));
 	_models->addNode(new MyNode("halfpipe"));
 	_models->addNode(new MyNode("box"));
+	_models->addNode(new MyNode("gear_basic"));
 	_models->addNode(new MyNode("gear"));
 	_models->addNode(new MyNode("tube"));
 	_models->addNode(new MyNode("vase"));
@@ -92,16 +88,11 @@ void T4TApp::initialize()
 	_models->addNode(new MyNode("heart"));
 	_models->addNode(new MyNode("gear_thin"));
 
-	//populate item submenu
-	_itemButton = addButton <Button> (_sideMenu, "itemButton", "Add Object >>"); //button to open object catalog
-
     MyNode *modelNode = dynamic_cast<MyNode*>(_models->getFirstNode());
     while(modelNode) {
     	if(strstr(modelNode->getId(), "_part") == NULL) {
-			cout << "adding button for " << modelNode->getId() << endl;
 			modelNode->loadData();
 			modelNode->updateModelFromData(false);
-			Button* itemButton = addButton <Button> (_itemContainer, modelNode->getId());
 			ImageControl* itemImage = addButton <ImageControl> (_componentMenu, concat(2, "comp_", modelNode->getId()));
 			itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
 			itemImage->setWidth(150.0f);
@@ -118,9 +109,8 @@ void T4TApp::initialize()
     _machines.push_back(new Pulley(this, _buttonStyle, _formStyle));
     _machineNames.push_back("Lever");
     _machineNames.push_back("Pulley");
-    _machineButton = addButton <Button> (_sideMenu, "parent_machineContainer", "Add Machine >>");
     for(size_t i = 0; i < _machineNames.size(); i++) {
-    	Button *machineButton = addButton <Button> (_machineContainer, _machineNames[i].c_str());
+    	Button *machineButton = addButton <Button> (_machineMenu, _machineNames[i].c_str());
     }
 
 	_modes.push_back(new RotateMode(this));
@@ -130,7 +120,7 @@ void T4TApp::initialize()
 	_modes.push_back(new DrillMode(this));
 	_modes.push_back(new TestMode(this));
 	_modes.push_back(new TouchMode(this));
-	_modePanel = addPanel(_sideMenu, "container_modes");
+	_modePanel = addPanel("container_modes", _sideMenu);
 	for(size_t i = 0; i < _modes.size(); i++) {
 		const char *id = _modes[i]->getId();
 		Button *modeButton = addControl <Button> (_modePanel, id, _buttonStyle, id+5);
@@ -138,18 +128,131 @@ void T4TApp::initialize()
 	}
 	_modePanel->setHeight(_modes.size() * 50.0f);
 	_modePanel->setVisible(true);
+	_modes[0]->setActive(true);
 
 	_drawDebugCheckbox = addControl <CheckBox> (_sideMenu, "drawDebug", _buttonStyle, "Draw Debug");
 	Button *debugButton = addControl <Button> (_sideMenu, "debugButton", _buttonStyle, "Debug");
 	
 	_drawDebug = true;	
-	setMode("Rotate");
     _sideMenu->setState(Control::FOCUS);
+    
+    addListener(_mainMenu, this);
+    addListener(_sideMenu, this);
 	
 	_running = 0;
 	
 	/******** PHYSICS **********/
 	_constraintCount = 0;
+}
+
+void T4TApp::generateModels() {
+	generateModel("gear_basic", 0.6f, 0.9f, 1.2f, 9);
+}
+
+void T4TApp::generateModel(const char *type, ...) {
+	va_list arguments;
+	va_start(arguments, type);
+	MyNode *node = MyNode::create(type);
+	MyNode::nodeData *data = node->getData();
+	data->type = type;
+	data->objType = "mesh";
+	data->mass = 10.0f;
+	short nv, nf, ne, i, j, k, m, n;
+	Vector3 vertex;
+	std::vector<unsigned short> face, hull;
+	std::vector<std::vector<unsigned short> > triangles;
+	if(strcmp(type, "gear_basic") == 0) {
+		float innerRadius = (float)va_arg(arguments, double);
+		float outerRadius = (float)va_arg(arguments, double);
+		float width = (float)va_arg(arguments, double);
+		int teeth = va_arg(arguments, int);
+		nv = teeth * 8;
+		float angle, dAngle = 2*M_PI / teeth, gearWidth = innerRadius * sin(dAngle/2);
+		Matrix rot;
+		//vertices
+		for(n = 0; n < teeth; n++) {
+			angle = n * dAngle;
+			Matrix::createRotation(Vector3(0, 0, 1), -angle, &rot);
+			for(i = 0; i < 2; i++) {
+				for(j = 0; j < 2; j++) {
+					for(k = 0; k < 2; k++) {
+						vertex.set(0, innerRadius, -width/2);
+						if(i == 1) vertex.z += width;
+						if(j == 1) vertex.y = outerRadius;
+						if(k == 1) vertex.x += gearWidth;
+						rot.transformPoint(&vertex);
+						data->vertices.push_back(vertex);
+						data->worldVertices.push_back(vertex);
+					}
+				}
+			}
+		}
+		//faces
+		for(i = 0; i < 2; i++) {
+			face.clear();
+			triangles.clear();
+			for(j = 0; j < teeth; j++) {
+				face.push_back(8 * j + 4*i);
+				face.push_back(8 * j + 1 + 4*i);
+			}
+			node->addFace(face, triangles, i == 1);
+		}
+		for(n = 0; n < teeth; n++) {
+			for(i = 0; i < 2; i++) {
+				//tooth sides
+				face.clear();
+				triangles.clear();
+				face.push_back(0);
+				face.push_back(1);
+				face.push_back(3);
+				face.push_back(2);
+				for(j = 0; j < 4; j++) face[j] += n*8 + i*4;
+				node->addFace(face, triangles, i == 0);
+				//tooth front/back
+				face.clear();
+				triangles.clear();
+				face.push_back(0);
+				face.push_back(2);
+				face.push_back(6);
+				face.push_back(4);
+				for(j = 0; j < 4; j++) face[j] += n*8 + i;
+				node->addFace(face, triangles, i == 0);
+			}
+			//tooth top
+			face.clear();
+			triangles.clear();
+			face.push_back(2);
+			face.push_back(6);
+			face.push_back(7);
+			face.push_back(3);
+			for(j = 0; j < 4; j++) face[j] += n*8;
+			node->addFace(face, triangles);
+			//tooth connector
+			face.clear();
+			triangles.clear();
+			face.push_back(1);
+			face.push_back(5);
+			face.push_back(12);
+			face.push_back(8);
+			for(j = 0; j < 4; j++) face[j] = (face[j] + n*8) % nv;
+			node->addFace(face, triangles);
+		}
+		//convex hulls
+		hull.resize(8);
+		for(n = 0; n < teeth; n++) {
+			for(i = 0; i < 8; i++) hull[i] = i + n*8;
+			data->hulls.push_back(hull);
+		}
+		hull.clear();
+		for(n = 0; n < teeth; n++) {
+			hull.push_back(0 + n*8);
+			hull.push_back(1 + n*8);
+			hull.push_back(4 + n*8);
+			hull.push_back(5 + n*8);
+		}
+		data->hulls.push_back(hull);
+	}
+	node->writeData();
 }
 
 void T4TApp::loadScene()
@@ -245,7 +348,6 @@ template <class ButtonType> ButtonType* T4TApp::addButton(Form *menu, const char
 	button->setAutoWidth(true);
 	button->setHeight(50);
 	button->setConsumeInputEvents(false);
-	button->addListener(this, Control::Listener::CLICK);
 	menu->addControl(button);
 	return button;
 }
@@ -258,39 +360,69 @@ template <class ControlType> ControlType* T4TApp::addControl(Form *parent, const
 	control->setHeight(50);
 	control->setWidth(150);
 	control->setConsumeInputEvents(false);
-	control->addListener(this, Control::Listener::CLICK);
 	parent->addControl(control);
 	return control;
 }
 
-Form* T4TApp::addMenu(Form *parent, const char *name)
+Form* T4TApp::addMenu(const char *name, Form *parent, const char *buttonText, Layout::Type layout)
 {
-    Form *container = Form::create(name, _formStyle, Layout::LAYOUT_VERTICAL);
-    if(parent == NULL) {
-    	container->setAutoHeight(true);
-    }
-    else {
-	    container->setHeight(300.0f);
-	    container->setVisible(false);
-	    _submenus.push_back(container);
-	}
+	bool isSubmenu = parent != NULL && buttonText != NULL;
+	const char *id = name;
+	if(isSubmenu) id = MyNode::concat(2, "submenu_", name);
+    Form *container = Form::create(id, _formStyle, layout);
+    if(parent == NULL) container->setAutoHeight(true);
+	else container->setHeight(300.0f);
     container->setWidth(200.0f);
     container->setScroll(Container::SCROLL_VERTICAL);
     container->setConsumeInputEvents(true);
-    _mainMenu->addControl(container);
+    if(isSubmenu) {
+		container->setVisible(false);
+		_mainMenu->addControl(container);
+		_submenus.push_back(container);
+    	Button *toggle = addButton<Button>(parent, MyNode::concat(2, "parent_", name), buttonText);
+    }
+    else if(parent != NULL) parent->addControl(container);
     return container;
 }
 
-Form* T4TApp::addPanel(Form *parent, const char *name)
+Form* T4TApp::addPanel(const char *name, Form *parent)
 {
 	Form *container = Form::create(name, _formStyle, Layout::LAYOUT_VERTICAL);
 	container->setHeight(250);
 	container->setWidth(175);
 	container->setScroll(Container::SCROLL_NONE);
     container->setConsumeInputEvents(true);
-    _mainMenu->addControl(container);
-    parent->addControl(container);
+    if(parent != NULL) parent->addControl(container);
     return container;
+}
+
+void T4TApp::addListener(Control *control, Control::Listener *listener, Control::Listener::EventType evt) {
+	enableListener(true, control, listener, evt);
+}
+
+void T4TApp::removeListener(Control *control, Control::Listener *listener) {
+	enableListener(false, control, listener);
+}
+
+void T4TApp::enableListener(bool enable, Control *control, Control::Listener *listener, Control::Listener::EventType evt) {
+	if(enable) control->addListener(listener, evt);
+	else control->removeListener(listener);
+	Container *container = dynamic_cast<Container*>(control), *submenu;
+	if(container) {
+		std::vector<Control*> controls = container->getControls();
+		for(int i = 0; i < controls.size(); i++) {
+			const char *id = controls[i]->getId(), *submenuID;
+			if(strncmp(id, "submenu_", 8) != 0) {
+				enableListener(enable, controls[i], listener, evt);
+			}
+			if(strncmp(id, "parent_", 7) == 0) {
+				submenuID = MyNode::concat(2, "submenu_", id+7);
+				submenu = dynamic_cast<Container*>(_mainMenu->getControl(submenuID));
+				cout << "enabling on submenu " << submenuID << " = " << submenu << endl;
+				if(submenu) enableListener(enable, submenu, listener, evt);
+			}
+		}
+	}
 }
 
 void T4TApp::finalize()
@@ -352,12 +484,10 @@ void T4TApp::render(float elapsedTime)
     _font->finish();
 
     _sideMenu->draw();
-    for(size_t i = 0; i < _submenus.size(); i++)
-    	if(_submenus[i]->isVisible()) _submenus[i]->draw();
-    if(_componentMenu->isVisible()) _componentMenu->draw();
-	for(size_t i = 0; i < _modes.size(); i++) {
+	for(size_t i = 0; i < _submenus.size(); i++)
+		if(_submenus[i]->isVisible()) _submenus[i]->draw();
+	for(size_t i = 0; i < _modes.size(); i++)
 		if(_modes[i]->_active) _modes[i]->draw();
-	}
 }
 
 bool T4TApp::prepareNode(MyNode* node)
@@ -448,35 +578,31 @@ void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 {
 	const char *controlID = control->getId();
+	Container *parent = control->getParent();
 	cout << "CLICKED " << controlID << endl;
 	//const size_t catalogSize = _itemNames->size();
 
 	//if a submenu handle is clicked, toggle whether the submenu is expanded
 	if(strncmp(controlID, "parent_", 7) == 0) {
-		const char *subName = controlID+7;
+		const char *subName = MyNode::concat(2, "submenu_", controlID+7);
 		cout << "Looking for submenu " << subName << endl;
-		Container *subMenu = (Container*)_mainMenu->getControl(subName);
-		if(subMenu != NULL) {
+		Container *subMenu = dynamic_cast<Container*>(_mainMenu->getControl(subName));
+		if(subMenu) {
 			bool visible = subMenu->isVisible();
 			for(size_t i = 0; i < _submenus.size(); i++)
 				_submenus[i]->setVisible(false);
 			cout << "\ttoggling menu to " << !visible << endl;
 			subMenu->setVisible(!visible);
 			if(!visible) { //if expanding the submenu, position it next to its handle
-				subMenu->setPosition(control->getX() + control->getWidth(), control->getY());
+				if(subMenu->getZIndex() != 13) //using z index as flag for whether this menu has static position
+					subMenu->setPosition(control->getX() + control->getWidth(), control->getY());
 			}
 		} else {
 			cout << "No control with ID " << subName << endl;
 		}
 	}
-	//if selected a mode, update the mode flag
-	else if(_modeContainer->getControl(controlID) == control) {
-		setMode(controlID);
-		_modeContainer->setVisible(false);
-	}
-	else if(_machineContainer->getControl(controlID) == control) {
+	else if(_machineMenu->getControl(controlID) == control) {
 		cout << "clicked machine " << controlID << endl;
-		_machineContainer->setVisible(false);
 		for(size_t i = 0; i < _machines.size(); i++) {
 			if(strcmp(_machines[i]->getId(), controlID) == 0) {
 				_machines[i]->setActive(true);
@@ -497,34 +623,26 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 			}
 		}
 	}
-	//handle opening of the item catalog/adding an item
-	else if(control == _itemButton) {
-		_componentMenu->addListener(this, Control::Listener::CLICK);
-		_componentMenu->setVisible(true);
-	}
 	else if(_componentMenu->getControl(controlID) == control && strncmp(controlID, "comp_", 5) == 0) {
 		MyNode *node = duplicateModelNode(controlID+5);
-		node->addCollisionObject();
+		node->addPhysics();
 		_scene->addNode(node);
 		placeNode(node, 0.0f, 0.0f);
-		_componentMenu->setVisible(false);
-		_componentMenu->removeListener(this);
 	}
 	else if(strcmp(controlID, "debugButton") == 0) {
 		debugTrigger();
-	}
-	else if(_itemContainer->getControl(controlID) == control) {
-		MyNode *node = duplicateModelNode(controlID);
-		node->addCollisionObject();
-		_scene->addNode((Node*)node);
-		placeNode(node, 0.0f, 0.0f);
-		_itemContainer->setVisible(false);
 	}
 	else if(control == _zoomSlider) {
 	    getScriptController()->executeFunction<void>("camera_setRadius", "f", _zoomSlider->getValue());
 	}
 	else if(control == _drawDebugCheckbox) {
 		_drawDebug = _drawDebugCheckbox->isChecked();
+	}
+	//close a submenu when one of its items is clicked
+	Container *next = parent;
+	while(next != NULL && strncmp(next->getId(), "submenu_", 8) == 0) {
+		next->setVisible(false);
+		next = next->getParent();
 	}
 }
 
@@ -541,15 +659,17 @@ MyNode* T4TApp::getMouseNode(int x, int y, Vector3 *touch) {
 }
 
 //see if the current touch location intersects the bottom face of the given object
-bool T4TApp::checkTouchModel(Node* node)
+bool T4TApp::checkTouchModel(Node* n)
 {
+	MyNode *node = dynamic_cast<MyNode*>(n);
+	if(!node) return true;
 	if(strcmp(node->getScene()->getId(), "models") == 0) return true;
 	if(strcmp(node->getId(), "knife") == 0) return true;
 	if(strcmp(node->getId(), "drill") == 0) return true;
 	for(int i = 0; i < _intersectNodeGroup.size(); i++)
 		if(node == _intersectNodeGroup[i]) return true;
 	Vector3 pos = node->getTranslation();
-	BoundingBox bbox = getWorldBox(node);
+	BoundingBox bbox = node->getWorldBox();
 	if(bbox.isEmpty()) return true;
 	float halfX = (_intersectBox.max.x - _intersectBox.min.x) / 2.0f,
 		halfY = (_intersectBox.max.y - _intersectBox.min.y) / 2.0f,
@@ -564,21 +684,6 @@ bool T4TApp::checkTouchModel(Node* node)
 		}
 	}
 	return true;
-}
-
-//seems bounding box is not corrected for scale - do that here
-BoundingBox T4TApp::getWorldBox(Node *node) {
-	Model *model = node->getModel();
-	if(model == NULL) return BoundingBox::empty();
-	BoundingBox box = model->getMesh()->getBoundingBox();
-	Vector3 scale = node->getScale(), center = box.getCenter(), min = box.min - center, max = box.max - center;
-	min.x *= scale.x;
-	min.y *= scale.y;
-	min.z *= scale.z;
-	max.x *= scale.x;
-	max.y *= scale.y;
-	max.z *= scale.z;
-	return BoundingBox(center + min, center + max);
 }
 
 MyNode* T4TApp::duplicateModelNode(const char* type, bool isStatic)
@@ -630,41 +735,13 @@ void T4TApp::placeNode(MyNode *node, float x, float z)
 {
 	_intersectNodeGroup.clear();
 	_intersectNodeGroup.push_back(node);
-	_intersectBox = getWorldBox(node);
+	_intersectBox = node->getWorldBox();
 	float minY = _intersectBox.min.y;
 	node->setTranslation(x, -minY, z); //put the bounding box bottom on the ground
 	_intersectPoint.set(x, -minY, z);
 	_intersectModel = NULL;
 	_scene->visit(this, &T4TApp::checkTouchModel); //will change _intersectPoint.y to be above any intersecting models
 	node->setTranslation(_intersectPoint);
-}
-
-void T4TApp::setMode(const char *mode)
-{
-	//make sure the radio button corresponding to this mode is selected
-	RadioButton *oldButton, *newButton;
-	oldButton = (RadioButton*)(_modeContainer->getControl(_mode.c_str()));
-	if(oldButton != NULL) oldButton->setSelected(false);
-	newButton = (RadioButton*)(_modeContainer->getControl(mode));
-	if(newButton == NULL) {
-		cout << "No button for mode " << mode << " - aborting" << endl;
-		return;
-	}
-	newButton->setSelected(true);
-	//add the options panel corresponding to this mode if any
-	cout << "looking for " << (std::string("options_") + mode).c_str() << endl;
-	Control *oldOptions = _modeOptions[_mode], //_mainMenu->getControl((std::string("options_") + _mode).c_str()),
-		*newOptions = _modeOptions[mode]; //_mainMenu->getControl((std::string("options_") + mode).c_str());
-	if(oldOptions) {
-		cout << "setting old " << oldOptions->getId() << " invisible" << endl;
-		_sideMenu->removeControl(oldOptions);
-	}
-	if(newOptions) {
-		cout << "setting new " << newOptions->getId() << " visible" << endl;
-		cout << "\t(has " << ((Form*)newOptions)->getControls().size() << " controls inside)" << endl;
-		_sideMenu->addControl(newOptions);
-	}
-	_mode = mode;
 }
 
 void T4TApp::setActiveScene(Scene *scene)
@@ -695,10 +772,6 @@ const std::string T4TApp::printQuat(Quaternion& q) {
 	float ang = q.toAxisAngle(&axis);
 	os << (int)(ang*180/M_PI) << " degrees about " << "<" << axis.x << "," << axis.y << "," << axis.z << ">";
 	return os.str();
-}
-
-void T4TApp::promptComponent() {
-	_componentMenu->setVisible(true);
 }
 
 void T4TApp::collisionEvent(PhysicsCollisionObject::CollisionListener::EventType type, 
@@ -763,7 +836,7 @@ void T4TApp::addConstraints(MyNode *node) {
 		c1 = data->constraints[i];
 		if(c1->id >= 0) continue;
 		MyNode *other = dynamic_cast<MyNode*>(_scene->findNode(c1->other.c_str()));
-		if(!other) continue;
+		if(!other || !other->getCollisionObject()) continue;
 		std::string type = c1->type;
 		MyNode::nodeData *otherData = other->getData();
 		for(j = 0; j < otherData->constraints.size(); j++) {
@@ -783,7 +856,6 @@ void T4TApp::removeConstraints(MyNode *node) {
 	MyNode::nodeData *data = node->getData();
 	MyNode::nodeConstraint *c1, *c2;
 	unsigned short i, j;
-	int id;
 	for(i = 0; i < data->constraints.size(); i++) {
 		c1 = data->constraints[i];
 		if(c1->id < 0) continue;
@@ -794,10 +866,10 @@ void T4TApp::removeConstraints(MyNode *node) {
 		for(j = 0; j < otherData->constraints.size(); j++) {
 			c2 = otherData->constraints[j];
 			if(c2->other.compare(node->getId()) == 0 && c2->type.compare(type) == 0 && c2->id == c1->id) {
+				controller->removeConstraint(_constraints[c1->id]);
+				_constraints.erase(c1->id);
 				c1->id = -1;
 				c2->id = -1;
-				controller->removeConstraint(_constraints[id]);
-				_constraints.erase(id);
 			}
 		}
 	}

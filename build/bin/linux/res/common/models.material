@@ -113,6 +113,17 @@ material gear_thin : colored
         }
     }
 }
+material gear_basic : colored
+{
+    technique
+    {
+        pass
+        {
+        	u_ambientColor = 1.0, 0.0, 0.0
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
+        }
+    }
+}
 material gear : colored
 {
     technique

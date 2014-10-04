@@ -38,7 +38,7 @@ void T4TApp::Pulley::placeElement(MyNode *node) {
 			node->setTranslation(wheel);
 			box = node->getModel()->getMesh()->getBoundingBox();
 			_radius = (box.max.x - box.min.x) / 2.0f + _linkWidth/2;
-			// L/2 / R = sin(180/N / 2) => L = 2*R*sin(9)
+			// L/2 / R = sin(180/N / 2) => L = 2*R*sin(180 / 2N)
 			_linkLength = 2 * _radius * sin(M_PI / (2*_wheelLinks));
 			_dropLinks = (int)((wheel.y - _linkLength/2 - base.y) / (2.0f * _linkLength));
 			_numLinks = _dropLinks + _wheelLinks+1 + _dropLinks;
@@ -99,7 +99,7 @@ void T4TApp::Pulley::finishElement(MyNode *node) {
 				link->setTranslation(x, y, z);
 				link->addCollisionObject();
 				links[i] = link;
-				_scene->addNode(link);
+				_rootNode->addChild(link);
 				_allNodes.push_back(link);
 				//note the position of the joint between this link and the next
 				joint.set(0, (_linkLength/2) / link->getScaleY(), 0);

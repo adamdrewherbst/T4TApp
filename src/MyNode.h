@@ -13,14 +13,15 @@ class MyNode : public Node {
 
 public:
 
+	T4TApp *app;
+	MyNode *_constraintParent;
+	//location and axis of constraint joint with parent in parent's model space
+	Vector3 parentOffset, parentAxis;
+
 	MyNode(const char *id);
 	static MyNode* create(const char *id = NULL);
 	void init();
 	static MyNode* cloneNode(Node *node);
-	
-	T4TApp *app;
-	//location and axis of constraint joint with parent in parent's model space
-	Vector3 parentOffset, parentAxis;
 
     struct nodeConstraint {
     	int id; //global ID in simulation for this constraint
@@ -63,35 +64,46 @@ public:
 	void writeData(const char *filename = NULL);
 	void updateData();
 	void updateModelFromData(bool addPhysics = true);
-
 	void setNormals();
+
 	Matrix getRotTrans();
 	Matrix getInverseRotTrans();
 	Matrix getInverseWorldMatrix();
+	BoundingBox getWorldBox();
+	void myTranslate(const Vector3& delta);
+	void setMyTranslation(const Vector3& translation);
+	void myRotate(const Quaternion& delta);
+	void setMyRotation(const Quaternion& rotation);
+	void myScale(const Vector3& scale);
+	void setMyScale(const Vector3& scale);
+
 	short pt2Face(Vector3 point);
 	Plane facePlane(unsigned short f, bool modelSpace = false);
 	Vector3 faceCenter(unsigned short f, bool modelSpace = false);
 	void rotateFaceToPlane(unsigned short f, Plane p);
 	void rotateFaceToFace(unsigned short f, MyNode *other, unsigned short g);
+
 	void addEdge(unsigned short e1, unsigned short e2);
-	void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
+	void updateEdges();
+	void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles, bool reverse = false);
 	void addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 	Vector3 getNormal(std::vector<unsigned short>& face, bool modelSpace = false);
 	void triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 	void triangulateHelper(std::vector<unsigned short>& face, std::vector<unsigned short>& inds,
 	  std::vector<std::vector<unsigned short> >& triangles, Vector3 normal);
+	
 	bool isStatic();
 	void setStatic(bool stat);
-	
-	static Quaternion getVectorRotation(Vector3 v1, Vector3 v2);
-	static float gv(Vector3 *v, int dim);
-	static void sv(Vector3 *v, int dim, float val);
-	
 	void addCollisionObject();
 	void addPhysics();
 	void removePhysics();
 	void enablePhysics(bool enable = true);
+	bool physicsEnabled();
 	nodeConstraint* getNodeConstraint(MyNode *other);
+	
+	static Quaternion getVectorRotation(Vector3 v1, Vector3 v2);
+	static float gv(Vector3 *v, int dim);
+	static void sv(Vector3 *v, int dim, float val);
 	
 	static char* concat(int n, ...);
 };

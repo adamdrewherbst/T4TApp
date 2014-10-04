@@ -11,7 +11,10 @@ MyNode* MyNode::create(const char *id) {
 
 void MyNode::init() {
     app = (T4TApp*) Game::getInstance();
+    _constraintParent = NULL;
     data = new nodeData();
+    data->rotation.set(0, 0, 0, 1);
+    data->scale.set(1, 1, 1);
     data->staticObj = false;
 }
 
@@ -23,7 +26,7 @@ MyNode* MyNode::cloneNode(Node *node) {
 	copy->setScale(clone->getScale());
 	copy->setRotation(clone->getRotation());
 	copy->setTranslation(clone->getTranslation());
-	clone->release();
+	SAFE_RELEASE(clone);
 	return copy;
 }
 
@@ -72,6 +75,20 @@ Matrix MyNode::getInverseWorldMatrix() {
 	Matrix m(getWorldMatrix());
 	m.invert();
 	return m;
+}
+
+BoundingBox MyNode::getWorldBox() {
+	Model *model = getModel();
+	if(model == NULL) return BoundingBox::empty();
+	BoundingBox box = model->getMesh()->getBoundingBox();
+	Vector3 scale = getScale(), center = box.getCenter(), min = box.min - center, max = box.max - center;
+	min.x *= scale.x;
+	min.y *= scale.y;
+	min.z *= scale.z;
+	max.x *= scale.x;
+	max.y *= scale.y;
+	max.z *= scale.z;
+	return BoundingBox(center + min, center + max);
 }
 
 //given a point in space, find the best match for the face that contains it
@@ -159,7 +176,25 @@ void MyNode::addEdge(unsigned short e1, unsigned short e2) {
 	data->edges.push_back(edge);
 }
 
-void MyNode::addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
+void MyNode::updateEdges() {
+	unsigned short i, j, n;
+	for(i = 0; i < data->faces.size(); i++) {
+		n = data->faces[i].size();
+		for(j = 0; j < n; j++) {
+			addEdge(data->faces[i][j], data->faces[i][(j+1)%n]);
+		}
+	}
+}
+
+void MyNode::addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles, bool reverse) {
+	if(reverse) {
+		unsigned short i, n = face.size(), temp;
+		for(i = 0; i < n/2; i++) {
+			temp = face[i];
+			face[i] = face[n-1 - i];
+			face[n-1 - i] = temp;
+		}
+	}
 	if(triangles.empty()) triangulate(face, triangles);
 	addFaceHelper(face, triangles);
 }
@@ -309,130 +344,143 @@ void MyNode::loadData(const char *filename)
 	std::string type;
 	in >> type;
 	data->type = type;
-    str = stream->readLine(line, 2048);
-    in.str(str);
-    in >> x >> y >> z >> w;
-    data->rotation.set(Vector3(x, y, z), (float)(w*M_PI/180.0));
-    str = stream->readLine(line, 2048);
-    in.str(str);
-    in >> x >> y >> z;
-    data->translation.set(x, y, z);
-    str = stream->readLine(line, 2048);
-    in.str(str);
-    in >> x >> y >> z;
-    data->scale.set(x, y, z);
-    str = stream->readLine(line, 2048);
-    int nv = atoi(str), v = 0;
-    cout << nv << " vertices" << endl;
-    for(int i = 0; i < nv; i++) {
-    	str = stream->readLine(line, 2048);
-    	in.str(str);
-    	in >> x >> y >> z;
-    	data->vertices.push_back(Vector3(x, y, z));
-    	data->worldVertices.push_back(Vector3(x, y, z));
-    }
-    str = stream->readLine(line, 2048);
-    int ne = atoi(str), e = 0;
-    cout << ne << " edges" << endl;
-    unsigned short v1, v2, v3;
-    std::vector<unsigned short> edge(2);
-    for(int i = 0; i < ne; i++) {
-    	str = stream->readLine(line, 2048);
-    	in.str(str);
-    	in >> v1 >> v2;
-    	edge[0] = v1; edge[1] = v2;
-    	data->edges.push_back(edge);
-    	data->edgeInd[v1][v2] = data->edges.size()-1;
-    	data->edgeInd[v2][v1] = data->edges.size()-1;
-    }
-    str = stream->readLine(line, 2048);
-    int nf = atoi(str), faceSize, numTriangles, numNeighbors;
-    std::vector<unsigned short> triangle(3), face;
-    data->triangles.resize(nf);
-    data->faceNeighbors.resize(nf);
-    Vector3 vec1, vec2, normal;
-    //faces, along with their constituent triangles and neighboring faces (sharing an edge)
-    for(int i = 0; i < nf; i++) {
-    	str = stream->readLine(line, 2048);
-    	faceSize = atoi(str);
-    	face.clear();
-    	str = stream->readLine(line, 2048);
-    	in.str(str);
-    	for(int j = 0; j < faceSize; j++) {
-    		in >> v1;
-    		face.push_back(v1);
-    	}
-    	data->faces.push_back(face);
-    	//triangles
-    	str = stream->readLine(line, 2048);
-    	numTriangles = atoi(str);
-    	for(int j = 0; j < numTriangles; j++) {
+	if(type.compare("root") != 0) { //this is a physical node, not just a root node
+		str = stream->readLine(line, 2048);
+		in.str(str);
+		in >> x >> y >> z >> w;
+		data->rotation.set(Vector3(x, y, z), (float)(w*M_PI/180.0));
+		str = stream->readLine(line, 2048);
+		in.str(str);
+		in >> x >> y >> z;
+		data->translation.set(x, y, z);
+		str = stream->readLine(line, 2048);
+		in.str(str);
+		in >> x >> y >> z;
+		data->scale.set(x, y, z);
+		str = stream->readLine(line, 2048);
+		int nv = atoi(str), v = 0;
+		for(int i = 0; i < nv; i++) {
 			str = stream->readLine(line, 2048);
 			in.str(str);
-			for(int k = 0; k < 3; k++) {
-	    		in >> v1;
-	    		triangle[k] = v1;
-	    	}
-	    	data->triangles[i].push_back(triangle);
-    	}
-    	//neighbors
-/*    	str = stream->readLine(line, 2048);
-    	numNeighbors = atoi(str);
-    	str = stream->readLine(line, 2048);
+			in >> x >> y >> z;
+			data->vertices.push_back(Vector3(x, y, z));
+			data->worldVertices.push_back(Vector3(x, y, z));
+		}
+		str = stream->readLine(line, 2048);
+		int ne = atoi(str), e = 0;
+		unsigned short v1, v2, v3;
+		std::vector<unsigned short> edge(2);
+		for(int i = 0; i < ne; i++) {
+			str = stream->readLine(line, 2048);
+			in.str(str);
+			in >> v1 >> v2;
+			edge[0] = v1; edge[1] = v2;
+			data->edges.push_back(edge);
+			data->edgeInd[v1][v2] = data->edges.size()-1;
+			data->edgeInd[v2][v1] = data->edges.size()-1;
+		}
+		str = stream->readLine(line, 2048);
+		int nf = atoi(str), faceSize, numTriangles, numNeighbors;
+		std::vector<unsigned short> triangle(3), face;
+		data->triangles.resize(nf);
+		data->faceNeighbors.resize(nf);
+		Vector3 vec1, vec2, normal;
+		//faces, along with their constituent triangles and neighboring faces (sharing an edge)
+		for(int i = 0; i < nf; i++) {
+			str = stream->readLine(line, 2048);
+			faceSize = atoi(str);
+			face.clear();
+			str = stream->readLine(line, 2048);
+			in.str(str);
+			for(int j = 0; j < faceSize; j++) {
+				in >> v1;
+				face.push_back(v1);
+			}
+			data->faces.push_back(face);
+			//triangles
+			str = stream->readLine(line, 2048);
+			numTriangles = atoi(str);
+			for(int j = 0; j < numTriangles; j++) {
+				str = stream->readLine(line, 2048);
+				in.str(str);
+				for(int k = 0; k < 3; k++) {
+					in >> v1;
+					triangle[k] = v1;
+				}
+				data->triangles[i].push_back(triangle);
+			}
+			//neighbors
+	/*    	str = stream->readLine(line, 2048);
+			numNeighbors = atoi(str);
+			str = stream->readLine(line, 2048);
+			in.str(str);
+			for(int j = 0; j < numNeighbors; j++) {
+				in >> v1;
+				data->faceNeighbors[i].push_back(v1);
+			}//*/
+		}
+		//set the vertices according to the initial rotation, translation, & scale
+		data->initTrans = Matrix::identity();
+		data->initTrans.rotate(data->rotation);
+		data->initTrans.scale(data->scale);
+		data->initTrans.translate(data->translation);
+		for(int i = 0; i < data->vertices.size(); i++) {
+			data->initTrans.transformPoint(data->vertices[i], &data->worldVertices[i]);
+		}
+		setNormals();
+		//physics
+		str = stream->readLine(line, 2048);
 		in.str(str);
-    	for(int j = 0; j < numNeighbors; j++) {
-    		in >> v1;
-	    	data->faceNeighbors[i].push_back(v1);
-    	}//*/
-    }
-    //set the vertices according to the initial rotation, translation, & scale
-    data->initTrans = Matrix::identity();
-    data->initTrans.rotate(data->rotation);
-    data->initTrans.scale(data->scale);
-    data->initTrans.translate(data->translation);
-    for(int i = 0; i < data->vertices.size(); i++) {
-    	data->initTrans.transformPoint(data->vertices[i], &data->worldVertices[i]);
-    }
-    setNormals();
-    //physics
-    str = stream->readLine(line, 2048);
-	in.str(str);
-	in >> type;
-	data->objType = type;
-    str = stream->readLine(line, 2048);
-    int nh = atoi(str), hullSize;
-    data->hulls.resize(nh);
-    for(int i = 0; i < nh; i++) {
-	    str = stream->readLine(line, 2048);
-	    hullSize = atoi(str);
-	    str = stream->readLine(line, 2048);
-	    in.str(str);
-    	for(int j = 0; j < hullSize; j++) {
-    		in >> v1;
-    		data->hulls[i].push_back(v1);
-    	}
-    }
-    str = stream->readLine(line, 2048);
-    int nc = atoi(str);
-    data->constraints.resize(nc);
-    std::string word;
-    for(int i = 0; i < nc; i++) {
-    	data->constraints[i] = new nodeConstraint();
-	    str = stream->readLine(line, 2048);
-	    in.str(str);
-	    in >> word;
-	    data->constraints[i]->type = word.c_str();
-	    in >> word;
-	    data->constraints[i]->other = word.c_str();
-    	in >> x >> y >> z >> w;
-    	data->constraints[i]->rotation.set(x, y, z, w);
-    	in >> x >> y >> z;
-    	data->constraints[i]->translation.set(x, y, z);
-    }
-    str = stream->readLine(line, 2048);
-    data->mass = atof(str);
-    str = stream->readLine(line, 2048);
-    data->staticObj = atoi(str) > 0;
+		in >> type;
+		data->objType = type;
+		str = stream->readLine(line, 2048);
+		int nh = atoi(str), hullSize;
+		data->hulls.resize(nh);
+		for(int i = 0; i < nh; i++) {
+			str = stream->readLine(line, 2048);
+			hullSize = atoi(str);
+			str = stream->readLine(line, 2048);
+			in.str(str);
+			for(int j = 0; j < hullSize; j++) {
+				in >> v1;
+				data->hulls[i].push_back(v1);
+			}
+		}
+		str = stream->readLine(line, 2048);
+		int nc = atoi(str);
+		data->constraints.resize(nc);
+		std::string word;
+		for(int i = 0; i < nc; i++) {
+			data->constraints[i] = new nodeConstraint();
+			str = stream->readLine(line, 2048);
+			in.str(str);
+			in >> word;
+			data->constraints[i]->type = word.c_str();
+			in >> word;
+			data->constraints[i]->other = word.c_str();
+			in >> x >> y >> z >> w;
+			data->constraints[i]->rotation.set(x, y, z, w);
+			in >> x >> y >> z;
+			data->constraints[i]->translation.set(x, y, z);
+			data->constraints[i]->id = -1;
+		}
+		str = stream->readLine(line, 2048);
+		data->mass = atof(str);
+		str = stream->readLine(line, 2048);
+		data->staticObj = atoi(str) > 0;
+	}
+	//see if this node has any children
+	str = stream->readLine(line, 2048);
+	int numChildren = atoi(str);
+	std::string childId;
+	for(int i = 0; i < numChildren; i++) {
+		str = stream->readLine(line, 2048);
+		in.str(str);
+		in >> childId;
+		MyNode *child = MyNode::create(childId.c_str());
+		child->loadData(concat(3, "res/common/", childId.c_str(), ".node"));
+		addChild(child);
+	}
     stream->close();
 }
 
@@ -447,71 +495,91 @@ void MyNode::writeData(const char *filename) {
 	std::string line;
 	std::ostringstream os;
 	os << data->type << endl;
-	Vector3 axis;
-	float angle = data->rotation.toAxisAngle(&axis) * 180.0f/M_PI;
-	os << axis.x << "\t" << axis.y << "\t" << axis.z << "\t" << angle << endl;
-	os << data->translation.x << "\t" << data->translation.y << "\t" << data->translation.z << endl;
-	os << data->scale.x << "\t" << data->scale.y << "\t" << data->scale.z << endl;
-	os << data->vertices.size() << endl;
-	for(int i = 0; i < data->vertices.size(); i++) {
-		for(int j = 0; j < 3; j++) os << gv(&data->vertices[i],j) << "\t";
-		os << endl;
-	}
 	line = os.str();
 	stream->write(line.c_str(), sizeof(char), line.length());
-	os.str("");
-	os << data->edges.size() << endl;
-	for(int i = 0; i < data->edges.size(); i++) {
-		for(int j = 0; j < 2; j++) os << data->edges[i][j] << "\t";
-		os << endl;
-	}
-	line = os.str();
-	stream->write(line.c_str(), sizeof(char), line.length());
-	os.str("");
-	os << data->faces.size() << endl;
-	for(int i = 0; i < data->faces.size(); i++) {
-		os << data->faces[i].size() << endl;
-		for(int j = 0; j < data->faces[i].size(); j++) os << data->faces[i][j] << "\t";
-		os << endl << data->triangles[i].size() << endl;
-		for(int j = 0; j < data->triangles[i].size(); j++) {
-			for(int k = 0; k < 3; k++) os << data->triangles[i][j][k] << "\t";
+	if(data->type.compare("root") != 0) {
+		data->rotation.set(getRotation());
+		data->translation.set(getTranslationWorld());
+		data->scale.set(getScale());
+		os.str("");
+		Vector3 axis;
+		float angle = data->rotation.toAxisAngle(&axis) * 180.0f/M_PI;
+		os << axis.x << "\t" << axis.y << "\t" << axis.z << "\t" << angle << endl;
+		os << data->translation.x << "\t" << data->translation.y << "\t" << data->translation.z << endl;
+		os << data->scale.x << "\t" << data->scale.y << "\t" << data->scale.z << endl;
+		os << data->vertices.size() << endl;
+		for(int i = 0; i < data->vertices.size(); i++) {
+			for(int j = 0; j < 3; j++) os << gv(&data->vertices[i],j) << "\t";
 			os << endl;
 		}
-		//os << data->faceNeighbors[i].size() << endl;
-		//for(int j = 0; j < data->faceNeighbors[i].size(); j++) os << data->faceNeighbors[i][j] << "\t";
-		//os << endl;
+		line = os.str();
+		stream->write(line.c_str(), sizeof(char), line.length());
+
+		updateEdges();
+		os.str("");
+		os << data->edges.size() << endl;
+		for(int i = 0; i < data->edges.size(); i++) {
+			for(int j = 0; j < 2; j++) os << data->edges[i][j] << "\t";
+			os << endl;
+		}
+		line = os.str();
+		stream->write(line.c_str(), sizeof(char), line.length());
+		os.str("");
+		os << data->faces.size() << endl;
+		for(int i = 0; i < data->faces.size(); i++) {
+			os << data->faces[i].size() << endl;
+			for(int j = 0; j < data->faces[i].size(); j++) os << data->faces[i][j] << "\t";
+			os << endl << data->triangles[i].size() << endl;
+			for(int j = 0; j < data->triangles[i].size(); j++) {
+				for(int k = 0; k < 3; k++) os << data->triangles[i][j][k] << "\t";
+				os << endl;
+			}
+			//os << data->faceNeighbors[i].size() << endl;
+			//for(int j = 0; j < data->faceNeighbors[i].size(); j++) os << data->faceNeighbors[i][j] << "\t";
+			//os << endl;
+		}
+		line = os.str();
+		stream->write(line.c_str(), sizeof(char), line.length());
+		os.str("");
+		os << data->objType << endl;
+		os << data->hulls.size() << endl;
+		for(int i = 0; i < data->hulls.size(); i++) {
+			os << data->hulls[i].size() << endl;
+			for(int j = 0; j < data->hulls[i].size(); j++) os << data->hulls[i][j] << "\t";
+			os << endl;
+		}
+		line = os.str();
+		stream->write(line.c_str(), sizeof(char), line.length());
+		os.str("");
+		os << data->constraints.size() << endl;
+		for(int i = 0; i < data->constraints.size(); i++) {
+			os << data->constraints[i]->type << "\t" << data->constraints[i]->other << "\t";
+			os << data->constraints[i]->rotation.x << "\t";
+			os << data->constraints[i]->rotation.y << "\t";
+			os << data->constraints[i]->rotation.z << "\t";
+			os << data->constraints[i]->rotation.w << "\t";
+			os << data->constraints[i]->translation.x << "\t";
+			os << data->constraints[i]->translation.y << "\t";
+			os << data->constraints[i]->translation.z << endl;
+		}
+		float mass = (getCollisionObject() != NULL) ? getCollisionObject()->asRigidBody()->getMass() : data->mass;
+		os << mass << endl;
+		os << (data->staticObj ? 1 : 0) << endl;
+		line = os.str();
+		stream->write(line.c_str(), sizeof(char), line.length());
 	}
+	//write any child nodes to their respective files
+	std::vector<MyNode*> children;
+	for(MyNode *child = dynamic_cast<MyNode*>(getFirstChild()); child; child = dynamic_cast<MyNode*>(child->getNextSibling())) {
+		children.insert(children.begin(), child);
+	}
+	os.str("");
+	os << children.size() << endl;
+	for(int i = 0; i < children.size(); i++) os << children[i]->getId() << endl;
 	line = os.str();
 	stream->write(line.c_str(), sizeof(char), line.length());
-	os.str("");
-	os << data->objType << endl;
-	os << data->hulls.size() << endl;
-	for(int i = 0; i < data->hulls.size(); i++) {
-		os << data->hulls[i].size() << endl;
-		for(int j = 0; j < data->hulls[i].size(); j++) os << data->hulls[i][j] << "\t";
-		os << endl;
-	}
-	line = os.str();
-	stream->write(line.c_str(), sizeof(char), line.length());
-	os.str("");
-	os << data->constraints.size() << endl;
-	for(int i = 0; i < data->constraints.size(); i++) {
-		os << data->constraints[i]->type << "\t" << data->constraints[i]->other << "\t";
-		os << data->constraints[i]->rotation.x << "\t";
-		os << data->constraints[i]->rotation.y << "\t";
-		os << data->constraints[i]->rotation.z << "\t";
-		os << data->constraints[i]->rotation.w << "\t";
-		os << data->constraints[i]->translation.x << "\t";
-		os << data->constraints[i]->translation.y << "\t";
-		os << data->constraints[i]->translation.z << endl;
-	}
-	float mass = (getCollisionObject() != NULL) ? getCollisionObject()->asRigidBody()->getMass() : data->mass;
-	os << mass << endl;
-	os << (data->staticObj ? 1 : 0) << endl;
-	line = os.str();
-	stream->write(line.c_str(), sizeof(char), line.length());
-	os.str("");
 	stream->close();
+	for(int i = 0; i < children.size(); i++) children[i]->writeData();
 }
 
 void MyNode::updateData() {
@@ -526,60 +594,65 @@ void MyNode::updateData() {
 }
 
 void MyNode::updateModelFromData(bool doPhysics) {
-	//reset the physics and transformation while loading the data
-	removePhysics();
-	setRotation(Quaternion::identity());
-	setTranslation(Vector3::zero());
-	setScale(Vector3(1,1,1));
-	std::string materialFile = concat(2, "res/common/models.material#", data->type.c_str());
-	//update the mesh to contain the new coordinates
-	float *vertices, radius = 0;
-	unsigned short *triangles, i, j, k;
-	int numVertices = 0, numTriangles = 0, v = 0, t = 0, f = 0;
-	Vector3 min(1000,1000,1000), max(-1000,-1000,-1000);
-	for(int i = 0; i < data->faces.size(); i++) {
-		numVertices += data->faces[i].size();
-		numTriangles += data->triangles[i].size();
-	}
-	vertices = new float[numVertices*6];
-	triangles = new unsigned short[numTriangles*3];
-	for(i = 0; i < data->faces.size(); i++) {
-		for(j = 0; j < data->faces[i].size(); j++) {
-			for(k = 0; k < 3; k++) {
-				vertices[v++] = gv(&data->vertices[data->faces[i][j]],k);
-				radius = fmaxf(radius, data->vertices[data->faces[i][j]].length());
-				if(vertices[v-1] < gv(&min, k)) sv(&min, k, vertices[v-1]);
-				if(vertices[v-1] > gv(&max, k)) sv(&max, k, vertices[v-1]);
+	if(data->type.compare("root") != 0) {
+		//reset the physics and transformation while loading the data
+		removePhysics();
+		setRotation(Quaternion::identity());
+		setTranslation(Vector3::zero());
+		setScale(Vector3(1,1,1));	
+		std::string materialFile = concat(2, "res/common/models.material#", data->type.c_str());
+		//update the mesh to contain the new coordinates
+		float *vertices, radius = 0;
+		unsigned short *triangles, i, j, k;
+		int numVertices = 0, numTriangles = 0, v = 0, t = 0, f = 0;
+		Vector3 min(1000,1000,1000), max(-1000,-1000,-1000);
+		for(int i = 0; i < data->faces.size(); i++) {
+			numVertices += data->faces[i].size();
+			numTriangles += data->triangles[i].size();
+		}
+		vertices = new float[numVertices*6];
+		triangles = new unsigned short[numTriangles*3];
+		for(i = 0; i < data->faces.size(); i++) {
+			for(j = 0; j < data->faces[i].size(); j++) {
+				for(k = 0; k < 3; k++) {
+					vertices[v++] = gv(&data->vertices[data->faces[i][j]],k);
+					radius = fmaxf(radius, data->vertices[data->faces[i][j]].length());
+					if(vertices[v-1] < gv(&min, k)) sv(&min, k, vertices[v-1]);
+					if(vertices[v-1] > gv(&max, k)) sv(&max, k, vertices[v-1]);
+				}
+				for(k = 0; k < 3; k++) vertices[v++] = gv(&data->normals[i],k);
 			}
-			for(k = 0; k < 3; k++) vertices[v++] = gv(&data->normals[i],k);
+			for(j = 0; j < data->triangles[i].size(); j++) {
+				for(k = 0; k < 3; k++) triangles[t++] = f + data->triangles[i][j][k];
+			}
+			f += data->faces[i].size();
 		}
-		for(j = 0; j < data->triangles[i].size(); j++) {
-			for(k = 0; k < 3; k++) triangles[t++] = f + data->triangles[i][j][k];
-		}
-		f += data->faces[i].size();
+		VertexFormat::Element elements[] =
+		{
+			VertexFormat::Element(VertexFormat::POSITION, 3),
+			VertexFormat::Element(VertexFormat::NORMAL, 3)
+		};
+		Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), numVertices, false);
+		mesh->setVertexData(&vertices[0], 0, numVertices);
+		MeshPart *part = mesh->addPart(Mesh::TRIANGLES, Mesh::INDEX16, numTriangles*3);
+		part->setIndexData(triangles, 0, numTriangles*3);
+		mesh->setBoundingBox(BoundingBox(min, max));
+		mesh->setBoundingSphere(BoundingSphere(Vector3::zero(), radius));
+		Model *model = Model::create(mesh);
+		mesh->release();
+		model->setMaterial(materialFile.c_str());
+		setModel(model);
+		model->release();
+		//set the initial transformation
+		setRotation(data->rotation);
+		setTranslation(data->translation);
+		setScale(data->scale);
+		updateData();
+		if(doPhysics) addPhysics();
 	}
-	VertexFormat::Element elements[] =
-	{
-		VertexFormat::Element(VertexFormat::POSITION, 3),
-		VertexFormat::Element(VertexFormat::NORMAL, 3)
-	};
-	Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), numVertices, false);
-	mesh->setVertexData(&vertices[0], 0, numVertices);
-	MeshPart *part = mesh->addPart(Mesh::TRIANGLES, Mesh::INDEX16, numTriangles*3);
-	part->setIndexData(triangles, 0, numTriangles*3);
-	mesh->setBoundingBox(BoundingBox(min, max));
-	mesh->setBoundingSphere(BoundingSphere(Vector3::zero(), radius));
-	Model *model = Model::create(mesh);
-	mesh->release();
-	model->setMaterial(materialFile.c_str());
-	setModel(model);
-	model->release();
-	//set the initial transformation
-	setRotation(data->rotation);
-	setTranslation(data->translation);
-	setScale(data->scale);
-	updateData();
-	if(doPhysics) addPhysics();
+	for(MyNode *child = dynamic_cast<MyNode*>(getFirstChild()); child; child = dynamic_cast<MyNode*>(child->getNextSibling())) {
+		child->updateModelFromData(doPhysics);
+	}
 }
 
 bool MyNode::isStatic() {
@@ -638,9 +711,54 @@ char* MyNode::concat(int n, ...)
 	return dest;
 }
 
+/*********** OVERRIDES ***********/
+
+void MyNode::myTranslate(const Vector3& delta) {
+	for(MyNode *child = dynamic_cast<MyNode*>(getFirstChild()); child; child = dynamic_cast<MyNode*>(child->getNextSibling())) {
+		child->myTranslate(delta);
+	}
+	translate(delta);
+}
+
+void MyNode::setMyTranslation(const Vector3& translation) {
+	myTranslate(translation - getTranslationWorld());
+}
+
+void MyNode::myRotate(const Quaternion& delta) {
+	Vector3 baseTrans(getTranslationWorld()), offset, offsetRot;
+	Matrix rot;
+	Matrix::createRotation(delta, &rot);
+	for(MyNode *child = dynamic_cast<MyNode*>(getFirstChild()); child; child = dynamic_cast<MyNode*>(child->getNextSibling())) {
+		offset = child->getTranslationWorld() - baseTrans;
+		rot.transformVector(offset, &offsetRot);
+		child->myRotate(delta);
+		child->myTranslate(offsetRot - offset);
+	}
+	setRotation(delta * getRotation());
+}
+
+void MyNode::setMyRotation(const Quaternion& rotation) {
+	Quaternion rotInv, delta;
+	getRotation().inverse(&rotInv);
+	delta = rotation * rotInv;
+	Vector3 axis;
+	float angle = delta.toAxisAngle(&axis);
+	cout << "rotating by " << angle << " about " << app->printVector(axis) << " [" << delta.x << "," << delta.y << "," << delta.z << "," << delta.w << "]" << endl;
+	myRotate(delta);
+}
+
+void MyNode::myScale(const Vector3& scale) {
+	this->scale(scale);
+}
+
+void MyNode::setMyScale(const Vector3& scale) {
+	setScale(scale);
+}
+
 /*********** PHYSICS ************/
 
 void MyNode::addCollisionObject() {
+	if(data->type.compare("root") == 0) return;
 	PhysicsRigidBody::Parameters params;
 	params.mass = data->staticObj ? 0.0f : data->mass;
 	if(data->objType.compare("mesh") == 0) {
@@ -658,17 +776,31 @@ void MyNode::addCollisionObject() {
 }
 
 void MyNode::addPhysics() {
+	if(getCollisionObject() != NULL) return;
 	addCollisionObject();
 	app->addConstraints(this);
+	for(MyNode *node = dynamic_cast<MyNode*>(getFirstChild()); node; node = dynamic_cast<MyNode*>(node->getNextSibling())) {
+		node->addPhysics();
+	}
 }
 
 void MyNode::removePhysics() {
+	if(getCollisionObject() == NULL) return;
 	app->removeConstraints(this);
 	setCollisionObject(PhysicsCollisionObject::NONE);
+	for(MyNode *node = dynamic_cast<MyNode*>(getFirstChild()); node; node = dynamic_cast<MyNode*>(node->getNextSibling())) {
+		node->removePhysics();
+	}
 }
 
 void MyNode::enablePhysics(bool enable) {
 	PhysicsCollisionObject *obj = getCollisionObject();
+	if(obj != NULL && obj->isEnabled() == enable) return;
+	//first enable/disable physics on all child nodes
+	for(MyNode *node = dynamic_cast<MyNode*>(getFirstChild()); node; node = dynamic_cast<MyNode*>(node->getNextSibling())) {
+		node->enablePhysics(enable);
+	}
+	//then handle my own constraints and collision object
 	if(enable) {
 		if(obj == NULL) {
 			addPhysics();
@@ -678,7 +810,7 @@ void MyNode::enablePhysics(bool enable) {
 			body->setEnabled(true);
 			app->enableConstraints(this, true);
 		}
-	} else {
+	} else if(obj != NULL) {
 		if(obj->isStatic()) {
 			removePhysics();
 		} else {
@@ -686,6 +818,11 @@ void MyNode::enablePhysics(bool enable) {
 			obj->asRigidBody()->setEnabled(false);
 		}
 	}
+}
+
+bool MyNode::physicsEnabled() {
+	PhysicsCollisionObject *obj = getCollisionObject();
+	return obj != NULL && obj->isEnabled();
 }
 
 MyNode::nodeConstraint* MyNode::getNodeConstraint(MyNode *other) {

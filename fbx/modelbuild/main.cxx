@@ -524,6 +524,18 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 			start = (i%2) * dir[(i/2 + 2) % 3];
 			out << start << "\t" << start+d1 << "\t" << start+d1+d2 << "\t" << start+d2 << endl;
 		}
+	} else if(strcmp(type, "gear") == 0) {
+		float innerRadius = (float)va_arg(arguments, double);
+		float outerRadius = (float)va_arg(arguments, double);
+		float thickness = (float)va_arg(arguments, double);
+		int teeth = va_arg(arguments, int);
+		arr = CreateBox(pScene, pName, 1, 1, 1);
+		mesh = arr[0];
+		//rotation, translation, scale
+		out << "1\t0\t0\t0" << endl;
+		out << "0\t0\t0" << endl;
+		out << "1\t1\t1" << endl;
+		//write vertex/edge data
 	}
 	
 	//no physics constraints when node is first written - may be added by app users
@@ -531,6 +543,8 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 	//mass is 10 by default
 	out << 10 << endl;
 	//object is not static
+	out << 0 << endl;
+	//object has zero children
 	out << 0 << endl;
 
 	out.close();

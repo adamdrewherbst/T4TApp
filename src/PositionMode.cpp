@@ -44,11 +44,11 @@ bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsig
 	    	MyNode *node = dynamic_cast<MyNode*>(hitResult.object->getNode());
 	    	if(!node || node->getCollisionObject() == NULL) break;
 		    if(strcmp(node->getId(), "grid") == 0) break;
-			cout << "selected: " << node->getId() << endl;
 			_dragging = true;
 			_dragOffset.set(x, y);
 			_basePoint = hitResult.point;
 			setSelectedNode(node);
+			cout << "selected: " << node->getId() << " => " << _selectedNode->getId() << endl;
 			if(_subMode == 0) { //translate
 				Vector2 basePix;
 				camera->project(app->getViewport(), _basePoint, &basePix);
@@ -133,9 +133,13 @@ void T4TApp::PositionMode::controlEvent(Control *control, Control::Listener::Eve
 }
 
 void T4TApp::PositionMode::setSelectedNode(MyNode *node) {
-	//if(_selectedNode == node) return;
 	_selectedNode = node;
 	if(_selectedNode != NULL) {
+		//move the root of this node tree, or the nearest parent-child constraint joint, whichever is closer
+		MyNode *parent;
+		while(_selectedNode->_constraintParent == NULL && (parent = dynamic_cast<MyNode*>(_selectedNode->getParent()))) {
+			_selectedNode = parent;
+		}
 		switch(_subMode) {
 			case 0: { //translate
 				_positionValue = 0.0f;
@@ -150,7 +154,7 @@ void T4TApp::PositionMode::setSelectedNode(MyNode *node) {
 		_baseRotation = _selectedNode->getRotation();
 		_baseScale = _selectedNode->getScale();
 		_baseTranslation = _selectedNode->getTranslationWorld();
-		_parentNode = dynamic_cast<MyNode*>(_selectedNode->getParent());
+		_parentNode = _selectedNode->_constraintParent;
 		float distance;
 		Vector3 offset;
 		if(_parentNode) {
@@ -195,7 +199,7 @@ void T4TApp::PositionMode::setPosition(float value, bool finalize) {
 	switch(_subMode) {
 		case 0: { //translate
 			Vector3 delta(_transDir * value);
-			_selectedNode->setTranslation(_baseTranslation + delta);
+			_selectedNode->setMyTranslation(_baseTranslation + delta);
 			_positionValue = MyNode::gv(&delta, _axis);
 			if(constraint != NULL) {
 				Matrix m(_parentNode->getWorldMatrix());
@@ -207,7 +211,7 @@ void T4TApp::PositionMode::setPosition(float value, bool finalize) {
 		} case 1: { //rotate
 			Quaternion rot;
 			Quaternion::createFromAxisAngle(_normal, value, &rot);
-			_selectedNode->setRotation(rot * _baseRotation);
+			_selectedNode->setMyRotation(rot * _baseRotation);
 			break;
 		} case 2: { //scale
 			Vector3 scale(_baseScale);
