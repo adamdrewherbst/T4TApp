@@ -327,6 +327,9 @@ private:
     bool _dynamic;
     BoundingBox _boundingBox;
     BoundingSphere _boundingSphere;
+public:
+	std::vector<Vector3> *vertices;
+	std::vector<std::vector<unsigned short> > *hulls;
 };
 
 }

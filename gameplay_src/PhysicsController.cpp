@@ -891,7 +891,7 @@ PhysicsCollisionShape* PhysicsController::createShape(Node* node, const PhysicsC
     case PhysicsCollisionShape::SHAPE_MESH:
         {
             // Build mesh from passed in shape.
-            collisionShape = createMesh(shape.data.mesh, scale, node->getData());
+            collisionShape = createMesh(shape.data.mesh, scale);
         }
         break;
 
@@ -1059,7 +1059,7 @@ PhysicsCollisionShape* PhysicsController::createHeightfield(Node* node, HeightFi
     return shape;
 }
 
-PhysicsCollisionShape* PhysicsController::createMesh(Mesh* mesh, const Vector3& scale, Node::nodeData *data)
+PhysicsCollisionShape* PhysicsController::createMesh(Mesh* mesh, const Vector3& scale)
 {
     GP_ASSERT(mesh);
 
@@ -1087,40 +1087,20 @@ PhysicsCollisionShape* PhysicsController::createMesh(Mesh* mesh, const Vector3& 
         return NULL;
     }
     
-    btCompoundShape* btShape = bullet_new<btCompoundShape>();
-    if(data == NULL) {
-		if (strlen(mesh->getUrl()) == 0)
-		{
-		    GP_ERROR("Cannot create mesh rigid body for mesh without valid URL.");
-		    return NULL;
-		}
-	    const char *url = mesh->getUrl();
-   		const char *nodeID = strstr(url, "#") + sizeof(char);
-	    char *filename = new char[11 + strlen(nodeID) + 1];
-	    sprintf(filename, "res/common/%s", nodeID);
-	    //replace the _Mesh suffix with the .node extension
-	    strcpy(filename + (11 + strlen(nodeID) - 5)*sizeof(char), ".node");
-	    data = Node::readData(filename);
-	    cout << "read node data from " << filename << endl;
-	}
-
 	// Copy the scaled vertex position data to the rigid body's local buffer.
 	Matrix m;
-	Matrix::createScale(data->scale, &m);
+	Matrix::createScale(scale, &m);
 	Vector3 v;
-	cout << "adding object for " << data->type << endl;
-	for(unsigned int i = 0; i < data->hulls.size(); i++)
+
+    btCompoundShape* btShape = bullet_new<btCompoundShape>();
+	for(unsigned int i = 0; i < mesh->hulls->size(); i++)
 	{
 		btConvexHullShape *hull = bullet_new<btConvexHullShape>();
-		//cout << "PART " << i << endl;
-		for(int j = 0; j < data->hulls[i].size(); j++) {
-			v.set(data->vertices[data->hulls[i][j]]);
+		for(int j = 0; j < mesh->hulls->at(i).size(); j++) {
+			v.set(mesh->vertices->at(mesh->hulls->at(i).at(j)));
 			v *= m;
-			//v += data->translation;
 			hull->addPoint(btVector3(v.x, v.y, v.z));
-		    //cout << "<" << v.x << ", " << v.y << ", " << v.z << ">" << endl;
 		}
-		//cout << endl << endl;
 		btShape->addChildShape(btTransform::getIdentity(), hull);
 	}
 

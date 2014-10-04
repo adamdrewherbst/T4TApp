@@ -436,7 +436,7 @@ private:
     PhysicsCollisionShape* createHeightfield(Node* node, HeightField* heightfield, Vector3* centerOfMassOffset);
 
     // Creates a triangle mesh collision shape.
-    PhysicsCollisionShape* createMesh(Mesh* mesh, const Vector3& scale, Node::nodeData *data = NULL);
+    PhysicsCollisionShape* createMesh(Mesh* mesh, const Vector3& scale);
 
     // Destroys a collision shape created through PhysicsController
     void destroyShape(PhysicsCollisionShape* shape);

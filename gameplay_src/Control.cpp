@@ -139,6 +139,11 @@ const char* Control::getId() const
     return _id.c_str();
 }
 
+Container* Control::getParent() const
+{
+	return _parent;
+}
+
 void Control::setPosition(float x, float y)
 {
     if (x != _bounds.x || y != _bounds.y)
