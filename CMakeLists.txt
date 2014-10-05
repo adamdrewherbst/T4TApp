@@ -144,7 +144,7 @@ set(GAME_SRC
 	src/ToolMode.cpp
 	src/SliceMode.cpp
 	src/DrillMode.cpp
-	src/RotateMode.cpp
+	src/NavigateMode.cpp
 	src/PositionMode.cpp
 	src/ConstraintMode.cpp
 	src/TestMode.cpp

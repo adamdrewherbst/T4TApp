@@ -1,7 +1,7 @@
 #include "T4TApp.h"
 
-T4TApp::TouchMode::TouchMode(T4TApp *app_) 
-  : T4TApp::Mode::Mode(app_, "mode_Touch", NULL) {
+T4TApp::TouchMode::TouchMode() 
+  : T4TApp::Mode::Mode("mode_Touch", NULL) {
 	_face = MyNode::create("touchFace");
 }
 

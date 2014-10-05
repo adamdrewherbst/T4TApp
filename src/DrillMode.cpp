@@ -1,7 +1,7 @@
 #include "T4TApp.h"
 
-T4TApp::DrillMode::DrillMode(T4TApp *app_) 
-  : T4TApp::ToolMode::ToolMode(app_, "mode_Drill", "res/common/drill.form") {
+T4TApp::DrillMode::DrillMode() 
+  : T4TApp::ToolMode::ToolMode("mode_Drill", "res/common/drill.form") {
 	_axis.set(Vector3(0, 0, 0), Vector3(1, 0, 0));
 	_radius = 0.2f;
 	_segments = 20;
@@ -110,7 +110,7 @@ void T4TApp::DrillMode::setAxis(int axis) {
 	ToolMode::setAxis(axis);
 	Vector3 drillAxis;
 	Matrix rotation;
-	_node->getRotation(&rotation);
+	_selectedNode->getRotation(&rotation);
 	switch(axis) {
 		case 0: //x
 			drillAxis.set(1, 0, 0);
@@ -129,7 +129,7 @@ void T4TApp::DrillMode::setAxis(int axis) {
 //for debugging, zoom in on a face, highlight it, and show its drill intersections
 void T4TApp::DrillMode::drawFace(int f) {
 
-	MyNode::nodeData *data = _node->getData();
+	MyNode::nodeData *data = _selectedNode->getData();
 
 	//get the plane for this face
 	std::vector<unsigned short> face = data->faces[f];
@@ -628,8 +628,8 @@ bool T4TApp::DrillMode::toolNode() {
 	
 	//transform the new vertices back to model space before saving the data
 	Matrix worldModel;
-	_node->getWorldMatrix().invert(&worldModel);
-	Vector3 translation(_node->getTranslationWorld()), scale(_node->getScale());
+	_selectedNode->getWorldMatrix().invert(&worldModel);
+	Vector3 translation(_selectedNode->getTranslationWorld()), scale(_selectedNode->getScale());
 	newData->translation.set(translation);
 	newData->scale.set(scale);
 	translation.x /= scale.x; translation.y /= scale.y; translation.z /= scale.z;
@@ -639,10 +639,10 @@ bool T4TApp::DrillMode::toolNode() {
 	}
 	
 	_newNode->setData(NULL);
-	_node->setData(newData);
-	_node->updateModelFromData();
-	translation.set(_node->getTranslationWorld());
-	app->placeNode(_node, translation.x, translation.z);
+	_selectedNode->setData(newData);
+	_selectedNode->updateModelFromData();
+	translation.set(_selectedNode->getTranslationWorld());
+	app->placeNode(_selectedNode, translation.x, translation.z);
 	return true;
 }
 

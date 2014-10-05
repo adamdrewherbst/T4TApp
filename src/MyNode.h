@@ -59,7 +59,7 @@ public:
 	nodeData* getData();
 	void setData(nodeData *newData);
 	nodeData* copyData();
-	const char* getFilename();
+	std::string resolveFilename(const char *filename = NULL);
 	void loadData(const char *filename = NULL);
 	void writeData(const char *filename = NULL);
 	void updateData();

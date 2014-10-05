@@ -1,7 +1,7 @@
 #include "T4TApp.h"
 
-T4TApp::PositionMode::PositionMode(T4TApp *app_) 
-  : T4TApp::Mode::Mode(app_, "mode_Position", "res/common/position.form") {
+T4TApp::PositionMode::PositionMode() 
+  : T4TApp::Mode::Mode("mode_Position", "res/common/position.form") {
 
 	_subModeButton = (Button*) _controls->getControl("subMode");
 	_axisButton = (Button*) _controls->getControl("axis");
@@ -25,9 +25,7 @@ void T4TApp::PositionMode::setActive(bool active) {
 	Mode::setActive(active);
 	setSubMode(0);
 	setAxis(0);
-	setSelectedNode(NULL);
 	_valueSlider->setEnabled(false);
-	_dragging = false;
 }
 
 bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
@@ -35,28 +33,14 @@ bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsig
 	Mode::touchEvent(evt, x, y, contactIndex);
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
+			if(_touchNode == NULL) break;
 			_groundFace = -1;
-		    Camera* camera = app->_scene->getActiveCamera();
-		    Ray ray;
-		    camera->pickRay(app->getViewport(), x, y, &ray);
-		    PhysicsController::HitResult hitResult;
-		    if(!app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) break;
-	    	MyNode *node = dynamic_cast<MyNode*>(hitResult.object->getNode());
-	    	if(!node || node->getCollisionObject() == NULL) break;
-		    if(strcmp(node->getId(), "grid") == 0) break;
-			_dragging = true;
 			_dragOffset.set(x, y);
-			_basePoint = hitResult.point;
-			setSelectedNode(node);
-			cout << "selected: " << node->getId() << " => " << _selectedNode->getId() << endl;
 			if(_subMode == 0) { //translate
-				Vector2 basePix;
-				camera->project(app->getViewport(), _basePoint, &basePix);
-				_dragOffset.set(basePix.x - x, basePix.y - y);
 			} else if(_subMode == 1) { //rotate
 			} else if(_subMode == 2) { //scale
 			} else if(_subMode == 3) { //ground face - determine which face was selected
-				_groundFace = _selectedNode->pt2Face(_basePoint);
+				_groundFace = _selectedNode->pt2Face(_selectPoint);
 			}
 			//disable all physics during the move - if a node is static, we must remove its physics and re-add it at the end
 			app->_intersectNodeGroup.clear();
@@ -64,18 +48,16 @@ bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsig
 			break;
 		}
 		case Touch::TOUCH_MOVE: case Touch::TOUCH_RELEASE: {
-			bool skip = !_dragging || _selectedNode == NULL;
-			if(evt == Touch::TOUCH_RELEASE) _dragging = false;
-			if(skip) break;
+			if(!_touching || _selectedNode == NULL) break;
 			bool finalize = evt == Touch::TOUCH_RELEASE;
 			Ray ray;
 			Camera *camera = app->_scene->getActiveCamera();
 			if(_subMode == 0) { //translate
-				camera->pickRay(app->getViewport(), x + _dragOffset.x, y + _dragOffset.y, &ray);
+				camera->pickRay(app->getViewport(), x, y, &ray);
 				float distance = ray.intersects(_plane);
 				if(distance == Ray::INTERSECTS_NONE) break;
 				Vector3 point(ray.getOrigin() + ray.getDirection() * distance);
-				Vector3 delta(point - _basePoint);
+				Vector3 delta(point - _selectPoint);
 				_transDir = delta / delta.length();
 				setPosition(delta.length(), finalize);
 			} else if(_subMode == 1) { //rotate
@@ -90,17 +72,7 @@ bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsig
 				float scale = pow(10.0f, exp);
 				setPosition(scale, finalize);
 			} else if(_subMode == 3) { //pick ground face
-				if(!finalize) {
-					camera->pickRay(app->getViewport(), x, y, &ray);
-					PhysicsController::HitResult hitResult;
-					if(app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) {
-						Node *node = hitResult.object->getNode();
-						if(node == _selectedNode) {
-							unsigned short newFace = _selectedNode->pt2Face(hitResult.point);
-							if(newFace >= 0) _groundFace = newFace;
-						}
-					}
-				} else if(_groundFace >= 0 && _parentNode == NULL) {
+				if(finalize && _groundFace >= 0 && _parentNode == NULL) {
 					_selectedNode->rotateFaceToPlane(_groundFace, app->_groundPlane);
 					_selectedNode->enablePhysics(true);
 					_groundFace = -1;
@@ -113,9 +85,8 @@ bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsig
 
 void T4TApp::PositionMode::controlEvent(Control *control, Control::Listener::EventType evt)
 {
-	if(control == _subModeButton) {
-		setSubMode((_subMode + 1) % _subModes.size());
-	} else if(control == _valueSlider) {
+	Mode::controlEvent(control, evt);
+	if(control == _valueSlider) {
 		if(_subMode == 0) {
 			_transDir.set(0, 0, 0);
 			MyNode::sv(&_transDir, _axis, 1);
@@ -133,7 +104,6 @@ void T4TApp::PositionMode::controlEvent(Control *control, Control::Listener::Eve
 }
 
 void T4TApp::PositionMode::setSelectedNode(MyNode *node) {
-	_selectedNode = node;
 	if(_selectedNode != NULL) {
 		//move the root of this node tree, or the nearest parent-child constraint joint, whichever is closer
 		MyNode *parent;
@@ -156,23 +126,17 @@ void T4TApp::PositionMode::setSelectedNode(MyNode *node) {
 		_baseTranslation = _selectedNode->getTranslationWorld();
 		_parentNode = _selectedNode->_constraintParent;
 		float distance;
-		Vector3 offset;
 		if(_parentNode) {
 			_normal = _selectedNode->parentAxis;
 			Matrix m = _parentNode->getWorldMatrix();
 			m.transformVector(&_normal);
 			_normal.normalize(&_normal);
-			offset = _selectedNode->parentOffset;
-			m.transformPoint(&offset);
-			distance = offset.dot(_normal);
+			distance = _selectPoint.dot(_normal);
 		} else {
 			_normal.set(0, 1, 0);
 			distance = 0;
-			offset.set(0, 0, 0);
 		}
 		_plane.set(_normal, -distance);
-		_planeCenter.set(_normal * distance);
-		_basePoint -= _normal * _normal.dot(_basePoint - offset);
 		_selectedNode->enablePhysics(false);
 	} else {
 		_positionValue = 0.0f;
@@ -243,9 +207,8 @@ void T4TApp::PositionMode::setPosition(float value, bool finalize) {
 	}
 }
 
-void T4TApp::PositionMode::setSubMode(unsigned short mode) {
-	_subMode = mode;
-	_subModeButton->setText(_subModes[_subMode].c_str());
+void T4TApp::PositionMode::setSubMode(short mode) {
+	Mode::setSubMode(mode);
 	if(_subMode == 0 && _axis == 3) setAxis(0);
 	_axisButton->setEnabled(_subMode == 0 || _subMode == 2);
 	Vector4 limits = Vector4::zero();

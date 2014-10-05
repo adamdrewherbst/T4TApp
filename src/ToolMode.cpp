@@ -1,26 +1,22 @@
 #include "T4TApp.h"
 
-T4TApp::ToolMode::ToolMode(T4TApp *app_, const char* id, const char* filename) 
-  : T4TApp::Mode::Mode(app_, id, filename) {
+T4TApp::ToolMode::ToolMode(const char* id, const char* filename) 
+  : T4TApp::Mode::Mode(id, filename) {
 	_toolType = id+5;
 	_subMode = 0;
-	_node = NULL;
 	_touching = false;
-	_rotate = false;
 	_newNode = MyNode::create(app->concat(2, "newNode_", _toolType.c_str()));
 	newData = _newNode->getData();
 }
 
 void T4TApp::ToolMode::setActive(bool active) {
 	Mode::setActive(active);
-	setNode(NULL);
-	_touching = false;
 }
 
-void T4TApp::ToolMode::setNode(MyNode *node) {
-	_node = node;
-	app->getScriptController()->executeFunction<void>("camera_setNode", "s", _node != NULL ? _node->getId() : NULL);
-	if(_node != NULL) {
+void T4TApp::ToolMode::setSelectedNode(MyNode *node) {
+	Mode::setSelectedNode(node);
+	app->getScriptController()->executeFunction<void>("camera_setNode", "s", node != NULL ? node->getId() : NULL);
+	if(node != NULL) {
 		setAxis(0);
 		app->_scene->addNode(_tool);
 	} else {
@@ -28,13 +24,18 @@ void T4TApp::ToolMode::setNode(MyNode *node) {
 	}
 }
 
+void T4TApp::ToolMode::setSubMode(short mode) {
+	Mode::setSubMode(mode);
+	setCameraMode(-1);
+}
+
 void T4TApp::ToolMode::setAxis(int axis) {
 	//translate the camera to look at the center of the node
 	//and face along the <axis> direction in its model space
 	float yaw = 0, pitch = 0;
-	Vector3 sliceNormal, viewNormal, translation(_node->getTranslationWorld());
+	Vector3 sliceNormal, viewNormal, translation(_selectedNode->getTranslationWorld());
 	Matrix rotation;
-	_node->getRotation(&rotation);
+	_selectedNode->getRotation(&rotation);
 	_tool->setRotation(rotation);
 	switch(axis) {
 		case 0: //x
@@ -64,66 +65,21 @@ void T4TApp::ToolMode::setView() {
 	rot.multiply(offset);
 	_tool->setRotation(rot);
 	//make the view plane orthogonal to the viewing axis
-	Vector3 cam(camNode->getTranslationWorld()), camToNode(_node->getTranslationWorld() - cam);
+	Vector3 cam(camNode->getTranslationWorld()), camToNode(_selectedNode->getTranslationWorld() - cam);
 	_viewPlane.setNormal(camToNode);
 }
 
 bool T4TApp::ToolMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
+	Mode::touchEvent(evt, x, y, contactIndex);
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
-			if(_node == NULL) {
-				setNode(app->getMouseNode(x, y));
-				if(_node) cout << "going to tool " << _node->getId() << endl;
-			}
-			else {
-				Ray ray;
-				app->_activeScene->getActiveCamera()->pickRay(app->getViewport(), x, y, &ray);
-				float distance = ray.intersects(_viewPlane);
-				if(distance != Ray::INTERSECTS_NONE) {
-					_touchStart.set(ray.getOrigin() + distance * ray.getDirection());
-					_touching = true;
-					_toolBaseRotation = _tool->getRotation();
-				}
-			}
 			break;
 		}
 		case Touch::TOUCH_MOVE: {
-			if(_node == NULL || !_touching) break;
-			Ray ray;
-			app->_activeScene->getActiveCamera()->pickRay(app->getViewport(), x, y, &ray);
-			float distance = ray.intersects(_viewPlane);
-			if(distance != Ray::INTERSECTS_NONE) {
-				_touchPoint.set(ray.getOrigin() + distance * ray.getDirection());
-				switch(_subMode) {
-					case 0: //rotate
-					{
-						//alternative: rotate the tool in the view plane
-						/*Vector3 v1(_touchStart - _viewPlaneOrigin), v2(_touchPoint - _viewPlaneOrigin);
-						v1.normalize();
-						v2.normalize();
-						float cosAng = v1.dot(v2);
-						v1.cross(v2);
-						float sinAng = v1.dot(_viewPlane.getNormal());
-						float angle = atan2(sinAng, cosAng);
-						Quaternion rotation;
-						Quaternion::createFromAxisAngle(_viewPlane.getNormal(), angle, &rotation);
-						_tool->setRotation(rotation * _toolBaseRotation);//*/
-						break;
-					}
-					case 1: //translate
-						_tool->setTranslation(_node->getTranslationWorld() + _touchPoint-_touchStart);
-						break;
-				}
-			}
 			break;
 		}
 		case Touch::TOUCH_RELEASE:
-			_touching = false;
 			break;
-	}
-	if(_touching && _subMode == 0) {
-		app->getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", evt, x, y, contactIndex);
-		setView();
 	}
 }
 
@@ -135,7 +91,7 @@ void T4TApp::ToolMode::controlEvent(Control *control, Control::Listener::EventTy
 	cout << "tool mode clicked " << controlID << endl;
 	controlID = controlID + _toolType.length()+1;
 
-	if(strcmp(controlID, "axis") == 0 && _node != NULL) {
+	if(strcmp(controlID, "axis") == 0 && _selectedNode != NULL) {
 		const char *_axes[3] = {"X", "Y", "Z"};
 		for(int i = 0; i < 3; i++) {
 			if(strcmp(((Button*)control)->getText(), _axes[i]) == 0) {
@@ -146,8 +102,6 @@ void T4TApp::ToolMode::controlEvent(Control *control, Control::Listener::EventTy
 			}
 		}
 	}
-	else if(strcmp(controlID, "rotate") == 0) _subMode = 0;
-	else if(strcmp(controlID, "translate") == 0) _subMode = 1;
 	else if(strcmp(controlID, "doTool") == 0) {
 		toolNode();
 		setActive(false);
@@ -155,8 +109,8 @@ void T4TApp::ToolMode::controlEvent(Control *control, Control::Listener::EventTy
 }
 
 bool T4TApp::ToolMode::toolNode() {
-	_node->updateData();
-	data = _node->getData();
+	_selectedNode->updateData();
+	data = _selectedNode->getData();
 	
 	usageCount++;
 

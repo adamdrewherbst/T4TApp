@@ -28,8 +28,8 @@ T4TApp* T4TApp::getInstance() {
 
 void T4TApp::initialize()
 {
-	generateModels();
-/*	exit();
+/*	generateModels();
+	exit();
 //*/
     // Load font
     _font = Font::create("res/common/arial18.gpb");
@@ -99,7 +99,7 @@ void T4TApp::initialize()
     MyNode *modelNode = dynamic_cast<MyNode*>(_models->getFirstNode());
     while(modelNode) {
     	if(strstr(modelNode->getId(), "_part") == NULL) {
-			modelNode->loadData();
+			modelNode->loadData("res/common/");
 			modelNode->updateModelFromData(false);
 			ImageControl* itemImage = addButton <ImageControl> (_componentMenu, concat(2, "comp_", modelNode->getId()));
 			itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
@@ -121,13 +121,15 @@ void T4TApp::initialize()
     	Button *machineButton = addButton <Button> (_machineMenu, _machineNames[i].c_str());
     }
 
-	_modes.push_back(new RotateMode(this));
-	_modes.push_back(new PositionMode(this));
-	_modes.push_back(new ConstraintMode(this));
-	_modes.push_back(new SliceMode(this));
-	_modes.push_back(new DrillMode(this));
-	_modes.push_back(new TestMode(this));
-	_modes.push_back(new TouchMode(this));
+	Mode::app = this;
+	Mode::_selectedNode = NULL;
+	_modes.push_back(new NavigateMode());
+	_modes.push_back(new PositionMode());
+	_modes.push_back(new ConstraintMode());
+	_modes.push_back(new SliceMode());
+	_modes.push_back(new DrillMode());
+	_modes.push_back(new TestMode());
+	_modes.push_back(new TouchMode());
 	_modePanel = addPanel("container_modes", _sideMenu);
 	for(size_t i = 0; i < _modes.size(); i++) {
 		const char *id = _modes[i]->getId();
@@ -154,7 +156,7 @@ void T4TApp::initialize()
 }
 
 void T4TApp::generateModels() {
-	generateModel("gear_basic", 0.6f, 0.9f, 1.2f, 9);
+	generateModel("gear_basic", 0.6f, 0.9f, 1.2f, 6);
 }
 
 void T4TApp::generateModel(const char *type, ...) {
@@ -260,7 +262,7 @@ void T4TApp::generateModel(const char *type, ...) {
 		}
 		data->hulls.push_back(hull);
 	}
-	node->writeData();
+	node->writeData("res/common/");
 }
 
 void T4TApp::initScene()
@@ -268,6 +270,7 @@ void T4TApp::initScene()
     // Generate game scene
     _scene = Scene::load("res/common/game.scene");
     _scene->setId("scene");
+    setSceneName("test");
     _scene->visit(this, &T4TApp::printNode);
     setActiveScene(_scene);
     
@@ -299,7 +302,7 @@ void T4TApp::initScene()
     	if(i%2 == 1) vertices[i*6+i/2] += 5.0f;
     	vertices[i*6+4] = 1.0f; //color green
     }
-    _scene->addNode(createWireframe(vertices));
+    _scene->addNode(createWireframe(vertices, "axes"));
 
     enableScriptCamera(true);
     //and initialize camera position by triggering a touch event
@@ -308,8 +311,12 @@ void T4TApp::initScene()
     getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_RELEASE, 0, 0, 0);
 }
 
-std::string getSceneDir() {
-	return "res/scenes/" + _sceneName + "/";
+void T4TApp::setSceneName(const char *name) {
+	_sceneName = name;
+}
+
+std::string T4TApp::getSceneDir() {
+	return "res/scenes/" + _sceneName + "_";
 }
 
 void T4TApp::loadScene() {
@@ -319,10 +326,14 @@ void T4TApp::loadScene() {
 		GP_ERROR("Failed to open file '%s'", listFile);
 		return;
 	}
-	char line[256];
+	char line[256], *str;
+	std::istringstream ss;
+	std::string id;
 	while(!stream->eof()) {
-		stream->readLine(line, 256);
-		loadNode(line);
+		str = stream->readLine(line, 256);
+		ss.str(str);
+		ss >> id;
+		loadNode(id.c_str());
 	}
 }
 
@@ -346,7 +357,7 @@ void T4TApp::saveScene() {
 	std::ostringstream os;
 	std::string line;
 	for(Node *n = _scene->getFirstNode(); n != NULL; n = n->getNextSibling()) {
-		if(n->getParent() != NULL || strcmp(n->getId(), "grid") == 0) continue;
+		if(n->getParent() != NULL || auxNode(n)) continue;
 		node = dynamic_cast<MyNode*>(n);
 		if(node) {
 			os.str("");
@@ -361,8 +372,36 @@ void T4TApp::saveScene() {
 
 bool T4TApp::saveNode(Node *n) {
 	MyNode *node = dynamic_cast<MyNode*>(n);
-	if(node && !node->getParent() && strcmp(node->getId(), "grid") != 0) node->writeData();
+	if(node && !node->getParent() && !auxNode(node)) node->writeData();
 	return true;
+}
+
+void T4TApp::clearScene() {
+	std::vector<MyNode*> nodes;
+	for(Node *n = _scene->getFirstNode(); n != NULL; n = n->getNextSibling()) {
+		if(n->getParent() != NULL || auxNode(n)) continue;
+		MyNode *node = dynamic_cast<MyNode*>(n);
+		if(node) nodes.push_back(node);
+	}
+	for(short i = 0; i < nodes.size(); i++) {
+		nodes[i]->removePhysics();
+		_scene->removeNode(nodes[i]);
+	}
+	setSceneName("test");
+}
+
+bool T4TApp::removeNode(Node *n) {
+	MyNode *node = dynamic_cast<MyNode*>(n);
+	if(node && !node->getParent() && !auxNode(node)) {
+		node->removePhysics();
+		_scene->removeNode(node);
+	}
+	return true;
+}
+
+bool T4TApp::auxNode(Node *node) {
+	const char *id = node->getId();
+	return strcmp(id, "grid") == 0 || strcmp(id, "axes") == 0;
 }
 
 void T4TApp::releaseScene()
@@ -521,7 +560,7 @@ void T4TApp::render(float elapsedTime)
     unsigned int width, height;
     char buffer[50];
 
-    _font->start();
+/*    _font->start();
 
     // Mouse
     sprintf(buffer, "M(%d,%d)", (int)_mousePoint.x, (int)_mousePoint.y);
@@ -536,7 +575,7 @@ void T4TApp::render(float elapsedTime)
         _font->drawText(_mouseString.c_str(), 0, y, fontColor, _font->getSize());
     }
     _font->finish();
-
+//*/
     _sideMenu->draw();
 	for(size_t i = 0; i < _submenus.size(); i++)
 		if(_submenus[i]->isVisible()) _submenus[i]->draw();
@@ -612,7 +651,6 @@ void T4TApp::keyEvent(Keyboard::KeyEvent evt, int key)
 
 void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
 {
-	_touchPoint.set(x, y);
     switch (evt)
     {
 		case Touch::TOUCH_PRESS:
@@ -636,8 +674,19 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	cout << "CLICKED " << controlID << endl;
 	//const size_t catalogSize = _itemNames->size();
 
+	if(strcmp(controlID, "sceneSave") == 0) {
+		saveScene();
+	}
+	else if(strcmp(controlID, "sceneSaveAs") == 0) {
+	}
+	else if(strcmp(controlID, "sceneLoad") == 0) {
+		loadScene();
+	}
+	else if(strcmp(controlID, "sceneClear") == 0) {
+		clearScene();
+	}
 	//if a submenu handle is clicked, toggle whether the submenu is expanded
-	if(strncmp(controlID, "parent_", 7) == 0) {
+	else if(strncmp(controlID, "parent_", 7) == 0) {
 		const char *subName = MyNode::concat(2, "submenu_", controlID+7);
 		cout << "Looking for submenu " << subName << endl;
 		Container *subMenu = dynamic_cast<Container*>(_mainMenu->getControl(subName));
@@ -756,7 +805,7 @@ MyNode* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 	return node;
 }
 
-MyNode* T4TApp::createWireframe(std::vector<float>& vertices, char *id) {
+MyNode* T4TApp::createWireframe(std::vector<float>& vertices, const char *id) {
 	int numVertices = vertices.size()/6;
 	VertexFormat::Element elements[] = {
 		VertexFormat::Element(VertexFormat::POSITION, 3),
@@ -768,16 +817,7 @@ MyNode* T4TApp::createWireframe(std::vector<float>& vertices, char *id) {
 	Model *model = Model::create(mesh);
 	mesh->release();
 	model->setMaterial("res/common/grid.material");
-	if(id == NULL) {
-		char newID[40];
-		for(int i = 0; i < 40; i++) newID[i] = '\0';
-		int n = 0;
-		do {
-			n++;
-			sprintf(newID, "wireframe%d", n);
-		} while(_scene->findNode(newID) != NULL);
-		id = newID;
-	}
+	if(id == NULL) id = "wireframe1";
 	MyNode *node = MyNode::create(id);
 	node->setModel(model);
 	model->release();
@@ -854,6 +894,11 @@ PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const c
 		body[i] = node[i]->getCollisionObject()->asRigidBody();
 		rot[i] = *((Quaternion*) va_arg(arguments, Quaternion*));
 		trans[i] = *((Vector3*) va_arg(arguments, Vector3*));
+		if(strcmp(type, "hinge") == 0) {
+			body[i]->setEnabled(false);
+			body[i]->setFriction(0.01f);
+			body[i]->setEnabled(true);
+		}
 	}
 	va_end(arguments);
 	if(strcmp(type, "hinge") == 0) {

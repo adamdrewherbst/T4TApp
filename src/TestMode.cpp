@@ -1,7 +1,7 @@
 #include "T4TApp.h"
 
-T4TApp::TestMode::TestMode(T4TApp *app_) 
-  : T4TApp::Mode::Mode(app_, "mode_Test", NULL) {
+T4TApp::TestMode::TestMode() 
+  : T4TApp::Mode::Mode("mode_Test", NULL) {
 }
 
 bool T4TApp::TestMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)

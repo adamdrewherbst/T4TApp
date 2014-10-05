@@ -32,7 +32,7 @@ public:
 	
 	MyNode* loadNode(const char* id);    
     MyNode* duplicateModelNode(const char* type, bool isStatic = false);
-    MyNode* createWireframe(std::vector<float>& vertices, char *id=NULL);
+    MyNode* createWireframe(std::vector<float>& vertices, const char *id=NULL);
     bool printNode(Node *node);
     bool prepareNode(MyNode *node);
     void translateNode(MyNode *node, Vector3 trans);
@@ -43,15 +43,18 @@ public:
     const std::string printQuat(Quaternion& q);
 
     void initScene();
+    void setSceneName(const char *name);
 	void loadScene();
 	std::string getSceneDir();
 	void clearScene();
+	bool removeNode(Node *node);
+	bool auxNode(Node *node);
 	void saveScene();
-	void saveNode(Node *n);
+	bool saveNode(Node *n);
 	void releaseScene();
 	void hideScene();
-	void showScene();
 	bool hideNode(Node *node);
+	void showScene();
 	bool showNode(Node *node);
     void setActiveScene(Scene *scene);
     std::string _sceneName;
@@ -158,7 +161,7 @@ public:
     Scene *_activeScene;
 
     //user interface
-    Form *_mainMenu, *_sideMenu, *_componentMenu, *_machineMenu, *_modePanel;
+    Form *_mainMenu, *_sideMenu, *_sceneMenu, *_componentMenu, *_machineMenu, *_modePanel;
     Button *_saveButton, *_deleteButton;
     std::vector<Form*> _submenus; //submenus
     CheckBox *_drawDebugCheckbox;
@@ -232,39 +235,61 @@ public:
 	class Mode : public Button, Control::Listener
 	{
 public:
-		T4TApp *app;
-		Form *_container, *_controls; //the click overlay and control panel
-		std::vector<Control*> _subControls; //the actual buttons etc.
-		bool _active, _touching;
+		static T4TApp *app;
 		
-		Mode(T4TApp *app_, const char* id, const char* filename = NULL);
+		std::vector<std::string> _subModes;
+		short _subMode, _cameraMode;
+		Form *_container, *_controls; //the click overlay and control panel
+		Button *_subModeButton, *_cameraModeButton;
+		bool _active, _touching, _doSelect;
+		
+		static MyNode *_selectedNode, *_touchNode;
+		static Vector3 _selectPoint, _touchPoint, _mousePoint, _cameraCenter;
+		static Vector2 _touchPix, _mousePix;
+		Vector3 _cameraBase, _cameraCenterBase;
+		Rectangle _viewportBase;
+		Plane _plane;
+		
+		Mode(const char* id, const char* filename = NULL);
 		
 		virtual bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
-		virtual void controlEvent(Control *control, EventType evt) = 0;
+		virtual void controlEvent(Control *control, EventType evt);
 		virtual void setActive(bool active);
+		virtual void setSubMode(short mode);
+		virtual void setCameraMode(short mode);
+		virtual void setSelectedNode(MyNode *node, Vector3 point = Vector3::zero());
+		virtual void placeCamera();
 		virtual void draw();
 	};
 	std::vector<Mode*> _modes;
+	
+	class NavigateMode : public Mode
+	{
+public:
+		NavigateMode();
+		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+		void controlEvent(Control *control, Control::Listener::EventType evt);
+		void setSubMode(short mode);
+	};
 	
 	//generic mode for altering a model using a tool such as a knife or drill
 	class ToolMode : public Mode
 	{
 public:
 		std::string _toolType;
-		MyNode *_node, *_newNode; //the model to be altered and a model to hold the modified node data
+		MyNode *_newNode; //a model to hold the modified node data
 		MyNode::nodeData *data, *newData;
 		Plane _viewPlane;
 		Vector3 _touchStart, _touchPoint, _viewPlaneOrigin;
 		MyNode *_tool; //to display the tool to the user
 		Quaternion _toolBaseRotation;
-		int _subMode; //0 = rotate, 1 = translate
-		bool _touching, _rotate;
 		
 		short usageCount;
 
-		ToolMode(T4TApp *app_, const char* id, const char* filename = NULL);
+		ToolMode(const char* id, const char* filename = NULL);
 		virtual void setActive(bool active);
-		void setNode(MyNode *node);
+		void setSelectedNode(MyNode *node);
+		void setSubMode(short mode);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		virtual void controlEvent(Control *control, Control::Listener::EventType evt);
 		virtual void setAxis(int axis);
@@ -277,7 +302,7 @@ public:
 public:
 		Plane _slicePlane;
 
-		SliceMode(T4TApp *app_);
+		SliceMode();
 		void setAxis(int axis);
 		bool toolNode();
 	};
@@ -313,7 +338,7 @@ public:
 		void setActive(bool active);
 		void draw();
 
-		DrillMode(T4TApp *app_);
+		DrillMode();
 		void setAxis(int axis);
 		bool toolNode();
 		void partitionNode();
@@ -334,23 +359,12 @@ public:
 		void drawFace(int face);
 	};
 	
-	class RotateMode : public Mode
-	{
-public:
-		bool _rotate;
-		
-		RotateMode(T4TApp *app_);
-		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
-		void controlEvent(Control *control, Control::Listener::EventType evt);
-	};
-	
 	class PositionMode : public Mode
 	{
 public:
-		std::vector<std::string> _subModes, _axisNames;
-		unsigned short _subMode;
+		std::vector<std::string> _axisNames;
 		short _axis;
-		MyNode *_selectedNode, *_parentNode;
+		MyNode *_parentNode;
 		float _positionValue;
 	    Quaternion _baseRotation;
 	    Vector3 _baseTranslation, _baseScale, _basePoint, _transDir, _normal, _planeCenter;
@@ -358,17 +372,16 @@ public:
 	    Vector2 _dragOffset;
 	    short _groundFace;
 	    
-		Button *_subModeButton, *_axisButton;
+		Button *_axisButton;
 	    Slider *_gridSlider, *_valueSlider;
 	    CheckBox *_gridCheckbox, *_staticCheckbox;
-	    bool _dragging;
 
-		PositionMode(T4TApp *app_);
+		PositionMode();
 		void setActive(bool active);
+		void setSubMode(short mode);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
 		void setSelectedNode(MyNode *node);
-		void setSubMode(unsigned short mode);
 		void setAxis(short axis);
 		void setPosition(float value, bool finalize = false);
 		void updateSlider();
@@ -376,15 +389,16 @@ public:
 	
 	class ConstraintMode : public Mode {
 public:
-		std::vector<std::string> _subModes, _constraintTypes;
-		unsigned short _subMode;
+		std::vector<std::string> _constraintTypes;
 		MyNode *_nodes[2];
 		short _faces[2], _currentNode;
 		Quaternion _rot[2];
 		Vector3 _trans[2];
 		
-		ConstraintMode(T4TApp *app_);
+		ConstraintMode();
 		void setActive(bool active);
+		void setSubMode(short mode);
+		
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
 	};
@@ -392,7 +406,7 @@ public:
 	class TestMode : public Mode
 	{
 public:
-		TestMode(T4TApp *app_);
+		TestMode();
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
 	};
@@ -402,14 +416,12 @@ public:
 public:
 		MyNode *_face;
 		
-		TouchMode(T4TApp *app_);
+		TouchMode();
 		void setActive(bool active);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
 	};
 		
-    Vector2 _mousePoint, _touchPoint;
-    std::string _mouseString;
     Font* _font;
     
     //debugging variables

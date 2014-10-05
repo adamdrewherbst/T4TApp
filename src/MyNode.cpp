@@ -319,17 +319,23 @@ MyNode::nodeData* MyNode::copyData() {
 	return copy;
 }
 
-const char* MyNode::getFilename() {
-	return (app->getSceneDir() + getId() + ".node").c_str();
+std::string MyNode::resolveFilename(const char *filename) {
+	std::string path;
+	int n = filename == NULL ? 0 : strlen(filename);
+	if(filename == NULL) path = app->getSceneDir() + getId() + ".node";
+	else if(filename[n-1] == '/') path = filename + _id + ".node";
+	else if(strstr(filename, "/") == NULL) path = app->getSceneDir() + filename;
+	else path = filename;
+	return path;
 }
 
-void MyNode::loadData(const char *filename)
+void MyNode::loadData(const char *file)
 {
-	if(filename == NULL) filename = getFilename();
-	std::auto_ptr<Stream> stream(FileSystem::open(filename));
+	std::string filename = resolveFilename(file);
+	std::auto_ptr<Stream> stream(FileSystem::open(filename.c_str()));
 	if (stream.get() == NULL)
 	{
-		GP_ERROR("Failed to open file '%s'.", filename);
+		GP_ERROR("Failed to open file '%s'.", filename.c_str());
 		return;
 	}
 	stream->rewind();
@@ -478,18 +484,18 @@ void MyNode::loadData(const char *filename)
 		in.str(str);
 		in >> childId;
 		MyNode *child = MyNode::create(childId.c_str());
-		child->loadData(concat(3, "res/common/", childId.c_str(), ".node"));
+		child->loadData();
 		addChild(child);
 	}
     stream->close();
 }
 
-void MyNode::writeData(const char *filename) {
-	if(filename == NULL) filename = getFilename();
-	std::auto_ptr<Stream> stream(FileSystem::open(filename, FileSystem::WRITE));
+void MyNode::writeData(const char *file) {
+	std::string filename = resolveFilename(file);
+	std::auto_ptr<Stream> stream(FileSystem::open(filename.c_str(), FileSystem::WRITE));
 	if (stream.get() == NULL)
 	{
-		GP_ERROR("Failed to open file '%s'.", filename);
+		GP_ERROR("Failed to open file '%s'.", filename.c_str());
 		return;
 	}
 	std::string line;
@@ -643,12 +649,21 @@ void MyNode::updateModelFromData(bool doPhysics) {
 		model->setMaterial(materialFile.c_str());
 		setModel(model);
 		model->release();
-		//set the initial transformation
+		//detach from my parent long enough to set the initial transformation and add physics
+		Node *parent = getParent();
+		if(parent != NULL) {
+			addRef();
+			parent->removeChild(this);
+		}
 		setRotation(data->rotation);
 		setTranslation(data->translation);
 		setScale(data->scale);
 		updateData();
-		if(doPhysics) addPhysics();
+		if(doPhysics) addPhysics(false);
+		if(parent != NULL) {
+			parent->addChild(this);
+			release();
+		}
 	}
 	for(MyNode *child = dynamic_cast<MyNode*>(getFirstChild()); child; child = dynamic_cast<MyNode*>(child->getNextSibling())) {
 		child->updateModelFromData(doPhysics);
