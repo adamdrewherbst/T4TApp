@@ -1,0 +1,56 @@
+form mainMenu {
+	theme = res/common/default.theme
+	style = hiddenContainer
+	position = 0,0
+	autoWidth = true
+	autoHeight = true
+	layout = LAYOUT_ABSOLUTE
+
+	container overlay {
+		style = hiddenContainer
+		position = 0,0
+		autoWidth = true
+		autoHeight = true
+		layout = LAYOUT_ABSOLUTE
+		zIndex = 50
+		consumeInputEvents = true
+	}
+
+	container saveDialog {
+		layout = LAYOUT_FLOW
+		alignment = ALIGN_VCENTER_HCENTER
+		size = 350, 75
+		zIndex = 100
+		consumeInputEvents = true
+		
+		label savePrompt {
+			text = Enter scene title:
+			size = 150, 50
+		}
+		textBox saveName {
+			size = 150, 50
+		}
+	}
+	
+	container confirmDialog {
+		layout = LAYOUT_FLOW
+		alignment = ALIGN_VCENTER_HCENTER
+		size = 350, 150
+		zIndex = 100
+		consumeInputEvents = true
+		
+		label confirmMessage {
+			size = 300, 100
+		}
+		button confirmYes {
+			style = buttonStyle
+			size = 75, 40
+			text = Yes
+		}
+		button confirmNo {
+			style = buttonStyle
+			size = 75, 40
+			text = No
+		}
+	}
+}

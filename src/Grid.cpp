@@ -84,7 +84,6 @@ Mesh* createGridMesh(unsigned int lineCount)
     mesh->setVertexData(&vertices[0], 0, pointCount);
     unsigned int range = lineCount/2;
     mesh->setBoundingBox(BoundingBox(Vector3(-1.0f*range, -1.0f, -1.0f*range), Vector3(1.0f*range, 0.0f, 1.0f*range)));
-
     return mesh;
 }
 

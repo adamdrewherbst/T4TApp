@@ -178,7 +178,13 @@ theme mainMenu
     
     skin hideNormal
     {
-    	region = 1, 1, 74, 74
+    	border {
+    		top = 0
+    		bottom = 0
+    		left = 0
+    		right = 0
+    	}
+    	region = 201, 1, 50, 50
     	color = #00000000
     }
 
@@ -227,14 +233,9 @@ theme mainMenu
     
     style hidden
     {
-    	stateNormal
-    	{
-    		skin = hideNormal
-    	}
-    	stateActive
-    	{
-    		skin = hideNormal
-    	}
+   		stateNormal {
+   			skin = hideNormal
+   		}
     }
 
     style leftAlignedUnderlined : underlined
@@ -273,25 +274,14 @@ theme mainMenu
 	{
 		stateNormal
         {
-            skin = mainNormal
+            skin = hideNormal
             imageList = normalImages
 
             font = res/common/arial18.gpb
             textColor = #ffffffff
             fontSize = 18
             textAlignment = ALIGN_VCENTER_HCENTER
-            opacity = 0.0
         }
-
-		stateFocus
-		{
-			opacity = 0.0
-		}
-		
-		stateDisabled
-		{
-			opacity = 0.0
-		}
 	}
 
     style basic : basicContainer

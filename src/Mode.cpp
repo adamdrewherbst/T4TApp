@@ -1,22 +1,23 @@
 #include "T4TApp.h"
 
 T4TApp::Mode::Mode(const char* id, const char* filename) {
+
+	app = dynamic_cast<T4TApp*>(Game::getInstance());
+	
 	//create the form to hold this button
-	_container = Form::create("res/common/overlay.form");
-	//_container->setId(app->concat(2, "container_", id));
-	_container->setPosition(app->_sideMenu->getX(), 0.0f);
+	_container = Form::create("res/common/modeOverlay.form");
+	_container->setPosition(app->_sideMenu->getX() + app->_sideMenu->getWidth(), 0.0f);
 	_container->setWidth(app->getWidth() - _container->getX());
 	_container->setScroll(Container::SCROLL_VERTICAL);
-	_container->setConsumeInputEvents(true);
 	_container->setVisible(false);
+	app->_mainMenu->addControl(_container);
 	
 	_id = id;
-	_style = _container->getTheme()->getStyle("buttonStyle");
-	setAutoWidth(true);
+	_style = _container->getTheme()->getStyle("hidden");
+	setAutoWidth(true);	
 	setAutoHeight(true);
 	setConsumeInputEvents(true);
 	_container->addControl(this);
-	app->_mainMenu->addControl(_container);
 	
 	//load any custom controls this mode includes
 	if(filename != NULL) {
@@ -30,6 +31,12 @@ T4TApp::Mode::Mode(const char* id, const char* filename) {
 
 	_plane = app->_groundPlane;
 	_doSelect = true;
+	_cameraMode = -1;
+	Camera *camera = app->_scene->getActiveCamera();
+	_cameraBase = Camera::createPerspective(camera->getFieldOfView(), camera->getAspectRatio(),
+	  camera->getNearPlane(), camera->getFarPlane());
+	Node *cameraNode = Node::create((_id + "_camera").c_str());
+	cameraNode->setCamera(_cameraBase);
 	setActive(false);
 }
 
@@ -39,17 +46,19 @@ void T4TApp::Mode::draw() {
 
 void T4TApp::Mode::setActive(bool active) {
 	_active = active;
+	setSelectedNode(NULL);
 	_container->setVisible(active);
 	if(active) {
-		app->addListener(app->_mainMenu, this);
+		app->addListener(_container, this);
 		setSubMode(0);
 	} else {
-		app->removeListener(app->_mainMenu, this);
+		app->removeListener(_container, this);
 	}
 }
 
 void T4TApp::Mode::setSubMode(short mode) {
-	_subMode = mode;
+	if(_subModes.empty()) return;
+	_subMode = mode % _subModes.size();
 	if(_subModeButton) _subModeButton->setText(_subModes[_subMode].c_str());
 }
 
@@ -69,39 +78,34 @@ void T4TApp::Mode::setCameraMode(short mode) {
 
 void T4TApp::Mode::placeCamera() {
 	Vector2 delta(_mousePix - _touchPix);
-	Camera *camera = app->_scene->getActiveCamera();
-	Vector3 eye(_cameraBase - _cameraCenterBase), up;
-	float phi = atan2(eye.y, sqrt(eye.x*eye.x + eye.z*eye.z)), theta = atan2(eye.z, eye.x), radius = eye.length();
 	switch(_cameraMode) {
-		case 0: { //translate
+		case 0: { //rotate
+			Vector3 eye(_cameraBase->getNode()->getTranslationWorld() - _cameraCenterBase);
+			float phi = atan2(eye.y, sqrt(eye.x*eye.x + eye.z*eye.z)), theta = atan2(eye.z, eye.x), radius = eye.length();
+			float deltaPhi = delta.y * M_PI / 400.0f, deltaTheta = delta.x * M_PI / 400.0f;
+			phi = fmin(89.9f * M_PI/180, fmax(-89.9f * M_PI/180, phi + deltaPhi));
+			theta += deltaTheta;
+			app->setCameraEye(radius, theta, phi);
+			break;
+		} case 1: { //translate
 			Ray ray;
-			camera->pickRay(_viewportBase, _mousePix.x, _mousePix.y, &ray);
+			_cameraBase->pickRay(_viewportBase, _mousePix.x, _mousePix.y, &ray);
 			float distance = ray.intersects(_plane);
 			Vector3 _newPoint(ray.getOrigin() + distance * ray.getDirection());
-			_cameraCenter = _cameraCenterBase - (_newPoint - _touchPoint);
-			break;
-		} case 1: { //rotate
-			float deltaPhi = delta.y * M_PI / 400.0f, deltaTheta = delta.x * M_PI / 400.0f;
-			phi = fmin(M_PI/2, fmax(-M_PI/2, phi + deltaPhi));
-			theta += deltaTheta;
+			app->setCameraTarget(_cameraCenterBase - (_newPoint - _touchPoint));
 			break;
 		} case 2: { //zoom
-			float deltaRadius = delta.y / 40.0f;
-			radius = fmin(3.0f, fmax(120.0f, radius + deltaRadius));
+			Vector3 eye(_cameraBase->getNode()->getTranslationWorld() - _cameraCenterBase);
+			float deltaRadius = -delta.y / 40.0f;
+			float radius = fmin(120.0f, fmax(3.0f, eye.length() + deltaRadius));
+			app->setCameraZoom(radius);
 			break;
 		}
 	}
-	eye.set(radius * cos(theta) * cos(phi), radius * sin(phi), radius * cos(theta) * sin(phi));
-	eye += _cameraCenter;
-	up.set(-cos(theta) * sin(phi), cos(phi), -sin(theta) * sin(phi));
-	Matrix cam;
-	Matrix::createLookAt(eye, _cameraCenter, up, &cam);
-	Vector3 scale, translation; Quaternion rotation;
-	cam.decompose(&scale, &rotation, &translation);
-	camera->getNode()->set(scale, rotation, translation);
 }
 
 bool T4TApp::Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
+	cout << "mode " << _id << " touching (" << evt << ") at " << x << "," << y << endl;
 	_mousePix.set(x, y);
 	Camera* camera = app->_scene->getActiveCamera();
 	Ray ray;
@@ -109,6 +113,7 @@ bool T4TApp::Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int 
 	if(_cameraMode >= 0) {
 		float distance = ray.intersects(_plane);
 		_mousePoint.set(ray.getOrigin() + distance * ray.getDirection());
+		//cout << "touching: " << app->printVector(_mousePoint) << endl;
 	}
 	switch(evt) {
 		case Touch::TOUCH_PRESS:
@@ -117,17 +122,17 @@ bool T4TApp::Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int 
 			_touchNode = NULL;
 			if(_cameraMode >= 0) {
 				_touchPoint.set(_mousePoint);
-				_cameraBase = camera->getNode()->getTranslationWorld();
-				_cameraCenterBase = _cameraCenter;
+				_cameraBase->getNode()->set(*camera->getNode());
+				_cameraCenterBase = app->_cameraCenter;
 				_viewportBase = app->getViewport();
 			} else if(_doSelect) {
 				PhysicsController::HitResult hitResult;
 				if(!app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) break;
 				MyNode *node = dynamic_cast<MyNode*>(hitResult.object->getNode());
 				if(!node || node->getCollisionObject() == NULL || app->auxNode(node)) break;
-				setSelectedNode(node);
 				_touchNode = node;
 				_touchPoint.set(hitResult.point);
+				setSelectedNode(_touchNode, _touchPoint);
 				cout << "selected: " << node->getId() << " at " << app->printVector(_touchPoint) << endl;
 			}
 			break;
@@ -145,7 +150,7 @@ bool T4TApp::Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int 
 void T4TApp::Mode::controlEvent(Control *control, EventType evt) {
 	const char *id = control->getId();
 	if(control && control == _subModeButton) { //switching to next submode
-		setSubMode((_subMode + 1) % _subModes.size());
+		setSubMode(_subMode + 1);
 	}
 }
 

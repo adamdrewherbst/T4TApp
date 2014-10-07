@@ -14,7 +14,6 @@ T4TApp::T4TApp()
     : _scene(NULL)
 {
 	__t4tInstance = this;
-	_physicsStopped = false;
 }
 
 void T4TApp::debugTrigger()
@@ -28,16 +27,12 @@ T4TApp* T4TApp::getInstance() {
 
 void T4TApp::initialize()
 {
-/*	generateModels();
-	exit();
+	generateModels();
 //*/
     // Load font
     _font = Font::create("res/common/arial18.gpb");
     assert(_font);
     
-    // Load camera script
-    getScriptController()->loadScript("res/common/camera.lua");
-
     initScene();
     
 	getPhysicsController()->setGravity(Vector3(0.0f, -10.0f, 0.0f));
@@ -54,12 +49,21 @@ void T4TApp::initialize()
 	/*********************** GUI SETUP ***********************/
 	
 	//root menu node for finding controls by ID
-	_mainMenu = Form::create("mainMenu", _formStyle, Layout::LAYOUT_ABSOLUTE);
-	_mainMenu->setWidth(getWidth());
-	_mainMenu->setHeight(getHeight());
-	_mainMenu->setVisible(false);
+	_mainMenu = Form::create("res/common/main.form");
+	//_mainMenu->setVisible(false);
+	_saveDialog = (Container*)_mainMenu->getControl("saveDialog");
+	_savePrompt = (Label*)_saveDialog->getControl("savePrompt");
+	_saveName = (TextBox*)_saveDialog->getControl("saveName");
+	_saveDialog->setVisible(false);
+	_confirmDialog = (Container*)_mainMenu->getControl("confirmDialog");
+	_confirmMessage = (Label*)_confirmDialog->getControl("confirmMessage");
+	_confirmYes = (Button*)_confirmDialog->getControl("confirmYes");
+	_confirmNo = (Button*)_confirmDialog->getControl("confirmNo");
+	_confirmDialog->setVisible(false);
+	_overlay = (Container*)_mainMenu->getControl("overlay");
+	_overlay->setVisible(false);
 	//main menu on left side [Note: this calls addRef() on formStyle's Theme, which we created above]
-    _sideMenu = (Form*) addMenu("sideMenu");
+    _sideMenu = addMenu("sideMenu");
     
     //scene operations: load, save, clear
     _sceneMenu = addMenu("sceneMenu", _sideMenu, "Scene >>");
@@ -121,8 +125,6 @@ void T4TApp::initialize()
     	Button *machineButton = addButton <Button> (_machineMenu, _machineNames[i].c_str());
     }
 
-	Mode::app = this;
-	Mode::_selectedNode = NULL;
 	_modes.push_back(new NavigateMode());
 	_modes.push_back(new PositionMode());
 	_modes.push_back(new ConstraintMode());
@@ -138,7 +140,8 @@ void T4TApp::initialize()
 	}
 	_modePanel->setHeight(_modes.size() * 50.0f);
 	_modePanel->setVisible(true);
-	_modes[0]->setActive(true);
+	_activeMode = -1;
+	//setMode(0);
 
 	_drawDebugCheckbox = addControl <CheckBox> (_sideMenu, "drawDebug", _buttonStyle, "Draw Debug");
 	Button *debugButton = addControl <Button> (_sideMenu, "debugButton", _buttonStyle, "Debug");
@@ -147,6 +150,7 @@ void T4TApp::initialize()
     _sideMenu->setState(Control::FOCUS);
     
     addListener(_mainMenu, this);
+    addListener(_saveName, this, Control::Listener::TEXT_CHANGED);
     addListener(_sideMenu, this);
 	
 	_running = 0;
@@ -155,8 +159,156 @@ void T4TApp::initialize()
 	_constraintCount = 0;
 }
 
+void T4TApp::finalize()
+{
+    SAFE_RELEASE(_scene);
+    SAFE_RELEASE(_mainMenu);
+}
+
+int updateCount = 0;
+void T4TApp::update(float elapsedTime)
+{
+    _mainMenu->update(elapsedTime);
+	if(_carVehicle) _carVehicle->update(elapsedTime, _steering, _braking, _driving);
+}
+
+void T4TApp::render(float elapsedTime)
+{
+    // Clear the color and depth buffers
+    clear(CLEAR_COLOR_DEPTH, Vector4::zero(), 1.0f, 0);
+
+    // Visit all the nodes in the scene for drawing
+    if(_activeScene != NULL) {
+    	_activeScene->visit(this, &T4TApp::drawScene);
+	    //if(_activeScene != _vehicleProject->_scene) _vehicleProject->_scene->visit(this, &T4TApp::drawScene);
+    	if(_drawDebug) getPhysicsController()->drawDebug(_activeScene->getActiveCamera()->getViewProjectionMatrix());
+    }
+
+    // Draw text
+    Vector4 fontColor(1.0f, 1.0f, 1.0f, 1.0f);
+    unsigned int width, height;
+    char buffer[50];
+
+/*    _font->start();
+
+    // Mouse
+    sprintf(buffer, "M(%d,%d)", (int)_mousePoint.x, (int)_mousePoint.y);
+    _font->measureText(buffer, _font->getSize(), &width, &height);
+    int x = _mousePoint.x - (int)(width>>1);
+    int y = _mousePoint.y - (int)(height>>1);
+    //cout << "drawing " << buffer << " at " << x << ", " << y << endl;
+    _font->drawText(buffer, x, y, fontColor, _font->getSize());
+    if (_mouseString.length() > 0)
+    {
+        int y = getHeight() - _font->getSize();
+        _font->drawText(_mouseString.c_str(), 0, y, fontColor, _font->getSize());
+    }
+    _font->finish();
+//*/
+	_mainMenu->draw();
+    _sideMenu->draw();
+}
+
+void T4TApp::setMode(short mode) {
+	mode %= _modes.size();
+	if(_activeMode == mode) return;
+	if(_activeMode >= 0) _modes[_activeMode]->setActive(false);
+	_activeMode = mode;
+	if(_activeMode >= 0) _modes[_activeMode]->setActive(true);
+}
+
+void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
+{
+	const char *controlID = control->getId();
+	Container *parent = control->getParent();
+	cout << "CLICKED " << controlID << endl;
+
+	//scene operations
+	if(strcmp(controlID, "sceneSave") == 0) {
+		saveScene();
+	}
+	else if(strcmp(controlID, "sceneSaveAs") == 0) {
+		doSave("Enter scene name:", &T4TApp::saveSceneAs);
+	}
+	else if(strcmp(controlID, "sceneLoad") == 0) {
+		loadScene();
+	}
+	else if(strcmp(controlID, "sceneClear") == 0) {
+		clearScene();
+	}
+	
+	//callbacks for modal dialogs
+	else if(control == _saveName && evt == TEXT_CHANGED &&
+	  (_saveName->getLastKeypress() == 10 || _saveName->getLastKeypress() == 13)) {
+		if(_saveCallback != NULL) (this->*_saveCallback)(_saveName->getText());
+		showDialog(_saveDialog, false);
+	}
+	else if(control == _confirmYes || control == _confirmNo) {
+		if(_confirmCallback) (this->*_confirmCallback)(control == _confirmYes);
+		showDialog(_confirmDialog, false);
+	}
+
+	//if a submenu handle is clicked, toggle whether the submenu is expanded
+	else if(strncmp(controlID, "parent_", 7) == 0) {
+		const char *subName = MyNode::concat(2, "submenu_", controlID+7);
+		cout << "Looking for submenu " << subName << endl;
+		Container *subMenu = dynamic_cast<Container*>(_mainMenu->getControl(subName));
+		if(subMenu) {
+			bool visible = subMenu->isVisible();
+			for(size_t i = 0; i < _submenus.size(); i++)
+				_submenus[i]->setVisible(false);
+			cout << "\ttoggling menu to " << !visible << endl;
+			subMenu->setVisible(!visible);
+			if(!visible) { //if expanding the submenu, position it next to its handle
+				if(subMenu->getZIndex() != 13) //using z index as flag for whether this menu has static position
+					subMenu->setPosition(control->getX() + control->getWidth(), control->getY());
+			}
+		} else {
+			cout << "No control with ID " << subName << endl;
+		}
+	}
+
+	//misc submenu funcionality
+	else if(_machineMenu->getControl(controlID) == control) {
+		cout << "clicked machine " << controlID << endl;
+		for(size_t i = 0; i < _machines.size(); i++) {
+			if(strcmp(_machines[i]->getId(), controlID) == 0) {
+				_machines[i]->setActive(true);
+			}
+		}
+	}
+	else if(_modePanel->getControl(controlID) == control) {
+		for(short i = 0; i < _modes.size(); i++) {
+			if(strcmp(_modes[i]->getId(), controlID) == 0) setMode(i);
+		}
+	}
+	else if(_componentMenu->getControl(controlID) == control && strncmp(controlID, "comp_", 5) == 0) {
+		MyNode *node = duplicateModelNode(controlID+5);
+		node->addPhysics();
+		_scene->addNode(node);
+		placeNode(node, 0.0f, 0.0f);
+	}
+	else if(strcmp(controlID, "debugButton") == 0) {
+		debugTrigger();
+	}
+	else if(control == _drawDebugCheckbox) {
+		_drawDebug = _drawDebugCheckbox->isChecked();
+	}
+
+	//close a submenu when one of its items is clicked
+	Container *next = parent;
+	while(next != NULL && strncmp(next->getId(), "submenu_", 8) == 0) {
+		next->setVisible(false);
+		next = next->getParent();
+	}
+}
+
+void T4TApp::keyEvent(Keyboard::KeyEvent evt, int key) {}
+void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {}
+bool T4TApp::mouseEvent(Mouse::MouseEvent evt, int x, int y, int wheelDelta) {}
+
 void T4TApp::generateModels() {
-	generateModel("gear_basic", 0.6f, 0.9f, 1.2f, 6);
+	generateModel("gear_basic", 0.6f, 0.9f, 1.2f, 5);
 }
 
 void T4TApp::generateModel(const char *type, ...) {
@@ -276,6 +428,7 @@ void T4TApp::initScene()
     
     // Set the aspect ratio for the scene's camera to match the current resolution
     _scene->getActiveCamera()->setAspectRatio(getAspectRatio());
+    resetCamera();
     
     // Get light node
     _lightNode = _scene->findNode("lightNode");
@@ -303,12 +456,6 @@ void T4TApp::initScene()
     	vertices[i*6+4] = 1.0f; //color green
     }
     _scene->addNode(createWireframe(vertices, "axes"));
-
-    enableScriptCamera(true);
-    //and initialize camera position by triggering a touch event
-    getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_PRESS, 0, 0, 0);
-    getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_MOVE, 0, 0, 0);
-    getScriptController()->executeFunction<void>("camera_touchEvent", "[Touch::TouchEvent]iiui", Touch::TOUCH_RELEASE, 0, 0, 0);
 }
 
 void T4TApp::setSceneName(const char *name) {
@@ -370,6 +517,11 @@ void T4TApp::saveScene() {
 	stream->close();
 }
 
+void T4TApp::saveSceneAs(const char *name) {
+	setSceneName(name);
+	saveScene();
+}
+
 bool T4TApp::saveNode(Node *n) {
 	MyNode *node = dynamic_cast<MyNode*>(n);
 	if(node && !node->getParent() && !auxNode(node)) node->writeData();
@@ -408,7 +560,6 @@ void T4TApp::releaseScene()
 {
 	if(_activeScene == _scene) _activeScene = NULL;
 	_carVehicle = NULL;
-	//enableScriptCamera(false);
 	SAFE_RELEASE(_scene);
 }
 
@@ -469,6 +620,7 @@ Form* T4TApp::addMenu(const char *name, Form *parent, const char *buttonText, La
     container->setScroll(Container::SCROLL_VERTICAL);
     container->setConsumeInputEvents(true);
     if(isSubmenu) {
+    	container->setZIndex(parent->getZIndex() + 10);
 		container->setVisible(false);
 		_mainMenu->addControl(container);
 		_submenus.push_back(container);
@@ -489,16 +641,16 @@ Form* T4TApp::addPanel(const char *name, Form *parent)
     return container;
 }
 
-void T4TApp::addListener(Control *control, Control::Listener *listener, Control::Listener::EventType evt) {
-	enableListener(true, control, listener, evt);
+void T4TApp::addListener(Control *control, Control::Listener *listener, int evtFlags) {
+	enableListener(true, control, listener, evtFlags);
 }
 
 void T4TApp::removeListener(Control *control, Control::Listener *listener) {
 	enableListener(false, control, listener);
 }
 
-void T4TApp::enableListener(bool enable, Control *control, Control::Listener *listener, Control::Listener::EventType evt) {
-	if(enable) control->addListener(listener, evt);
+void T4TApp::enableListener(bool enable, Control *control, Control::Listener *listener, int evtFlags) {
+	if(enable) control->addListener(listener, evtFlags);
 	else control->removeListener(listener);
 	Container *container = dynamic_cast<Container*>(control), *submenu;
 	if(container) {
@@ -506,81 +658,33 @@ void T4TApp::enableListener(bool enable, Control *control, Control::Listener *li
 		for(int i = 0; i < controls.size(); i++) {
 			const char *id = controls[i]->getId(), *submenuID;
 			if(strncmp(id, "submenu_", 8) != 0) {
-				enableListener(enable, controls[i], listener, evt);
+				enableListener(enable, controls[i], listener, evtFlags);
 			}
 			if(strncmp(id, "parent_", 7) == 0) {
 				submenuID = MyNode::concat(2, "submenu_", id+7);
 				submenu = dynamic_cast<Container*>(_mainMenu->getControl(submenuID));
 				cout << "enabling on submenu " << submenuID << " = " << submenu << endl;
-				if(submenu) enableListener(enable, submenu, listener, evt);
+				if(submenu) enableListener(enable, submenu, listener, evtFlags);
 			}
 		}
 	}
 }
 
-void T4TApp::finalize()
-{
-    SAFE_RELEASE(_scene);
-    SAFE_RELEASE(_mainMenu);
+void T4TApp::doSave(const char *prompt, void (T4TApp::*callback)(const char*)) {
+	_saveCallback = callback;
+	_savePrompt->setText(prompt);
+	showDialog(_saveDialog);
 }
 
-int updateCount = 0;
-void T4TApp::update(float elapsedTime)
-{
-    _mainMenu->update(elapsedTime);
-	if(_carVehicle) _carVehicle->update(elapsedTime, _steering, _braking, _driving);
-/*	cout << "updating car [" << elapsedTime << "]: " << _driving << ", " << _braking << ", " << _steering << endl;
-	cout << "\tspeed now " << _carVehicle->getSpeedKph();
-	Vector3 vel = _carVehicle->getRigidBody()->getLinearVelocity();
-	cout << ", vel = " << printVector(vel) << endl;//*/
-	getScriptController()->executeFunction<void>("camera_update", "f", elapsedTime);
-
-    if(_state == Game::RUNNING) {
-    	//cout << "Still running... " << updateCount++ << endl;
-    }else if(!_physicsStopped) {
-    	_physicsStopped = true;
-    	cout << "Physics stopped" << endl;
-    }
+void T4TApp::doConfirm(const char *message, void (T4TApp::*callback)(bool)) {
+	_confirmCallback = callback;
+	_confirmMessage->setText(message);
+	showDialog(_confirmDialog);
 }
 
-void T4TApp::render(float elapsedTime)
-{
-    // Clear the color and depth buffers
-    clear(CLEAR_COLOR_DEPTH, Vector4::zero(), 1.0f, 0);
-
-    // Visit all the nodes in the scene for drawing
-    if(_activeScene != NULL) {
-    	_activeScene->visit(this, &T4TApp::drawScene);
-	    //if(_activeScene != _vehicleProject->_scene) _vehicleProject->_scene->visit(this, &T4TApp::drawScene);
-    	if(_drawDebug) getPhysicsController()->drawDebug(_activeScene->getActiveCamera()->getViewProjectionMatrix());
-    }
-
-    // Draw text
-    Vector4 fontColor(1.0f, 1.0f, 1.0f, 1.0f);
-    unsigned int width, height;
-    char buffer[50];
-
-/*    _font->start();
-
-    // Mouse
-    sprintf(buffer, "M(%d,%d)", (int)_mousePoint.x, (int)_mousePoint.y);
-    _font->measureText(buffer, _font->getSize(), &width, &height);
-    int x = _mousePoint.x - (int)(width>>1);
-    int y = _mousePoint.y - (int)(height>>1);
-    //cout << "drawing " << buffer << " at " << x << ", " << y << endl;
-    _font->drawText(buffer, x, y, fontColor, _font->getSize());
-    if (_mouseString.length() > 0)
-    {
-        int y = getHeight() - _font->getSize();
-        _font->drawText(_mouseString.c_str(), 0, y, fontColor, _font->getSize());
-    }
-    _font->finish();
-//*/
-    _sideMenu->draw();
-	for(size_t i = 0; i < _submenus.size(); i++)
-		if(_submenus[i]->isVisible()) _submenus[i]->draw();
-	for(size_t i = 0; i < _modes.size(); i++)
-		if(_modes[i]->_active) _modes[i]->draw();
+void T4TApp::showDialog(Container *dialog, bool show) {
+	_overlay->setVisible(show);
+	dialog->setVisible(show);
 }
 
 bool T4TApp::prepareNode(MyNode* node)
@@ -610,143 +714,6 @@ bool T4TApp::drawScene(Node* node)
         //cout << "drawing model " << node->getId() << endl;
     }
     return true;
-}
-
-bool T4TApp::mouseEvent(Mouse::MouseEvent evt, int x, int y, int wheelDelta)
-{
-	return false;
-}
-
-void T4TApp::keyEvent(Keyboard::KeyEvent evt, int key)
-{
-    if (evt == Keyboard::KEY_PRESS)
-    {
-        switch (key)
-        {
-	        case Keyboard::KEY_ESCAPE:
-    	        exit();
-    	        break;
-    	    case Keyboard::KEY_UP_ARROW:
-    	    	_braking = 0.0f;
-    	    	_driving += 0.1f;
-    	    	if(_driving > 1.0f) _driving = 1.0f;
-    	    	break;
-    	    case Keyboard::KEY_DOWN_ARROW:
-    	    	_driving = 0.0f;
-    	    	_braking += 0.1f;
-    	    	if(_braking > 1.0f) _braking = 1.0f;
-    	    	break;
-    	    case Keyboard::KEY_LEFT_ARROW:
-    	    	_steering -= 0.1f;
-    	    	if(_steering < -1.0f) _steering = -1.0f;
-    	    	break;
-    	    case Keyboard::KEY_RIGHT_ARROW:
-    	    	_steering += 0.1f;
-    	    	if(_steering > 1.0f) _steering = 1.0f;
-    	    	break;
-    	    default: break;
-        }
-    }
-}
-
-void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
-{
-    switch (evt)
-    {
-		case Touch::TOUCH_PRESS:
-			_debugFlag = false;
-			break;
-		case Touch::TOUCH_MOVE:
-			break;
-		case Touch::TOUCH_RELEASE:
-			_debugFlag = true;
-			enableScriptCamera(true);
-			_physicsStopped = false;
-			updateCount = 0;
-		    break;
-    };
-}
-
-void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
-{
-	const char *controlID = control->getId();
-	Container *parent = control->getParent();
-	cout << "CLICKED " << controlID << endl;
-	//const size_t catalogSize = _itemNames->size();
-
-	if(strcmp(controlID, "sceneSave") == 0) {
-		saveScene();
-	}
-	else if(strcmp(controlID, "sceneSaveAs") == 0) {
-	}
-	else if(strcmp(controlID, "sceneLoad") == 0) {
-		loadScene();
-	}
-	else if(strcmp(controlID, "sceneClear") == 0) {
-		clearScene();
-	}
-	//if a submenu handle is clicked, toggle whether the submenu is expanded
-	else if(strncmp(controlID, "parent_", 7) == 0) {
-		const char *subName = MyNode::concat(2, "submenu_", controlID+7);
-		cout << "Looking for submenu " << subName << endl;
-		Container *subMenu = dynamic_cast<Container*>(_mainMenu->getControl(subName));
-		if(subMenu) {
-			bool visible = subMenu->isVisible();
-			for(size_t i = 0; i < _submenus.size(); i++)
-				_submenus[i]->setVisible(false);
-			cout << "\ttoggling menu to " << !visible << endl;
-			subMenu->setVisible(!visible);
-			if(!visible) { //if expanding the submenu, position it next to its handle
-				if(subMenu->getZIndex() != 13) //using z index as flag for whether this menu has static position
-					subMenu->setPosition(control->getX() + control->getWidth(), control->getY());
-			}
-		} else {
-			cout << "No control with ID " << subName << endl;
-		}
-	}
-	else if(_machineMenu->getControl(controlID) == control) {
-		cout << "clicked machine " << controlID << endl;
-		for(size_t i = 0; i < _machines.size(); i++) {
-			if(strcmp(_machines[i]->getId(), controlID) == 0) {
-				_machines[i]->setActive(true);
-			}
-		}
-	}
-	else if(_modePanel->getControl(controlID) == control) {
-		for(size_t i = 0; i < _modes.size(); i++) {
-			if(_modes[i]->_active) {
-				cout << "setting " << _modes[i]->getId() << " inactive" << endl;
-				_modes[i]->setActive(false);
-			}
-		}
-		for(size_t i = 0; i < _modes.size(); i++) {
-			if(strcmp(_modes[i]->getId(), controlID) == 0) {
-				cout << "setting " << _modes[i]->getId() << " active" << endl;
-				_modes[i]->setActive(true);
-			}
-		}
-	}
-	else if(_componentMenu->getControl(controlID) == control && strncmp(controlID, "comp_", 5) == 0) {
-		MyNode *node = duplicateModelNode(controlID+5);
-		node->addPhysics();
-		_scene->addNode(node);
-		placeNode(node, 0.0f, 0.0f);
-	}
-	else if(strcmp(controlID, "debugButton") == 0) {
-		debugTrigger();
-	}
-	else if(control == _zoomSlider) {
-	    getScriptController()->executeFunction<void>("camera_setRadius", "f", _zoomSlider->getValue());
-	}
-	else if(control == _drawDebugCheckbox) {
-		_drawDebug = _drawDebugCheckbox->isChecked();
-	}
-	//close a submenu when one of its items is clicked
-	Container *next = parent;
-	while(next != NULL && strncmp(next->getId(), "submenu_", 8) == 0) {
-		next->setVisible(false);
-		next = next->getParent();
-	}
 }
 
 MyNode* T4TApp::getMouseNode(int x, int y, Vector3 *touch) {
@@ -843,9 +810,43 @@ void T4TApp::setActiveScene(Scene *scene)
 	_activeScene = scene;
 }
 
-void T4TApp::enableScriptCamera(bool enable)
-{
-	getScriptController()->executeFunction<void>("camera_setActive", "b", enable);
+Camera* T4TApp::getCamera() {
+	return _scene->getActiveCamera();
+}
+
+Node* T4TApp::getCameraNode() {
+	return getCamera()->getNode();
+}
+
+void T4TApp::setCameraEye(float radius, float theta, float phi) {
+	Vector3 eye(radius * cos(theta) * cos(phi), radius * sin(phi), radius * sin(theta) * cos(phi));
+	eye += _cameraCenter;
+	Vector3 up(-cos(theta) * sin(phi), cos(phi), -sin(theta) * sin(phi));
+	Matrix cam;
+	Matrix::createLookAt(eye, _cameraCenter, up, &cam);
+	cam.invert();
+	Vector3 scale, translation; Quaternion rotation;
+	cam.decompose(&scale, &rotation, &translation);
+	getCameraNode()->set(scale, rotation, translation);
+}
+
+void T4TApp::setCameraZoom(float radius) {
+	Node *cam = getCameraNode();
+	Vector3 eye(cam->getTranslationWorld() - _cameraCenter);
+	eye = radius * eye.normalize();
+	cam->setTranslation(_cameraCenter + eye);
+}
+
+void T4TApp::setCameraTarget(Vector3 target) {
+	Node *cam = getCameraNode();
+	Vector3 eye(cam->getTranslationWorld() - _cameraCenter);
+	_cameraCenter = target;
+	cam->setTranslation(_cameraCenter + eye);
+}
+
+void T4TApp::resetCamera() {
+	_cameraCenter.set(0, 0, 0);
+	setCameraEye(30, M_PI/2, M_PI/12);
 }
 
 const std::string T4TApp::printVector(const Vector3& v) {

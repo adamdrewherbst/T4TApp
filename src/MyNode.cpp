@@ -92,13 +92,14 @@ BoundingBox MyNode::getWorldBox() {
 }
 
 //given a point in space, find the best match for the face that contains it
-short MyNode::pt2Face(Vector3 point) {
+short MyNode::pt2Face(Vector3 point, Vector3 viewer) {
 	unsigned short i, j, k, n;
 	short touchFace = -1;
 	std::vector<unsigned short> face, triangle;
 	Vector3 v1, v2, v3, p, coords;
 	Matrix m;
 	float minDistance = 9999.0f;
+	Vector3 view(viewer - point);
 	for(i = 0; i < data->faces.size(); i++) {
 		face = data->faces[i];
 		for(j = 0; j < data->triangles[i].size(); j++) {
@@ -106,6 +107,8 @@ short MyNode::pt2Face(Vector3 point) {
 			v1.set(data->worldVertices[face[triangle[1]]] - data->worldVertices[face[triangle[0]]]);
 			v2.set(data->worldVertices[face[triangle[2]]] - data->worldVertices[face[triangle[0]]]);
 			v3.set(data->worldNormals[i]);
+			//face must be facing toward the viewer, otherwise they couldn't have clicked it
+			if(!viewer.isZero() && data->worldNormals[i].dot(view) < 0) continue;
 			p.set(point - data->worldVertices[face[triangle[0]]]);
 			m.set(v1.x, v2.x, v3.x, 0, v1.y, v2.y, v3.y, 0, v1.z, v2.z, v3.z, 0, 0, 0, 0, 1);
 			//m.set(v1.x, v1.y, v1.z, 0, v2.x, v2.y, v2.z, 0, v3.x, v3.y, v3.z, 0, 0, 0, 0, 1);

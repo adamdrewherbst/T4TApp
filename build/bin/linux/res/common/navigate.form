@@ -13,6 +13,12 @@ form position {
 		height = 50
 		text = Translating
 	}
+	button reset {
+		style = buttonStyle
+		width = 100
+		height = 50
+		text = Reset
+	}
 	button axis {
 		style = buttonStyle
 		width = 100
@@ -28,13 +34,6 @@ form position {
 		valueTextVisible = true
 		valueTextPrecision = 1
 		enabled = false
-	}
-	checkbox static {
-		style = buttonStyle
-		width = 100
-		height = 50
-		text = Static
-		value = false
 	}
 }
 

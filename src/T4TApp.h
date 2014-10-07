@@ -13,16 +13,10 @@ using namespace gameplay;
 using std::cout;
 using std::endl;
 
-/**
- * Main game class.
- */
 class T4TApp: public Game, Control::Listener, PhysicsCollisionObject::CollisionListener
 {
 public:
 
-    /**
-     * Constructor.
-     */
     T4TApp();
     
     T4TApp* getInstance();
@@ -50,6 +44,7 @@ public:
 	bool removeNode(Node *node);
 	bool auxNode(Node *node);
 	void saveScene();
+	void saveSceneAs(const char *name);
 	bool saveNode(Node *n);
 	void releaseScene();
 	void hideScene();
@@ -59,64 +54,38 @@ public:
     void setActiveScene(Scene *scene);
     std::string _sceneName;
 
+    Camera* getCamera();
+    Node* getCameraNode();
+    void setCameraEye(float radius, float theta, float phi);
+    void setCameraZoom(float radius);
+    void setCameraTarget(Vector3 target);
+    void resetCamera();
+
     void addConstraints(MyNode *node);
     void removeConstraints(MyNode *node);
     void enableConstraints(MyNode *node, bool enable = true);
     void reloadConstraint(MyNode *node, MyNode::nodeConstraint *constraint);
-    
-    /**
-     * @see Game::keyEvent
-     */
      
     bool mouseEvent(Mouse::MouseEvent evt, int x, int y, int wheelDelta);
 	void keyEvent(Keyboard::KeyEvent evt, int key);
-	void debugTrigger();
-    
-    /**
-     * @see Game::touchEvent
-     */
     void touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
-    
     void controlEvent(Control* control, Control::Listener::EventType evt);
-    
-    void enableScriptCamera(bool enable);
-
     void collisionEvent(PhysicsCollisionObject::CollisionListener::EventType type,
     	const PhysicsCollisionObject::CollisionPair& pair, const Vector3& pointA, const Vector3& pointB);
-    	
+	void debugTrigger();
+
     //add/remove listener to/from entire control tree
-    void addListener(Control *control, Control::Listener *listener, Control::Listener::EventType evt = Control::Listener::CLICK);
+    void addListener(Control *control, Control::Listener *listener, int evtFlags = Control::Listener::CLICK);
     void removeListener(Control *control, Control::Listener *listener);
-    void enableListener(bool enable, Control *control, Control::Listener *listener,
-      Control::Listener::EventType evt = Control::Listener::CLICK);
+    void enableListener(bool enable, Control *control, Control::Listener *listener, int evtFlags = Control::Listener::CLICK);
 
-//protected:
-
-    /**
-     * @see Game::initialize
-     */
     void initialize();
-
-    /**
-     * @see Game::finalize
-     */
     void finalize();
-
-    /**
-     * @see Game::update
-     */
     void update(float elapsedTime);
-
-    /**
-     * @see Game::render
-     */
     void render(float elapsedTime);
-
-    /**
-     * Draws the scene each frame.
-     */
     bool drawScene(Node* node);
     void placeNode(MyNode *node, float x, float y);
+    void setMode(short mode);
 
     //see if the current touch coordinates intersect a given model in the scene
     bool checkTouchModel(Node* node);
@@ -128,9 +97,11 @@ public:
     Form* addPanel(const char *name, Form *parent = NULL);
     template <class ButtonType> ButtonType* addButton(Form *menu, const char *name, const char *text = NULL);
     template <class ControlType> ControlType* addControl(Form *parent, const char *name, Theme::Style *style, const char *text = NULL);
-    
-    //standard projects
+    //other UI
     void promptComponent();
+    void doSave(const char *prompt, void (T4TApp::*callback)(const char*));
+    void doConfirm(const char *message, void (T4TApp::*callback)(bool));
+    void showDialog(Container *dialog, bool show = true);
 
 	//scene setup
     Scene* _scene;
@@ -155,20 +126,26 @@ public:
     int _constraintCount;
     
     //current state
-    std::string _mode;
+    short _activeMode;
     bool _drawDebug;
     int _running;
     Scene *_activeScene;
+    Vector3 _cameraCenter;
 
     //user interface
     Form *_mainMenu, *_sideMenu, *_sceneMenu, *_componentMenu, *_machineMenu, *_modePanel;
-    Button *_saveButton, *_deleteButton;
+    Container *_saveDialog, *_confirmDialog, *_overlay;
+    Label *_savePrompt, *_confirmMessage;
+    TextBox *_saveName;
+    Button *_confirmYes, *_confirmNo;
     std::vector<Form*> _submenus; //submenus
     CheckBox *_drawDebugCheckbox;
-    Slider *_zoomSlider;
     std::vector<std::string> _modeNames, _machineNames;
     Theme *_theme;
     Theme::Style *_formStyle, *_buttonStyle, *_titleStyle, *_hiddenStyle;
+    Font *_font;
+    //callbacks
+    void (T4TApp::*_saveCallback)(const char*), (T4TApp::*_confirmCallback)(bool);
 	
 	class ProjectComponent : public Button, Control::Listener
 	{
@@ -235,7 +212,7 @@ public:
 	class Mode : public Button, Control::Listener
 	{
 public:
-		static T4TApp *app;
+		T4TApp *app;
 		
 		std::vector<std::string> _subModes;
 		short _subMode, _cameraMode;
@@ -243,12 +220,14 @@ public:
 		Button *_subModeButton, *_cameraModeButton;
 		bool _active, _touching, _doSelect;
 		
-		static MyNode *_selectedNode, *_touchNode;
-		static Vector3 _selectPoint, _touchPoint, _mousePoint, _cameraCenter;
-		static Vector2 _touchPix, _mousePix;
-		Vector3 _cameraBase, _cameraCenterBase;
-		Rectangle _viewportBase;
+		MyNode *_selectedNode, *_touchNode;
+		Vector3 _selectPoint, _touchPoint, _mousePoint;
+		Vector2 _touchPix, _mousePix;
 		Plane _plane;
+		//Base members remember the value from the time of the last TOUCH_PRESS event
+		Camera *_cameraBase;
+		Vector3 _cameraCenterBase;
+		Rectangle _viewportBase;
 		
 		Mode(const char* id, const char* filename = NULL);
 		
@@ -421,11 +400,6 @@ public:
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
 	};
-		
-    Font* _font;
-    
-    //debugging variables
-    bool _physicsStopped;
 };
 
 #endif

@@ -33,11 +33,13 @@ bool T4TApp::ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
 			if(_touchNode == NULL) break;
+			if(_currentNode == 1 && _touchNode == _nodes[0]) break; //don't allow self-constraint
 			_nodes[_currentNode] = _touchNode;
-			_selectedNode->updateData();
+			_touchNode->updateData();
 			//find the clicked face
 			if(_subMode == 0 || _subMode == 1 || _subMode == 2 || _subMode == 3) {
-				_faces[_currentNode] = node->pt2Face(hitPoint);
+				_faces[_currentNode] = _selectedNode->pt2Face(_touchPoint,
+				  app->_scene->getActiveCamera()->getNode()->getTranslationWorld());
 				if(_faces[_currentNode] < 0) break; //didn't hit a face - must reselect this node
 			}
 			_currentNode++;

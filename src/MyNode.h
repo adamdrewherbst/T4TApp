@@ -77,7 +77,7 @@ public:
 	void myScale(const Vector3& scale);
 	void setMyScale(const Vector3& scale);
 
-	short pt2Face(Vector3 point);
+	short pt2Face(Vector3 point, Vector3 viewer = Vector3::zero());
 	Plane facePlane(unsigned short f, bool modelSpace = false);
 	Vector3 faceCenter(unsigned short f, bool modelSpace = false);
 	void rotateFaceToPlane(unsigned short f, Plane p);
