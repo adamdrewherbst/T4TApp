@@ -124,10 +124,8 @@ void T4TApp::initialize()
 	_modes.push_back(new NavigateMode());
 	_modes.push_back(new PositionMode());
 	_modes.push_back(new ConstraintMode());
-	_modes.push_back(new SliceMode());
-	_modes.push_back(new DrillMode());
+	_modes.push_back(new ToolMode());
 	_modes.push_back(new TestMode());
-	_modes.push_back(new TouchMode());
 
 	//simple machines
     _modes.push_back(new Lever());

@@ -142,8 +142,6 @@ set(GAME_SRC
 	src/Pulley.cpp
 	src/Mode.cpp
 	src/ToolMode.cpp
-	src/SliceMode.cpp
-	src/DrillMode.cpp
 	src/NavigateMode.cpp
 	src/PositionMode.cpp
 	src/ConstraintMode.cpp

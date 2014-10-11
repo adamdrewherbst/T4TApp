@@ -3,17 +3,16 @@
 T4TApp::PositionMode::PositionMode() 
   : T4TApp::Mode::Mode("position") {
 
-	_subModeButton = (Button*) _controls->getControl("subMode");
 	_axisButton = (Button*) _controls->getControl("axis");
 	_valueSlider = (Slider*) _controls->getControl("axisValue");
 	_staticCheckbox = (CheckBox*) _controls->getControl("static");
 	_gridCheckbox = (CheckBox*) _controls->getControl("snap");
 	_gridSlider = (Slider*) _controls->getControl("spacing");
 	
-	_subModes.push_back(std::string("Translating"));
-	_subModes.push_back(std::string("Rotating"));
-	_subModes.push_back(std::string("Scaling"));
-	_subModes.push_back(std::string("Ground Face"));
+	_subModes.push_back(std::string("translate"));
+	_subModes.push_back(std::string("rotate"));
+	_subModes.push_back(std::string("groundFace"));
+	//_subModes.push_back(std::string("scale"));
 	
 	_axisNames.push_back("X");
 	_axisNames.push_back("Y");

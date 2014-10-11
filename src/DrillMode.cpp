@@ -632,12 +632,5 @@ bool T4TApp::DrillMode::toolNode() {
 		worldModel.transformVector(&newData->vertices[i]);
 		newData->vertices[i] -= translation;
 	}
-	
-	_newNode->setData(NULL);
-	_selectedNode->setData(newData);
-	_selectedNode->updateModelFromData();
-	//translation.set(_selectedNode->getTranslationWorld());
-	//app->placeNode(_selectedNode, translation.x, translation.z);
-	return true;
 }
 

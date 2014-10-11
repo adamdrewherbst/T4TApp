@@ -40,50 +40,39 @@ form mainMenu {
 		container modePanel {
 			style = basicContainer
 			autoWidth = true
-			height = 350
+			height = 450
 			layout = LAYOUT_VERTICAL
+			scroll = SCROLL_VERTICAL
 		
-			button navigate {
+			image navigate {
 				style = buttonStyle
-				autoWidth = true
-				height = 40
-				text = Navigate
+				width = 100
+				height = 100
+				path = res/png/navigate.png
 			}
-			button position {
+			image position {
 				style = buttonStyle
-				autoWidth = true
-				height = 40
-				text = Position
+				width = 100
+				height = 100
+				path = res/png/position.png
 			}
-			button constraint {
+			image constraint {
 				style = buttonStyle
-				autoWidth = true
-				height = 40
-				text = Constrain
+				width = 100
+				height = 100
+				path = res/png/constraint.png
 			}
-			button drill {
+			image tool {
 				style = buttonStyle
-				autoWidth = true
-				height = 40
-				text = Drill
+				width = 100
+				height = 100
+				path = res/png/toolbox.png
 			}
-			button slice {
+			image test {
 				style = buttonStyle
-				autoWidth = true
-				height = 40
-				text = Slice
-			}
-			button test {
-				style = buttonStyle
-				autoWidth = true
-				height = 40
-				text = Test
-			}
-			button touch {
-				style = buttonStyle
-				autoWidth = true
-				height = 40
-				text = Touch
+				width = 100
+				height = 100
+				path = res/png/balldrop.png
 			}
 		}
 	}
@@ -111,12 +100,26 @@ form mainMenu {
 				consumeInputEvents = true
 				zIndex = 5
 				
-				button subMode {
-					style = buttonStyle
-					width = 100
-					height = 50
-					text = Translating
-					consumeInputEvents = true
+				container subMode {
+					style = basicContainer
+					size = 100, 100
+					layout = LAYOUT_FLOW
+					
+					image translate {
+						style = buttonStyle
+						size = 40, 40
+						path = res/png/translate.png
+					}
+					image rotate {
+						style = buttonStyle
+						size = 40, 40
+						path = res/png/rotate.png
+					}
+					image zoom {
+						style = buttonStyle
+						size = 40, 40
+						path = res/png/zoom.png
+					}
 				}
 				button reset {
 					style = buttonStyle
@@ -157,11 +160,26 @@ form mainMenu {
 				consumeInputEvents = true
 				zIndex = 5
 
-				button subMode {
-					style = buttonStyle
-					width = 100
-					height = 50
-					text = Translating
+				container subMode {
+					style = basicContainer
+					size = 100, 100
+					layout = LAYOUT_FLOW
+					
+					image translate {
+						style = buttonStyle
+						size = 40, 40
+						path = res/png/translate.png
+					}
+					image rotate {
+						style = buttonStyle
+						size = 40, 40
+						path = res/png/rotate.png
+					}
+					image groundFace {
+						style = buttonStyle
+						size = 40, 40
+						path = res/png/groundFace.png
+					}
 				}
 				button axis {
 					style = buttonStyle
@@ -229,36 +247,37 @@ form mainMenu {
 				consumeInputEvents = true
 				zIndex = 5
 
-				button subMode {
-					style = buttonStyle
+				container subMode {
+					style = basicContainer
 					width = 100
-					height = 50
-					text = Axle
-				}
-				checkbox snap {
-					style = buttonStyle
-					width = 100
-					height = 50
-					text = Snap to Grid
-					value = false
-				}
-				slider spacing {
-					style = buttonStyle
-					width = 100
-					height = 50
-					orientation = HORIZONTAL
-					text = Grid Spacing
-					min = 0.1
-					max = 5.0
-					step = 0.1
-					value = 1.0
-					valueTextVisible = true
-					valueTextPrecision = 1
+					height = 100
+					layout = LAYOUT_FLOW
+
+					image axle {
+						style = buttonStyle
+						size = 40, 40
+						path = res/png/axle.png
+					}
+					image socket {
+						style = buttonStyle
+						size = 40, 40
+						path = res/png/socket.png
+					}
+					image spring {
+						style = buttonStyle
+						size = 40, 40
+						path = res/png/spring.png
+					}
+					image glue {
+						style = buttonStyle
+						size = 40, 40
+						path = res/png/glue.png
+					}
 				}
 			}
 		}
 
-		container mode_drill {
+		container mode_tool {
 			style = hiddenContainer
 			autoWidth = true
 			autoHeight = true
@@ -272,23 +291,30 @@ form mainMenu {
 				consumeInputEvents = true
 				zIndex = 5
 				
-				button Drill_axis {
-					style = buttonStyle
+				container subMode {
+					style = basicContainer
 					width = 100
 					height = 50
-					text = Y
+					layout = LAYOUT_FLOW
+					
+					image saw {
+						style = buttonStyle
+						width = 40
+						height = 40
+						path = res/png/saw.png
+					}
+					image drill {
+						style = buttonStyle
+						width = 40
+						height = 40
+						path = res/png/drill.png
+					}
 				}
-				button cameraMode {
+				button doTool {
 					style = buttonStyle
 					width = 100
 					height = 50
-					text = Translating
-				}
-				button Drill_doTool {
-					style = buttonStyle
-					width = 100
-					height = 50
-					text = Drill!
+					text = Go!
 				}
 			}
 			
@@ -298,41 +324,6 @@ form mainMenu {
 				scroll = SCROLL_VERTICAL
 				zIndex = 10
 				consumeInputEvents = true
-			}
-		}
-
-		container mode_slice {
-			style = hiddenContainer
-			autoWidth = true
-			autoHeight = true
-			layout = LAYOUT_ABSOLUTE
-			
-			container controls {
-				style = basicContainer
-				position = 20, 10
-				size = 120, 240
-				layout = LAYOUT_VERTICAL
-				consumeInputEvents = true
-				zIndex = 5
-				
-				button Slice_axis {
-					style = buttonStyle
-					width = 100
-					height = 50
-					text = Y
-				}
-				button cameraMode {
-					style = buttonStyle
-					width = 100
-					height = 50
-					text = Translating
-				}
-				button Slice_doTool {
-					style = buttonStyle
-					width = 100
-					height = 50
-					text = Slice!
-				}
 			}
 		}
 

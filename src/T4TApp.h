@@ -156,8 +156,8 @@ public:
 		
 		std::vector<std::string> _subModes;
 		short _subMode, _cameraMode;
-		Container *_container, *_controls; //the click overlay and control panel
-		Button *_subModeButton, *_cameraModeButton;
+		Container *_container, *_controls, *_subModePanel;
+		Button *_cameraModeButton;
 		bool _active, _touching, _doSelect;
 
 		int _x, _y; //mouse position wrt upper left of entire window, not just my button		
@@ -197,88 +197,48 @@ public:
 	class ToolMode : public Mode
 	{
 public:
-		std::string _toolType;
+		struct Tool {
+			std::string id;
+			short type; //0 = saw, 1 = drill
+			float *fparam; //any parameters this tool type requires
+			int *iparam;
+			Model *model; //representation of the tool
+		};
+		std::vector<std::vector<Tool*> > _tools; //my toolbox - each inner vector holds all bits for a single tool type
+		short _currentTool;
+		MyNode *_tool; //to display the tool to the user
+		Container *_bitMenu;
+
 		MyNode *_newNode; //a model to hold the modified node data
 		MyNode::nodeData *data, *newData;
 		Plane _viewPlane;
 		Vector3 _touchStart, _touchPoint, _viewPlaneOrigin;
-		MyNode *_tool; //to display the tool to the user
 		Quaternion _toolBaseRotation;
 		
 		short usageCount;
 
-		ToolMode(const char* id);
-		virtual void setActive(bool active);
+		ToolMode();
+		void createBit(short type, ...);
+		void setActive(bool active);
 		void setSelectedNode(MyNode *node);
 		void setSubMode(short mode);
+		void setTool(short n);
+		Tool *getTool();
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
-		virtual void controlEvent(Control *control, Control::Listener::EventType evt);
-		virtual void setAxis(int axis);
-		void setView();
-		virtual bool toolNode();
-	};
-
-	class SliceMode : public ToolMode
-	{
-public:
-		Plane _slicePlane;
-
-		SliceMode();
-		void setAxis(int axis);
-		bool toolNode();
-	};
-
-	class DrillMode : public ToolMode
-	{
-public:
-		Ray _axis;
-		float _radius;
-		int _segments;
-		//store all the lines and planes of the drill bit
-		std::vector<Ray> lines;
-		std::vector<Plane> planes;
-		//contiguous patches of the surface based on alignment of normal with drill
-		std::vector<Vector3> drillVertices; //coords of model vertices wrt drill axis
-		//edgeInt[edge vertex 1][edge vertex 2] = (drill ray number, index of intersection point in new model's vertex list)
-		//drillInt[drill ray number][face index in old model] = index of intersection point in new model's vertex list
-		std::map<unsigned short, std::map<unsigned short, unsigned short> > drillInt;
-		std::map<unsigned short, std::map<unsigned short, std::pair<unsigned short, unsigned short> > > edgeInt;
-		//for each edge in a drill plane, which drill plane it is in
-		std::map<unsigned short, std::map<unsigned short, unsigned short> > edgeLine;
-		//for each edge in a drill plane, whether the interior of the object is to the left of the edge
-		std::map<unsigned short, std::map<unsigned short, bool> > leftEdge;
-		//for each drill line intersection point, whether the interior of the object is in the forward drill axis direction
-		std::map<unsigned short, bool> enterInt;
-		//all the directed edges in each segment of the drill
-		std::map<unsigned short, std::map<unsigned short, unsigned short> > segmentEdges;
-		std::vector<unsigned short> newEdge;
-
-		//GUI
-		Container *_bitMenu;
 		void controlEvent(Control *control, Control::Listener::EventType evt);
-		void setActive(bool active);
-
-		DrillMode();
 		void setAxis(int axis);
+		void setView();
 		bool toolNode();
-		void partitionNode();
-		void buildPatch(unsigned short face);
-		short occlusion(unsigned short f1, unsigned short f2);
-		void addEdge(unsigned short e1, unsigned short e2);
+		
+		//for sawing
+		bool sawNode();
+		
+		//for drilling
+		bool drillNode();
 		void addDrillEdge(unsigned short v1, unsigned short v2, unsigned short lineNum);
-		void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
-		void addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
-		Vector3 getNormal(std::vector<unsigned short>& face);
-		void triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
-		void triangulateHelper(std::vector<unsigned short>& face, std::vector<unsigned short>& inds, 
-		  std::vector<std::vector<unsigned short> >& triangles, Vector3 normal);
-		unsigned short vertexClass(std::vector<unsigned short>& face, Vector3& normal, unsigned short index,
-		  std::vector<std::pair<unsigned short, unsigned short> >& classes);
-		unsigned short vertexClass(std::vector<unsigned short>& face, int i,
-		  std::vector<std::pair<unsigned short, unsigned short> > classes);
-		void drawFace(int face);
+		std::map<unsigned short, std::map<unsigned short, unsigned short> > segmentEdges;
 	};
-	
+
 	class PositionMode : public Mode
 	{
 public:

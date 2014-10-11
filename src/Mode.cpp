@@ -22,7 +22,7 @@ T4TApp::Mode::Mode(const char* id) {
 	//load any custom controls this mode includes
 	_controls = (Container*)_container->getControl("controls");
 	if(_controls != NULL) {
-		_subModeButton = (Button*)_controls->getControl("subMode");
+		_subModePanel = (Container*)_controls->getControl("subMode");
 		_cameraModeButton = (Button*)_controls->getControl("cameraMode");
 	}
 
@@ -53,7 +53,6 @@ void T4TApp::Mode::setActive(bool active) {
 void T4TApp::Mode::setSubMode(short mode) {
 	if(_subModes.empty()) return;
 	_subMode = mode % _subModes.size();
-	if(_subModeButton) _subModeButton->setText(_subModes[_subMode].c_str());
 }
 
 void T4TApp::Mode::setSelectedNode(MyNode *node, Vector3 point) {
@@ -143,8 +142,10 @@ bool T4TApp::Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int 
 
 void T4TApp::Mode::controlEvent(Control *control, EventType evt) {
 	const char *id = control->getId();
-	if(control && control == _subModeButton) { //switching to next submode
-		setSubMode(_subMode + 1);
+	if(_subModePanel && _subModePanel->getControl(id) == control) { //switching to next submode
+		for(short i = 0; i < _subModes.size(); i++) {
+			if(_subModes[i].compare(id) == 0) setSubMode(i);
+		}
 	}
 }
 
