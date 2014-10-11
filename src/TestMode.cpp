@@ -1,19 +1,17 @@
 #include "T4TApp.h"
 
 T4TApp::TestMode::TestMode() 
-  : T4TApp::Mode::Mode("mode_Test", NULL) {
+  : T4TApp::Mode::Mode("test") {
 }
 
 bool T4TApp::TestMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
 {
+	Mode::touchEvent(evt, x, y, contactIndex);
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
-			Ray ray;
-			Plane vertical(Vector3(0, 0, 1), 0), ground(Vector3(0, 1, 0), 0);
-			app->_scene->getActiveCamera()->pickRay(app->getViewport(), x, y, &ray);
-			float distance = ray.intersects(ground);
+			float distance = _ray.intersects(app->_groundPlane);
 			if(distance != Ray::INTERSECTS_NONE) {
-				Vector3 point(ray.getOrigin() + ray.getDirection() * distance);
+				Vector3 point(_ray.getOrigin() + _ray.getDirection() * distance);
 				MyNode *node = app->duplicateModelNode("sphere");
 				node->getData()->mass = 3.0f;
 				node->addCollisionObject();
@@ -21,7 +19,8 @@ bool T4TApp::TestMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 				body->setEnabled(false);
 				node->setTranslation(point.x, 10.0f, point.z);
 				body->setEnabled(true);
-				app->_scene->addNode(node);
+				_scene->addNode(node);
+				cout << "added ball at " << app->pv(node->getTranslationWorld()) << endl;
 			}
 			break;
 		}

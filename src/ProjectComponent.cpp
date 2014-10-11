@@ -1,58 +1,39 @@
 #include "T4TApp.h"
 
-T4TApp::ProjectComponent::ProjectComponent(T4TApp *app_, const char* filename, const char* id, Theme::Style* buttonStyle, Theme::Style* formStyle) : app(app_) {
+T4TApp::ProjectComponent::ProjectComponent(const char* id) : T4TApp::Mode::Mode(id) {
 
 	_currentElement = 0;
 	_typeCount = -1;
 
-	_sceneFile = filename;
-
-	//create the form to hold this button
-	_container = Form::create(app->concat(2, "container_", id), formStyle, Layout::LAYOUT_VERTICAL);
-	_container->setPosition(app->_sideMenu->getX(), 0.0f);
-	_container->setWidth(app->getWidth() - _container->getX());
-	_container->setAutoHeight(true);
-	_container->setScroll(Container::SCROLL_VERTICAL);
-	_container->setConsumeInputEvents(true);
-	_container->setVisible(false);
-	
-	_id = id;
-	_style = buttonStyle;
-	setAutoWidth(true);
-	setAutoHeight(true);
-	setConsumeInputEvents(true);
-	_container->addControl(this);
-	app->_mainMenu->addControl(_container);
+	_sceneFile = "res/common/scene.gpb";
 }
 
 void T4TApp::ProjectComponent::controlEvent(Control *control, EventType evt) {
 	const char *controlID = control->getId();
 	if(strncmp(controlID, "comp_", 5) != 0) return;
-	MyNode *node = app->duplicateModelNode(controlID+5, _isStatic[_currentElement]);
+	Element *el = _elements[_currentElement];
+	MyNode *node = app->duplicateModelNode(controlID+5, el->_isStatic);
 	std::stringstream ss;
-	ss << _id << _typeCount << "_" << _elementNames[_currentElement];
+	ss << _nodeId << "_" << el->_name;
 	const std::string nodeID = ss.str();
 	node->setId(nodeID.c_str());
+	el->_node = node;
 	_rootNode->addChild(node);
-	_allNodes.push_back(node);
-	placeElement(node);
+	placeElement();
 	node->addCollisionObject();
 	node->getCollisionObject()->setEnabled(false);
-	finishElement(node);
+	finishElement();
 	app->_componentMenu->setVisible(false);
-	_container->setVisible(true);
-	addListener(this, Control::Listener::CLICK);
 }
 
 bool T4TApp::ProjectComponent::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
+	Mode::touchEvent(evt, x, y, contactIndex);
 	switch(evt)
 	{
 		case Touch::TOUCH_PRESS:
-			if((this->*_elementCallbacks[_currentElement])(evt, x, y)) {
+			if((this->*_elements[_currentElement]->_callback)(evt, x, y)) {
 				_currentElement++;
-				removeListener(this);
-				_container->setVisible(false);
-				if(_currentElement >= _elementNames.size()) {
+				if(_currentElement >= _elements.size()) {
 					finishComponent();
 				} else {
 					app->_componentMenu->setVisible(true);
@@ -62,18 +43,31 @@ bool T4TApp::ProjectComponent::touchEvent(Touch::TouchEvent evt, int x, int y, u
 	}
 }
 
+T4TApp::ProjectComponent::Element* T4TApp::ProjectComponent::getEl() {
+	return _elements[_currentElement];
+}
+
+MyNode* T4TApp::ProjectComponent::getNode(short n) {
+	if(n < 0) n = _currentElement;
+	return _elements[n]->_node;
+}
+
 void T4TApp::ProjectComponent::finishComponent() {
 	app->_scene->addNode(_rootNode);
 	setActive(false);
 }
 
 void T4TApp::ProjectComponent::addElement(const char *name, T4TApp::ProjectComponent::TouchCallback touchCallback, bool isStatic) {
-	_elementNames.push_back(std::string(name));
-	_elementCallbacks.push_back(touchCallback);
-	_isStatic.push_back(isStatic);
+	Element *el = new Element();
+	el->_name = name;
+	el->_callback = touchCallback;
+	el->_isStatic = isStatic;
+	el->_node = NULL;
+	_elements.push_back(el);
 }
 
 void T4TApp::ProjectComponent::setActive(bool active) {
+	Mode::setActive(active);
 	app->_componentMenu->setVisible(active);
 	if(active) {
 		//determine the count of this component type based on the highest index for this element in the scene or in saved files

@@ -1,7 +1,7 @@
 #include "T4TApp.h"
 
 T4TApp::ConstraintMode::ConstraintMode()
-  : T4TApp::Mode::Mode("mode_Constraint", "res/common/constraint.form") {
+  : T4TApp::Mode::Mode("constraint") {
 
 	_currentNode = 0;
 	
@@ -39,7 +39,7 @@ bool T4TApp::ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 			//find the clicked face
 			if(_subMode == 0 || _subMode == 1 || _subMode == 2 || _subMode == 3) {
 				_faces[_currentNode] = _selectedNode->pt2Face(_touchPoint,
-				  app->_scene->getActiveCamera()->getNode()->getTranslationWorld());
+				  _camera->getNode()->getTranslationWorld());
 				if(_faces[_currentNode] < 0) break; //didn't hit a face - must reselect this node
 			}
 			_currentNode++;

@@ -1,7 +1,6 @@
 #include "T4TApp.h"
 
-T4TApp::Pulley::Pulley(T4TApp *app_, Theme::Style *buttonStyle, Theme::Style *formStyle)
-		: T4TApp::ProjectComponent::ProjectComponent(app_, "res/common/scene.gpb", "Pulley", buttonStyle, formStyle) {
+T4TApp::Pulley::Pulley() : T4TApp::ProjectComponent::ProjectComponent("pulley") {
 
 	_wheelLinks = 10;
 	_linkWidth = 0.2f;
@@ -24,7 +23,8 @@ bool T4TApp::Pulley::bucketTouch(Touch::TouchEvent evt, int x, int y) {
 	return true;
 }
 
-void T4TApp::Pulley::placeElement(MyNode *node) {
+void T4TApp::Pulley::placeElement() {
+	MyNode *node = getNode();
 	BoundingBox box = node->getWorldBox();
 	float x, y;
 	switch(_currentElement) {
@@ -33,7 +33,7 @@ void T4TApp::Pulley::placeElement(MyNode *node) {
 			node->setTranslation(Vector3(0.0f, y, 0.0f));
 			break;
 		case 1: { //wheel
-			Vector3 base(_allNodes[0]->getTranslationWorld()), wheel(base + Vector3(0.0f, 6.0f, 0.0f));
+			Vector3 base(getNode(0)->getTranslationWorld()), wheel(base + Vector3(0.0f, 6.0f, 0.0f));
 			node->rotate(Vector3(0, 1, 0), M_PI/2);
 			node->setTranslation(wheel);
 			box = node->getModel()->getMesh()->getBoundingBox();
@@ -46,7 +46,7 @@ void T4TApp::Pulley::placeElement(MyNode *node) {
 		} case 2: case 3: { //left/right bucket
 			//vertically halfway between base and wheel, rounded to the nearest chain link endpoint
 			//horizontally at left/right edge of wheel
-			Vector3 base(_allNodes[0]->getTranslationWorld()), wheel(_allNodes[1]->getTranslationWorld());
+			Vector3 base(getNode(0)->getTranslationWorld()), wheel(getNode(1)->getTranslationWorld());
 			y = _dropLinks * _linkLength + (box.max.y - box.min.y) / 2.0f;
 			Vector3 pos(base.x + (2*_currentElement - 5) * _radius, wheel.y - y, wheel.z);
 			node->setTranslation(pos);
@@ -55,7 +55,7 @@ void T4TApp::Pulley::placeElement(MyNode *node) {
 	}
 }
 
-void T4TApp::Pulley::finishElement(MyNode *node) {
+void T4TApp::Pulley::finishElement() {
 	switch(_currentElement) {
 		case 0:
 			break;
@@ -64,7 +64,7 @@ void T4TApp::Pulley::finishElement(MyNode *node) {
 		case 2:
 			break;
 		case 3: { //all components added - now create the rope as a set of chain links with socket constraints
-			Vector3 wheel(_allNodes[1]->getTranslationWorld());
+			Vector3 wheel(getNode(1)->getTranslationWorld());
 			unsigned short i, j, v = 0;
 			std::vector<MyNode*> links(_numLinks);
 			std::vector<Vector3> joints(_numLinks+1);
@@ -100,15 +100,14 @@ void T4TApp::Pulley::finishElement(MyNode *node) {
 				link->addCollisionObject();
 				links[i] = link;
 				_rootNode->addChild(link);
-				_allNodes.push_back(link);
 				//note the position of the joint between this link and the next
 				joint.set(0, (_linkLength/2) / link->getScaleY(), 0);
 				link->getWorldMatrix().transformPoint(&joint);
 				joints[i+1].set(joint);
 			}
 			//must enable all collision objects before adding constraints to prevent crashes
-			for(i = 0; i < _allNodes.size(); i++) {
-				_allNodes[i]->getCollisionObject()->setEnabled(true);
+			for(i = 0; i < _elements.size(); i++) {
+				getNode(i)->getCollisionObject()->setEnabled(true);
 			}
 			//connect each pair of adjacent links with a socket constraint
 			PhysicsSocketConstraint *constraint;
@@ -124,8 +123,8 @@ void T4TApp::Pulley::finishElement(MyNode *node) {
 			for(i = 0; i < 2; i++) {
 				j = i * (_numLinks-1);
 				trans1.set(0, (2*i - 1) * (_linkLength/2) / links[i]->getScaleY(), 0);
-				trans2.set((joints[i*_numLinks] - _allNodes[i+2]->getTranslationWorld()) / _allNodes[i+2]->getScaleY());
-				constraint = (PhysicsSocketConstraint*) app->addConstraint(links[j], _allNodes[i+2], -1, "socket",
+				trans2.set((joints[i*_numLinks] - getNode(i+2)->getTranslationWorld()) / getNode(i+2)->getScaleY());
+				constraint = (PhysicsSocketConstraint*) app->addConstraint(links[j], getNode(i+2), -1, "socket",
 				  &rot1, &trans1, &rot2, &trans2);
 				_constraints.push_back(constraint);
 			}

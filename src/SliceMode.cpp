@@ -1,7 +1,7 @@
 #include "T4TApp.h"
 
 T4TApp::SliceMode::SliceMode() 
-  : T4TApp::ToolMode::ToolMode("mode_Slice", "res/common/slice.form") {
+  : T4TApp::ToolMode::ToolMode("slice") {
 	_slicePlane.set(Vector3(0, 0, 1), 0);
 	//create the knife node
 	float spacing = 0.5f, radius = 3.25f, distance, color[3] = {1.0f, 1.0f, 1.0f}, vec[2];
@@ -61,7 +61,7 @@ bool T4TApp::SliceMode::toolNode() {
 	Matrix::createRotation(_tool->getRotation(), &trans);
 	_slicePlane.transform(trans);
 	_slicePlane.setDistance(-_tool->getTranslationWorld().dot(_slicePlane.getNormal()));
-	cout << "slicing " << _selectedNode->getId() << " at " << app->printVector(_slicePlane.getNormal()) << " => " << _slicePlane.getDistance() << endl;
+	cout << "slicing " << _selectedNode->getId() << " at " << app->pv(_slicePlane.getNormal()) << " => " << _slicePlane.getDistance() << endl;
 	MyNode::nodeData *data = _selectedNode->getData();
 	unsigned short e1, e2, numKeep = 0;
 	Vector3 v1, v2, planeOrigin = -_slicePlane.getDistance() * _slicePlane.getNormal();

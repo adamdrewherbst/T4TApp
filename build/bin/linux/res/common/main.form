@@ -1,11 +1,434 @@
 form mainMenu {
 	theme = res/common/default.theme
 	style = hiddenContainer
-	position = 0,0
+	position = 0, 0
 	autoWidth = true
 	autoHeight = true
+	font = res/common/arial14.gpb
 	layout = LAYOUT_ABSOLUTE
+	
+	//primary menu bar - contains submenu handles
+	container sideMenu {
+		style = basicContainer
+		position = 0, 0
+		width = 200
+		autoHeight = true
+		//default alignment is top_left which doesn't allow horizontal positioning with autoHeight
+		alignment = ALIGN_TOP
+		consumeInputEvents = true
+		layout = LAYOUT_VERTICAL
+		zIndex = 10
+		
+		button parent_sceneMenu {
+			style = buttonStyle
+			autoWidth = true
+			height = 50
+			text = Scene >>
+		}
+		button parent_componentMenu {
+			style = buttonStyle
+			autoWidth = true
+			height = 50
+			text = Add Object >>
+		}
+		button parent_machineMenu {
+			style = buttonStyle
+			autoWidth = true
+			height = 50
+			text = Add Machine >>			
+		}
+		container modePanel {
+			style = basicContainer
+			autoWidth = true
+			height = 350
+			layout = LAYOUT_VERTICAL
+		
+			button navigate {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = Navigate
+			}
+			button position {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = Position
+			}
+			button constraint {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = Constrain
+			}
+			button drill {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = Drill
+			}
+			button slice {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = Slice
+			}
+			button test {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = Test
+			}
+			button touch {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = Touch
+			}
+		}
+	}
+	
+	//the region of the screen where graphics are drawn and touches are handled
+	container stage {
+		style = hiddenContainer
+		position = 200, 0
+		autoWidth = true
+		autoHeight = true
+		alignment = ALIGN_TOP
+		layout = LAYOUT_ABSOLUTE
 
+		container mode_navigate {
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+			
+			container controls {
+				style = basicContainer
+				position = 20, 10
+				size = 120, 350
+				layout = LAYOUT_VERTICAL
+				consumeInputEvents = true
+				zIndex = 5
+				
+				button subMode {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = Translating
+					consumeInputEvents = true
+				}
+				button reset {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = Reset
+				}
+				button axis {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = X
+				}
+				slider axisValue {
+					style = buttonStyle
+					width = 100
+					height = 50
+					orientation = HORIZONTAL
+					text = Value
+					valueTextVisible = true
+					valueTextPrecision = 1
+					enabled = false
+				}
+			}
+		}
+		
+		container mode_position {
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+			
+			container controls {
+				style = basicContainer
+				position = 20, 10
+				size = 120, 350
+				layout = LAYOUT_VERTICAL
+				consumeInputEvents = true
+				zIndex = 5
+
+				button subMode {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = Translating
+				}
+				button axis {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = X
+				}
+				slider axisValue {
+					style = buttonStyle
+					width = 100
+					height = 50
+					orientation = HORIZONTAL
+					text = Value
+					valueTextVisible = true
+					valueTextPrecision = 1
+					enabled = false
+				}
+				checkbox static {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = Static
+					value = false
+				}
+				checkbox snap {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = Snap to Grid
+					value = false
+				}
+				slider spacing {
+					style = buttonStyle
+					width = 100
+					height = 50
+					orientation = HORIZONTAL
+					text = Grid Spacing
+					min = 0.1
+					max = 5.0
+					step = 0.1
+					value = 1.0
+					valueTextVisible = true
+					valueTextPrecision = 1
+				}
+				button delete {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = Delete
+				}
+			}
+		}
+
+		container mode_constraint {
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+			
+			container controls {
+				style = basicContainer
+				position = 20, 10
+				size = 120, 240
+				layout = LAYOUT_VERTICAL
+				consumeInputEvents = true
+				zIndex = 5
+
+				button subMode {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = Axle
+				}
+				checkbox snap {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = Snap to Grid
+					value = false
+				}
+				slider spacing {
+					style = buttonStyle
+					width = 100
+					height = 50
+					orientation = HORIZONTAL
+					text = Grid Spacing
+					min = 0.1
+					max = 5.0
+					step = 0.1
+					value = 1.0
+					valueTextVisible = true
+					valueTextPrecision = 1
+				}
+			}
+		}
+
+		container mode_drill {
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+			
+			container controls {
+				style = basicContainer
+				position = 20, 10
+				size = 120, 240
+				layout = LAYOUT_VERTICAL
+				consumeInputEvents = true
+				zIndex = 5
+				
+				button Drill_axis {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = Y
+				}
+				button cameraMode {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = Translating
+				}
+				button Drill_doTool {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = Drill!
+				}
+			}
+			
+			container bitMenu {
+				style = basicContainer
+				position = 25, 25
+				scroll = SCROLL_VERTICAL
+				zIndex = 10
+				consumeInputEvents = true
+			}
+		}
+
+		container mode_slice {
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+			
+			container controls {
+				style = basicContainer
+				position = 20, 10
+				size = 120, 240
+				layout = LAYOUT_VERTICAL
+				consumeInputEvents = true
+				zIndex = 5
+				
+				button Slice_axis {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = Y
+				}
+				button cameraMode {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = Translating
+				}
+				button Slice_doTool {
+					style = buttonStyle
+					width = 100
+					height = 50
+					text = Slice!
+				}
+			}
+		}
+
+		container mode_test {
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+		}
+
+		container mode_touch {			
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+		}
+
+		container mode_lever {
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+		}
+
+		container mode_pulley {
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+		}
+	}
+	
+	//submenus - hidden until called, then positioned next to handle
+	container submenu_sceneMenu {
+		style = basicContainer
+		width = 200
+		height = 300
+		layout = LAYOUT_VERTICAL
+		zIndex = 20
+		
+		button new {
+			style = buttonStyle
+			autoWidth = true
+			height = 50
+			text = New
+		}
+		button load {
+			style = buttonStyle
+			autoWidth = true
+			height = 50
+			text = Load
+		}
+		button save {
+			style = buttonStyle
+			autoWidth = true
+			height = 50
+			text = Save
+		}
+		button saveAs {
+			style = buttonStyle
+			autoWidth = true
+			height = 50
+			text = Save As
+		}
+	}
+	
+	//holds component catalog - populated programmatically
+	container submenu_componentMenu {
+		style = basicContainer
+		layout = LAYOUT_FLOW
+		zIndex = 20
+		consumeInputEvents = true
+	}
+
+	container submenu_machineMenu {
+		style = basicContainer
+		width = 200
+		height = 300
+		layout = LAYOUT_VERTICAL
+		zIndex = 20
+		
+		button lever {
+			style = buttonStyle
+			autoWidth = true
+			height = 50
+			text = Lever
+		}
+		button pulley {
+			style = buttonStyle
+			autoWidth = true
+			height = 50
+			text = Pulley
+		}
+	}
+
+	//MODAL DIALOGS - use hidden overlay with intermediate z-index to block other controls
 	container overlay {
 		style = hiddenContainer
 		position = 0,0
@@ -16,23 +439,38 @@ form mainMenu {
 		consumeInputEvents = true
 	}
 
-	container saveDialog {
+	container textDialog {
+		style = basicContainer
+		font = res/common/arial14.gpb
 		layout = LAYOUT_FLOW
 		alignment = ALIGN_VCENTER_HCENTER
-		size = 350, 75
+		size = 350, 150
 		zIndex = 100
 		consumeInputEvents = true
 		
-		label savePrompt {
+		label textPrompt {
+			style = basic
 			text = Enter scene title:
 			size = 150, 50
 		}
-		textBox saveName {
+		textBox textName {
+			style = basic
 			size = 150, 50
+		}
+		button textSubmit {
+			style = buttonStyle
+			size = 80, 40
+		}
+		button textCancel {
+			style = buttonStyle
+			size = 80, 40
+			text = Cancel
 		}
 	}
 	
 	container confirmDialog {
+		style = basicContainer
+		font = res/common/arial14.gpb
 		layout = LAYOUT_FLOW
 		alignment = ALIGN_VCENTER_HCENTER
 		size = 350, 150
@@ -40,6 +478,7 @@ form mainMenu {
 		consumeInputEvents = true
 		
 		label confirmMessage {
+			style = basic
 			size = 300, 100
 		}
 		button confirmYes {

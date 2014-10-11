@@ -1,7 +1,7 @@
 #include "T4TApp.h"
 
 T4TApp::DrillMode::DrillMode() 
-  : T4TApp::ToolMode::ToolMode("mode_Drill", "res/common/drill.form") {
+  : T4TApp::ToolMode::ToolMode("drill") {
 	_axis.set(Vector3(0, 0, 0), Vector3(1, 0, 0));
 	_radius = 0.2f;
 	_segments = 20;
@@ -9,14 +9,10 @@ T4TApp::DrillMode::DrillMode()
 	usageCount = 0;
 	
 	//have the user start by selecting a drill bit - shape and size
-	_bitMenu = Form::create("bitMenu", app->_formStyle, Layout::LAYOUT_FLOW);
-	_bitMenu->setPosition(app->_sideMenu->getX() + app->_sideMenu->getWidth() + 25.0f, 25.0f);
+	_bitMenu = (Container*)_container->getControl("bitMenu");
 	_bitMenu->setWidth(app->getWidth() - _bitMenu->getX() - 25.0f);
 	_bitMenu->setHeight(app->getHeight() - 50.0f);
-	_bitMenu->setScroll(Container::SCROLL_VERTICAL);
-	_bitMenu->setConsumeInputEvents(true);
 	_bitMenu->setVisible(false);
-	_container->addControl(_bitMenu);
 
 	float sizes[6] = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 1.0f};
 	int shapes[2] = {4, 12};
@@ -45,11 +41,6 @@ void T4TApp::DrillMode::setActive(bool active) {
 	} else {
 		app->_mainMenu->removeListener((Control::Listener*)this);
 	}
-}
-
-void T4TApp::DrillMode::draw() {
-	Mode::draw();
-	if(_bitMenu->isVisible()) _bitMenu->draw();
 }
 
 void T4TApp::DrillMode::controlEvent(Control *control, Control::Listener::EventType evt) {
@@ -152,7 +143,7 @@ void T4TApp::DrillMode::drawFace(int f) {
 			for(int k = 0; k < 3; k++) vertices[v++] = MyNode::gv(&color, k);
 		}
 	}
-	app->_scene->addNode(app->createWireframe(vertices));
+	_scene->addNode(app->createWireframe(vertices));
 	//then the calculated drill points for the face
 	color.set(1, 1, 1);
 	vertices.clear();
@@ -169,7 +160,7 @@ void T4TApp::DrillMode::drawFace(int f) {
 		}
 	}
 	if(!vertices.empty()) vertices.resize(vertices.size() - 6);
-	if(!vertices.empty()) app->_scene->addNode(app->createWireframe(vertices));
+	if(!vertices.empty()) _scene->addNode(app->createWireframe(vertices));
 	//then all drill intersections on this plane
 	color.set(0, 1, 0);
 	vertices.clear();
@@ -185,7 +176,7 @@ void T4TApp::DrillMode::drawFace(int f) {
 			if(i == 0 && j == 0) v = 0;
 		}
 	}
-	app->_scene->addNode(app->createWireframe(vertices));
+	_scene->addNode(app->createWireframe(vertices));
 	//move the camera to look at the face
 	Vector3 eye, target, up;
 	target.set(vec[0]);
@@ -543,7 +534,11 @@ bool T4TApp::DrillMode::toolNode() {
 					_newNode->addFace(newFace, newTriangles);
 				}
 			} else { //the drill does not touch this face => leave it as is
-				_newNode->addFace(data->faces[i], data->triangles[i]);
+				newFace.clear();
+				for(j = 0; j < data->faces[i].size(); j++) {
+					newFace.push_back(keep[data->faces[i][j]]);
+				}
+				_newNode->addFace(newFace, data->triangles[i]);
 			}
 		}
 	}
@@ -641,8 +636,8 @@ bool T4TApp::DrillMode::toolNode() {
 	_newNode->setData(NULL);
 	_selectedNode->setData(newData);
 	_selectedNode->updateModelFromData();
-	translation.set(_selectedNode->getTranslationWorld());
-	app->placeNode(_selectedNode, translation.x, translation.z);
+	//translation.set(_selectedNode->getTranslationWorld());
+	//app->placeNode(_selectedNode, translation.x, translation.z);
 	return true;
 }
 

@@ -50,11 +50,23 @@ void T4TApp::initialize()
 	
 	//root menu node for finding controls by ID
 	_mainMenu = Form::create("res/common/main.form");
-	//_mainMenu->setVisible(false);
-	_saveDialog = (Container*)_mainMenu->getControl("saveDialog");
-	_savePrompt = (Label*)_saveDialog->getControl("savePrompt");
-	_saveName = (TextBox*)_saveDialog->getControl("saveName");
-	_saveDialog->setVisible(false);
+	_sideMenu = (Container*)_mainMenu->getControl("sideMenu");
+	_stage = (Container*)_mainMenu->getControl("stage");
+	_sceneMenu = (Container*)_mainMenu->getControl("submenu_sceneMenu");
+	_componentMenu = (Container*)_mainMenu->getControl("submenu_componentMenu");
+    _componentMenu->setPosition(_sideMenu->getX() + _sideMenu->getWidth() + 25.0f, 25.0f);
+    _componentMenu->setWidth(getWidth() - _componentMenu->getX() - 25.0f);
+    _componentMenu->setHeight(getHeight() - 50.0f);
+	_machineMenu = (Container*)_mainMenu->getControl("submenu_machineMenu");
+	_modePanel = (Container*)_sideMenu->getControl("modePanel");
+	
+	//dialogs
+	_textDialog = (Container*)_mainMenu->getControl("textDialog");
+	_textPrompt = (Label*)_textDialog->getControl("textPrompt");
+	_textName = (TextBox*)_textDialog->getControl("textName");
+	_textSubmit = (Button*)_textDialog->getControl("textSubmit");
+	_textCancel = (Button*)_textDialog->getControl("textCancel");
+	_textDialog->setVisible(false);
 	_confirmDialog = (Container*)_mainMenu->getControl("confirmDialog");
 	_confirmMessage = (Label*)_confirmDialog->getControl("confirmMessage");
 	_confirmYes = (Button*)_confirmDialog->getControl("confirmYes");
@@ -62,30 +74,21 @@ void T4TApp::initialize()
 	_confirmDialog->setVisible(false);
 	_overlay = (Container*)_mainMenu->getControl("overlay");
 	_overlay->setVisible(false);
-	//main menu on left side [Note: this calls addRef() on formStyle's Theme, which we created above]
-    _sideMenu = addMenu("sideMenu");
     
-    //scene operations: load, save, clear
-    _sceneMenu = addMenu("sceneMenu", _sideMenu, "Scene >>");
-    addButton<Button>(_sceneMenu, "sceneLoad", "Load");
-    addButton<Button>(_sceneMenu, "sceneSave", "Save");
-    addButton<Button>(_sceneMenu, "sceneSaveAs", "Save As");
-    addButton<Button>(_sceneMenu, "sceneClear", "Clear");
-    
-    //popup submenu for adding items
-	_componentMenu = addMenu("componentMenu", _sideMenu, "Add Object >>", Layout::LAYOUT_FLOW);
-    _componentMenu->setPosition(_sideMenu->getX() + _sideMenu->getWidth() + 25.0f, 25.0f);
-    _componentMenu->setWidth(getWidth() - _componentMenu->getX() - 25.0f);
-    _componentMenu->setHeight(getHeight() - 50.0f);
-    _componentMenu->setZIndex(13);
-    //submenu for adding simple machines
-    _machineMenu = addMenu("machineMenu", _sideMenu, "Add Machine >>");
-    
+	//identify all submenus so we can close any open ones when another is clicked
+	std::vector<Control*> controls = _mainMenu->getControls();
+	Container *container;
+	for(std::vector<Control*>::iterator it = controls.begin(); it != controls.end(); it++) {
+		container = dynamic_cast<Container*>(*it);
+		if(container && strncmp(container->getId(), "submenu_", 8) == 0) {
+			_submenus.push_back(container);
+			container->setVisible(false);
+		}
+	}
+	
     _theme->release();   // So we can release it once we're done creating forms with it.
     
 	// populate catalog of items
-	//_models = Scene::load("res/common/models.scene");
-	//_models->setId("models");
 	_models = Scene::create("models");
 	_models->addNode(new MyNode("sphere"));
 	_models->addNode(new MyNode("cylinder"));
@@ -106,6 +109,7 @@ void T4TApp::initialize()
 			modelNode->loadData("res/common/");
 			modelNode->updateModelFromData(false);
 			ImageControl* itemImage = addButton <ImageControl> (_componentMenu, concat(2, "comp_", modelNode->getId()));
+			itemImage->setZIndex(_componentMenu->getZIndex());
 			itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
 			itemImage->setWidth(150.0f);
 			itemImage->setHeight(150.0f);
@@ -116,15 +120,7 @@ void T4TApp::initialize()
 		modelNode = dynamic_cast<MyNode*>(modelNode->getNextSibling());
 	}
 
-    //populate simple machine submenu
-    _machines.push_back(new Lever(this, _buttonStyle, _formStyle));
-    _machines.push_back(new Pulley(this, _buttonStyle, _formStyle));
-    _machineNames.push_back("Lever");
-    _machineNames.push_back("Pulley");
-    for(size_t i = 0; i < _machineNames.size(); i++) {
-    	Button *machineButton = addButton <Button> (_machineMenu, _machineNames[i].c_str());
-    }
-
+	//interactive modes
 	_modes.push_back(new NavigateMode());
 	_modes.push_back(new PositionMode());
 	_modes.push_back(new ConstraintMode());
@@ -132,16 +128,13 @@ void T4TApp::initialize()
 	_modes.push_back(new DrillMode());
 	_modes.push_back(new TestMode());
 	_modes.push_back(new TouchMode());
-	_modePanel = addPanel("container_modes", _sideMenu);
-	for(size_t i = 0; i < _modes.size(); i++) {
-		const char *id = _modes[i]->getId();
-		Button *modeButton = addControl <Button> (_modePanel, id, _buttonStyle, id+5);
-		modeButton->setHeight(40.0f);
-	}
-	_modePanel->setHeight(_modes.size() * 50.0f);
-	_modePanel->setVisible(true);
+
+	//simple machines
+    _modes.push_back(new Lever());
+    _modes.push_back(new Pulley());
+    
 	_activeMode = -1;
-	//setMode(0);
+	setMode(0);
 
 	_drawDebugCheckbox = addControl <CheckBox> (_sideMenu, "drawDebug", _buttonStyle, "Draw Debug");
 	Button *debugButton = addControl <Button> (_sideMenu, "debugButton", _buttonStyle, "Debug");
@@ -150,12 +143,9 @@ void T4TApp::initialize()
     _sideMenu->setState(Control::FOCUS);
     
     addListener(_mainMenu, this);
-    addListener(_saveName, this, Control::Listener::TEXT_CHANGED);
-    addListener(_sideMenu, this);
+    addListener(_textName, this, Control::Listener::TEXT_CHANGED);
 	
 	_running = 0;
-	
-	/******** PHYSICS **********/
 	_constraintCount = 0;
 }
 
@@ -206,7 +196,6 @@ void T4TApp::render(float elapsedTime)
     _font->finish();
 //*/
 	_mainMenu->draw();
-    _sideMenu->draw();
 }
 
 void T4TApp::setMode(short mode) {
@@ -219,29 +208,36 @@ void T4TApp::setMode(short mode) {
 
 void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 {
-	const char *controlID = control->getId();
+	const char *id = control->getId();
 	Container *parent = control->getParent();
-	cout << "CLICKED " << controlID << endl;
+	cout << "CLICKED " << id << endl;
 
 	//scene operations
-	if(strcmp(controlID, "sceneSave") == 0) {
-		saveScene();
-	}
-	else if(strcmp(controlID, "sceneSaveAs") == 0) {
-		doSave("Enter scene name:", &T4TApp::saveSceneAs);
-	}
-	else if(strcmp(controlID, "sceneLoad") == 0) {
-		loadScene();
-	}
-	else if(strcmp(controlID, "sceneClear") == 0) {
-		clearScene();
-	}
-	
+	if(_sceneMenu->getControl(id) == control) {
+		if(strcmp(id, "new") == 0) {
+			clearScene();
+			setSceneName("test");
+		}
+		else if(strcmp(id, "load") == 0) {
+			getText("Enter scene name: ", "Load", &T4TApp::loadScene);
+		}
+		else if(strcmp(id, "save") == 0) {
+			saveScene();
+		}
+		else if(strcmp(id, "saveAs") == 0) {
+			getText("Enter scene name:", "Save", &T4TApp::saveScene);
+		}
+	}	
 	//callbacks for modal dialogs
-	else if(control == _saveName && evt == TEXT_CHANGED &&
-	  (_saveName->getLastKeypress() == 10 || _saveName->getLastKeypress() == 13)) {
-		if(_saveCallback != NULL) (this->*_saveCallback)(_saveName->getText());
-		showDialog(_saveDialog, false);
+	else if((control == _textName && evt == TEXT_CHANGED &&
+	  (_textName->getLastKeypress() == 10 || _textName->getLastKeypress() == 13))
+	  || control == _textSubmit) {
+		if(_textCallback != NULL) (this->*_textCallback)(_textName->getText());
+		showDialog(_textDialog, false);
+	}
+	else if(control == _textCancel) {
+		_textCallback = NULL;
+		showDialog(_textDialog, false);
 	}
 	else if(control == _confirmYes || control == _confirmNo) {
 		if(_confirmCallback) (this->*_confirmCallback)(control == _confirmYes);
@@ -249,8 +245,8 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	}
 
 	//if a submenu handle is clicked, toggle whether the submenu is expanded
-	else if(strncmp(controlID, "parent_", 7) == 0) {
-		const char *subName = MyNode::concat(2, "submenu_", controlID+7);
+	else if(strncmp(id, "parent_", 7) == 0) {
+		const char *subName = MyNode::concat(2, "submenu_", id+7);
 		cout << "Looking for submenu " << subName << endl;
 		Container *subMenu = dynamic_cast<Container*>(_mainMenu->getControl(subName));
 		if(subMenu) {
@@ -260,8 +256,11 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 			cout << "\ttoggling menu to " << !visible << endl;
 			subMenu->setVisible(!visible);
 			if(!visible) { //if expanding the submenu, position it next to its handle
-				if(subMenu->getZIndex() != 13) //using z index as flag for whether this menu has static position
-					subMenu->setPosition(control->getX() + control->getWidth(), control->getY());
+				if(subMenu != _componentMenu) {
+					float x = control->getX() + control->getWidth(), y = control->getY();
+					subMenu->setPosition(x, y);
+					cout << "\tpositioned at " << x << ", " << y << endl;
+				}
 			}
 		} else {
 			cout << "No control with ID " << subName << endl;
@@ -269,26 +268,19 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	}
 
 	//misc submenu funcionality
-	else if(_machineMenu->getControl(controlID) == control) {
-		cout << "clicked machine " << controlID << endl;
-		for(size_t i = 0; i < _machines.size(); i++) {
-			if(strcmp(_machines[i]->getId(), controlID) == 0) {
-				_machines[i]->setActive(true);
-			}
-		}
-	}
-	else if(_modePanel->getControl(controlID) == control) {
+	else if(_modePanel->getControl(id) == control || _machineMenu->getControl(id) == control) {
+		//simple machines and interactive modes are functionally equivalent, just in different submenus
 		for(short i = 0; i < _modes.size(); i++) {
-			if(strcmp(_modes[i]->getId(), controlID) == 0) setMode(i);
+			if(strcmp(_modes[i]->getId(), id) == 0) setMode(i);
 		}
 	}
-	else if(_componentMenu->getControl(controlID) == control && strncmp(controlID, "comp_", 5) == 0) {
-		MyNode *node = duplicateModelNode(controlID+5);
+	else if(_componentMenu->getControl(id) == control && strncmp(id, "comp_", 5) == 0) {
+		MyNode *node = duplicateModelNode(id+5);
 		node->addPhysics();
 		_scene->addNode(node);
 		placeNode(node, 0.0f, 0.0f);
 	}
-	else if(strcmp(controlID, "debugButton") == 0) {
+	else if(strcmp(id, "debugButton") == 0) {
 		debugTrigger();
 	}
 	else if(control == _drawDebugCheckbox) {
@@ -466,16 +458,19 @@ std::string T4TApp::getSceneDir() {
 	return "res/scenes/" + _sceneName + "_";
 }
 
-void T4TApp::loadScene() {
-	const char *listFile = (getSceneDir() + "scene.list").c_str();
-	std::auto_ptr<Stream> stream(FileSystem::open(listFile));
+void T4TApp::loadScene(const char *scene) {
+	std::string oldName = _sceneName;
+	if(scene != NULL) setSceneName(scene);
+	std::string listFile = getSceneDir() + "scene.list", id;
+	std::auto_ptr<Stream> stream(FileSystem::open(listFile.c_str()));
 	if(stream.get() == NULL) {
-		GP_ERROR("Failed to open file '%s'", listFile);
+		cout << "Failed to open file" << listFile << endl;
+		setSceneName(oldName.c_str());
 		return;
 	}
+	clearScene();
 	char line[256], *str;
 	std::istringstream ss;
-	std::string id;
 	while(!stream->eof()) {
 		str = stream->readLine(line, 256);
 		ss.str(str);
@@ -492,17 +487,17 @@ MyNode* T4TApp::loadNode(const char *id) {
 	return node;
 }
 
-void T4TApp::saveScene() {
+void T4TApp::saveScene(const char *scene) {
+	if(scene != NULL) setSceneName(scene);
 	//create a file that lists all root nodes in the scene, and save each one to its own file
-	const char *listFile = (getSceneDir() + "scene.list").c_str();
-	std::auto_ptr<Stream> stream(FileSystem::open(listFile, FileSystem::WRITE));
+	std::string listFile = getSceneDir() + "scene.list", line;
+	std::auto_ptr<Stream> stream(FileSystem::open(listFile.c_str(), FileSystem::WRITE));
 	if(stream.get() == NULL) {
-		GP_ERROR("Failed to open file '%s'", listFile);
+		GP_ERROR("Failed to open file '%s'", listFile.c_str());
 		return;
 	}
 	MyNode *node;
 	std::ostringstream os;
-	std::string line;
 	for(Node *n = _scene->getFirstNode(); n != NULL; n = n->getNextSibling()) {
 		if(n->getParent() != NULL || auxNode(n)) continue;
 		node = dynamic_cast<MyNode*>(n);
@@ -515,11 +510,6 @@ void T4TApp::saveScene() {
 		}
 	}
 	stream->close();
-}
-
-void T4TApp::saveSceneAs(const char *name) {
-	setSceneName(name);
-	saveScene();
 }
 
 bool T4TApp::saveNode(Node *n) {
@@ -539,7 +529,6 @@ void T4TApp::clearScene() {
 		nodes[i]->removePhysics();
 		_scene->removeNode(nodes[i]);
 	}
-	setSceneName("test");
 }
 
 bool T4TApp::removeNode(Node *n) {
@@ -584,37 +573,37 @@ bool T4TApp::showNode(Node *node) {
 	return true;
 }
 
-template <class ButtonType> ButtonType* T4TApp::addButton(Form *menu, const char *id, const char *text)
+template <class ButtonType> ButtonType* T4TApp::addButton(Container *parent, const char *id, const char *text)
 {
 	ButtonType* button = ButtonType::create(id, _buttonStyle);
 	if(text == NULL) button->setText(id);
 	else button->setText(text);
 	button->setAutoWidth(true);
 	button->setHeight(50);
-	button->setConsumeInputEvents(false);
-	menu->addControl(button);
+	button->setConsumeInputEvents(true);
+	parent->addControl(button);
 	return button;
 }
 
-template <class ControlType> ControlType* T4TApp::addControl(Form *parent, const char *id, Theme::Style *style, const char *text)
+template <class ControlType> ControlType* T4TApp::addControl(Container *parent, const char *id, Theme::Style *style, const char *text)
 {
 	ControlType* control = ControlType::create(id, style);
 	if(text == NULL) control->setText(id);
 	else control->setText(text);
 	control->setHeight(50);
 	control->setWidth(150);
-	control->setConsumeInputEvents(false);
+	control->setConsumeInputEvents(true);
 	parent->addControl(control);
 	return control;
 }
 
-Form* T4TApp::addMenu(const char *name, Form *parent, const char *buttonText, Layout::Type layout)
+Form* T4TApp::addMenu(const char *name, Container *parent, const char *buttonText, Layout::Type layout)
 {
 	bool isSubmenu = parent != NULL && buttonText != NULL;
 	const char *id = name;
 	if(isSubmenu) id = MyNode::concat(2, "submenu_", name);
     Form *container = Form::create(id, _formStyle, layout);
-    if(parent == NULL) container->setAutoHeight(true);
+    if(parent == NULL || parent == _mainMenu) container->setAutoHeight(true);
 	else container->setHeight(300.0f);
     container->setWidth(200.0f);
     container->setScroll(Container::SCROLL_VERTICAL);
@@ -630,7 +619,7 @@ Form* T4TApp::addMenu(const char *name, Form *parent, const char *buttonText, La
     return container;
 }
 
-Form* T4TApp::addPanel(const char *name, Form *parent)
+Form* T4TApp::addPanel(const char *name, Container *parent)
 {
 	Form *container = Form::create(name, _formStyle, Layout::LAYOUT_VERTICAL);
 	container->setHeight(250);
@@ -670,10 +659,13 @@ void T4TApp::enableListener(bool enable, Control *control, Control::Listener *li
 	}
 }
 
-void T4TApp::doSave(const char *prompt, void (T4TApp::*callback)(const char*)) {
-	_saveCallback = callback;
-	_savePrompt->setText(prompt);
-	showDialog(_saveDialog);
+void T4TApp::getText(const char *prompt, const char *type, void (T4TApp::*callback)(const char*)) {
+	_textCallback = callback;
+	_textPrompt->setText(prompt);
+	_textSubmit->setText(type);
+	_textName->setText("");
+	showDialog(_textDialog);
+	_textName->setState(Control::ACTIVE);
 }
 
 void T4TApp::doConfirm(const char *message, void (T4TApp::*callback)(bool)) {
@@ -685,6 +677,17 @@ void T4TApp::doConfirm(const char *message, void (T4TApp::*callback)(bool)) {
 void T4TApp::showDialog(Container *dialog, bool show) {
 	_overlay->setVisible(show);
 	dialog->setVisible(show);
+	if(show) dialog->setState(Control::FOCUS);
+}
+
+void T4TApp::confirmDelete(bool yes) {
+	if(!yes) return;
+	if(_activeMode < 0) return;
+	MyNode *node = _modes[_activeMode]->_selectedNode;
+	if(node != NULL) {
+		node->removePhysics();
+		_scene->removeNode(node);
+	}
 }
 
 bool T4TApp::prepareNode(MyNode* node)
@@ -849,13 +852,13 @@ void T4TApp::resetCamera() {
 	setCameraEye(30, M_PI/2, M_PI/12);
 }
 
-const std::string T4TApp::printVector(const Vector3& v) {
+const std::string T4TApp::pv(const Vector3& v) {
 	std::ostringstream os;
 	os << "<" << v.x << "," << v.y << "," << v.z << ">";
 	return os.str();
 }
 
-const std::string T4TApp::printVector2(const Vector2& v) {
+const std::string T4TApp::pv2(const Vector2& v) {
 	std::ostringstream os;
 	os << "<" << v.x << "," << v.y << ">";
 	return os.str();

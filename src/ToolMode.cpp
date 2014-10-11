@@ -1,7 +1,7 @@
 #include "T4TApp.h"
 
-T4TApp::ToolMode::ToolMode(const char* id, const char* filename) 
-  : T4TApp::Mode::Mode(id, filename) {
+T4TApp::ToolMode::ToolMode(const char* id) 
+  : T4TApp::Mode::Mode(id) {
 	_toolType = id+5;
 	_subMode = 0;
 	_touching = false;
@@ -18,9 +18,9 @@ void T4TApp::ToolMode::setSelectedNode(MyNode *node) {
 	app->getScriptController()->executeFunction<void>("camera_setNode", "s", node != NULL ? node->getId() : NULL);
 	if(node != NULL) {
 		setAxis(0);
-		app->_scene->addNode(_tool);
+		_scene->addNode(_tool);
 	} else {
-		app->_scene->removeNode(_tool);
+		_scene->removeNode(_tool);
 	}
 }
 
@@ -59,7 +59,7 @@ void T4TApp::ToolMode::setAxis(int axis) {
 
 void T4TApp::ToolMode::setView() {
 	//align the tool to the viewing axis
-	Node *camNode = app->_scene->getActiveCamera()->getNode();
+	Node *camNode = _camera->getNode();
 	Quaternion rot = camNode->getRotation(), offset;
 	Quaternion::createFromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), M_PI/2, &offset);
 	rot.multiply(offset);

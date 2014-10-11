@@ -735,7 +735,7 @@ void MyNode::myTranslate(const Vector3& delta) {
 	for(MyNode *child = dynamic_cast<MyNode*>(getFirstChild()); child; child = dynamic_cast<MyNode*>(child->getNextSibling())) {
 		child->myTranslate(delta);
 	}
-	cout << "moving " << getId() << " by " << app->printVector(delta) << endl;
+	cout << "moving " << getId() << " by " << app->pv(delta) << endl;
 	if(getParent() == NULL || !isStatic()) translate(delta);
 }
 
@@ -762,7 +762,7 @@ void MyNode::setMyRotation(const Quaternion& rotation) {
 	delta = rotation * rotInv;
 	Vector3 axis;
 	float angle = delta.toAxisAngle(&axis);
-	cout << "rotating by " << angle << " about " << app->printVector(axis) << " [" << delta.x << "," << delta.y << "," << delta.z << "," << delta.w << "]" << endl;
+	cout << "rotating by " << angle << " about " << app->pv(axis) << " [" << delta.x << "," << delta.y << "," << delta.z << "," << delta.w << "]" << endl;
 	myRotate(delta);
 }
 

@@ -1,16 +1,16 @@
 #include "T4TApp.h"
 
 T4TApp::TouchMode::TouchMode() 
-  : T4TApp::Mode::Mode("mode_Touch", NULL) {
+  : T4TApp::Mode::Mode("touch") {
 	_face = MyNode::create("touchFace");
 }
 
 void T4TApp::TouchMode::setActive(bool active) {
 	Mode::setActive(active);
 	if(active) {
-		app->_scene->addNode(_face);
+		_scene->addNode(_face);
 	} else {
-		app->_scene->removeNode(_face);
+		_scene->removeNode(_face);
 	}
 }
 
@@ -18,11 +18,10 @@ bool T4TApp::TouchMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned
 {
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
-		    Camera* camera = app->_scene->getActiveCamera();
 			Ray ray;
-			camera->pickRay(app->getViewport(), x, y, &ray);
+			_camera->pickRay(app->getViewport(), x, y, &ray);
 		    PhysicsController::HitResult hitResult;
-		    if(!app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &hitResult)) break;
+		    if(!app->getPhysicsController()->rayTest(ray, _camera->getFarPlane(), &hitResult)) break;
 	    	MyNode *node = dynamic_cast<MyNode*>(hitResult.object->getNode());
 	    	if(!node || node->getCollisionObject() == NULL) break;
 		    if(strcmp(node->getId(), "grid") == 0) break;

@@ -32,19 +32,18 @@ public:
     void translateNode(MyNode *node, Vector3 trans);
     PhysicsConstraint* addConstraint(MyNode *n1, MyNode *n2, int id, const char *type, ...);
     //misc functions
-    const std::string printVector(const Vector3& v);
-    const std::string printVector2(const Vector2& v);
+    const std::string pv(const Vector3& v);
+    const std::string pv2(const Vector2& v);
     const std::string printQuat(Quaternion& q);
 
     void initScene();
     void setSceneName(const char *name);
-	void loadScene();
+	void loadScene(const char *scene = NULL);
 	std::string getSceneDir();
 	void clearScene();
 	bool removeNode(Node *node);
 	bool auxNode(Node *node);
-	void saveScene();
-	void saveSceneAs(const char *name);
+	void saveScene(const char *scene = NULL);
 	bool saveNode(Node *n);
 	void releaseScene();
 	void hideScene();
@@ -92,16 +91,17 @@ public:
     MyNode* getMouseNode(int x, int y, Vector3 *touch = NULL);
     
     //UI factory functions
-    Form* addMenu(const char *name, Form *parent = NULL, const char *buttonText = NULL,
+    Form* addMenu(const char *name, Container *parent = NULL, const char *buttonText = NULL,
       Layout::Type layout = Layout::LAYOUT_VERTICAL);
-    Form* addPanel(const char *name, Form *parent = NULL);
-    template <class ButtonType> ButtonType* addButton(Form *menu, const char *name, const char *text = NULL);
-    template <class ControlType> ControlType* addControl(Form *parent, const char *name, Theme::Style *style, const char *text = NULL);
+    Form* addPanel(const char *name, Container *parent = NULL);
+    template <class ButtonType> ButtonType* addButton(Container *parent, const char *name, const char *text = NULL);
+    template <class ControlType> ControlType* addControl(Container *parent, const char *name, Theme::Style *style, const char *text = NULL);
     //other UI
     void promptComponent();
-    void doSave(const char *prompt, void (T4TApp::*callback)(const char*));
+    void getText(const char *prompt, const char *type, void (T4TApp::*callback)(const char*));
     void doConfirm(const char *message, void (T4TApp::*callback)(bool));
     void showDialog(Container *dialog, bool show = true);
+    void confirmDelete(bool yes);
 
 	//scene setup
     Scene* _scene;
@@ -133,103 +133,45 @@ public:
     Vector3 _cameraCenter;
 
     //user interface
-    Form *_mainMenu, *_sideMenu, *_sceneMenu, *_componentMenu, *_machineMenu, *_modePanel;
-    Container *_saveDialog, *_confirmDialog, *_overlay;
-    Label *_savePrompt, *_confirmMessage;
-    TextBox *_saveName;
-    Button *_confirmYes, *_confirmNo;
-    std::vector<Form*> _submenus; //submenus
+    Form *_mainMenu;
+    Container *_sideMenu, *_stage, *_sceneMenu, *_componentMenu, *_machineMenu, *_modePanel,
+      *_textDialog, *_confirmDialog, *_overlay;
+    Label *_textPrompt, *_confirmMessage;
+    TextBox *_textName;
+    Button *_textSubmit, *_textCancel, *_confirmYes, *_confirmNo;
+    std::vector<Container*> _submenus; //submenus
     CheckBox *_drawDebugCheckbox;
     std::vector<std::string> _modeNames, _machineNames;
     Theme *_theme;
     Theme::Style *_formStyle, *_buttonStyle, *_titleStyle, *_hiddenStyle;
     Font *_font;
     //callbacks
-    void (T4TApp::*_saveCallback)(const char*), (T4TApp::*_confirmCallback)(bool);
+    void (T4TApp::*_textCallback)(const char*), (T4TApp::*_confirmCallback)(bool);
 	
-	class ProjectComponent : public Button, Control::Listener
-	{
-public:
-		T4TApp *app; //containing app
-    	Form *_container; //wrapper for the full-screen button that handles touch events for this component
-    	//component is divided into elements, eg. a lever has a base and arm
-    	std::vector<std::string> _elementNames;
-    	int _currentElement, _typeCount;
-    	std::vector<bool> _isStatic; //whether this element should be immovable
-    	//blank scene onto which to build the component
-    	std::string _sceneFile, _nodeId;
-    	Scene *_scene;
-		MyNode *_rootNode; //parent node for this component
-    	std::vector<MyNode*> _allNodes;
-
-		//each element of this component is positioned/finalized via touches => has its own touch callback
-		typedef bool (T4TApp::ProjectComponent::*TouchCallback)(Touch::TouchEvent, int, int);
-    	std::vector<T4TApp::ProjectComponent::TouchCallback> _elementCallbacks;
-
-    	ProjectComponent(T4TApp *app_, const char* filename, const char* id, Theme::Style* buttonStyle, Theme::Style* formStyle);
-
-		void setActive(bool active);
-		void loadScene();
-		virtual void releaseScene();
-		void addElement(const char *name, bool (T4TApp::ProjectComponent::*)(Touch::TouchEvent evt, int x, int y),
-				bool isStatic = false);
-		void controlEvent(Control *control, EventType evt);
-		virtual void placeElement(MyNode *node) = 0; //position the element in space before it has physics attached
-		virtual void finishElement(MyNode *node) = 0; //post processing once the collision object is attached
-		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
-		void finishComponent();
-	};
-	
-	class Lever : public ProjectComponent 
-	{
-public:
-		PhysicsHingeConstraint *_armConstraint;
-
-		Lever(T4TApp *app_, Theme::Style* buttonStyle, Theme::Style* formStyle);
-		bool baseTouch(Touch::TouchEvent evt, int x, int y);
-		bool armTouch(Touch::TouchEvent evt, int x, int y);
-		void placeElement(MyNode *node);
-		void finishElement(MyNode *node);
-	};
-
-	class Pulley : public ProjectComponent 
-	{
-public:
-		float _radius, _linkLength, _linkWidth;
-		unsigned short _wheelLinks, _dropLinks, _numLinks;
-		std::vector<PhysicsSocketConstraint*> _constraints;
-		
-		Pulley(T4TApp *app_, Theme::Style* buttonStyle, Theme::Style* formStyle);
-		bool baseTouch(Touch::TouchEvent evt, int x, int y);
-		bool wheelTouch(Touch::TouchEvent evt, int x, int y);
-		bool bucketTouch(Touch::TouchEvent evt, int x, int y);
-		void placeElement(MyNode *node);
-		void finishElement(MyNode *node);
-	};
-
-	std::vector<ProjectComponent*> _machines;
-	
-	class Mode : public Button, Control::Listener
+	class Mode : public Button, public Control::Listener
 	{
 public:
 		T4TApp *app;
+		Scene *_scene;
 		
 		std::vector<std::string> _subModes;
 		short _subMode, _cameraMode;
-		Form *_container, *_controls; //the click overlay and control panel
+		Container *_container, *_controls; //the click overlay and control panel
 		Button *_subModeButton, *_cameraModeButton;
 		bool _active, _touching, _doSelect;
-		
+
+		int _x, _y; //mouse position wrt upper left of entire window, not just my button		
 		MyNode *_selectedNode, *_touchNode;
 		Vector3 _selectPoint, _touchPoint, _mousePoint;
 		Vector2 _touchPix, _mousePix;
 		Plane _plane;
+		Ray _ray;
 		//Base members remember the value from the time of the last TOUCH_PRESS event
-		Camera *_cameraBase;
+		Camera *_camera, *_cameraBase;
 		Vector3 _cameraCenterBase;
 		Rectangle _viewportBase;
 		
-		Mode(const char* id, const char* filename = NULL);
+		Mode(const char* id);
 		
 		virtual bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		virtual void controlEvent(Control *control, EventType evt);
@@ -265,7 +207,7 @@ public:
 		
 		short usageCount;
 
-		ToolMode(const char* id, const char* filename = NULL);
+		ToolMode(const char* id);
 		virtual void setActive(bool active);
 		void setSelectedNode(MyNode *node);
 		void setSubMode(short mode);
@@ -312,10 +254,9 @@ public:
 		std::vector<unsigned short> newEdge;
 
 		//GUI
-		Form *_bitMenu;
+		Container *_bitMenu;
 		void controlEvent(Control *control, Control::Listener::EventType evt);
 		void setActive(bool active);
-		void draw();
 
 		DrillMode();
 		void setAxis(int axis);
@@ -360,7 +301,7 @@ public:
 		void setSubMode(short mode);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
-		void setSelectedNode(MyNode *node);
+		void setSelectedNode(MyNode *node, Vector3 point);
 		void setAxis(short axis);
 		void setPosition(float value, bool finalize = false);
 		void updateSlider();
@@ -399,6 +340,68 @@ public:
 		void setActive(bool active);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
+	};
+
+	class ProjectComponent : public Mode
+	{
+public:
+		//each element of this component is positioned/finalized via touches => has its own touch callback
+		typedef bool (T4TApp::ProjectComponent::*TouchCallback)(Touch::TouchEvent, int, int);
+
+    	//component is divided into elements, eg. a lever has a base and arm
+    	struct Element {
+    		std::string _name;
+    		bool _isStatic;
+    		TouchCallback _callback;
+    		MyNode *_node;
+    	};
+    	std::vector<Element*> _elements;
+
+    	int _currentElement, _typeCount;
+    	//blank scene onto which to build the component
+    	std::string _sceneFile, _nodeId;
+		MyNode *_rootNode; //parent node for this component
+
+    	ProjectComponent(const char* id);
+
+		void setActive(bool active);
+		void loadScene();
+		virtual void releaseScene();
+		void addElement(const char *name, TouchCallback callback, bool isStatic = false);
+		Element* getEl();
+		MyNode* getNode(short n = -1);
+		void controlEvent(Control *control, EventType evt);
+		virtual void placeElement() = 0; //position the element in space before it has physics attached
+		virtual void finishElement() = 0; //post processing once the collision object is attached
+		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+		void finishComponent();
+	};
+	
+	class Lever : public ProjectComponent 
+	{
+public:
+		PhysicsHingeConstraint *_armConstraint;
+
+		Lever();
+		bool baseTouch(Touch::TouchEvent evt, int x, int y);
+		bool armTouch(Touch::TouchEvent evt, int x, int y);
+		void placeElement();
+		void finishElement();
+	};
+
+	class Pulley : public ProjectComponent 
+	{
+public:
+		float _radius, _linkLength, _linkWidth;
+		unsigned short _wheelLinks, _dropLinks, _numLinks;
+		std::vector<PhysicsSocketConstraint*> _constraints;
+		
+		Pulley();
+		bool baseTouch(Touch::TouchEvent evt, int x, int y);
+		bool wheelTouch(Touch::TouchEvent evt, int x, int y);
+		bool bucketTouch(Touch::TouchEvent evt, int x, int y);
+		void placeElement();
+		void finishElement();
 	};
 };
 

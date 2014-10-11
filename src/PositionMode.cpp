@@ -1,7 +1,7 @@
 #include "T4TApp.h"
 
 T4TApp::PositionMode::PositionMode() 
-  : T4TApp::Mode::Mode("mode_Position", "res/common/position.form") {
+  : T4TApp::Mode::Mode("position") {
 
 	_subModeButton = (Button*) _controls->getControl("subMode");
 	_axisButton = (Button*) _controls->getControl("axis");
@@ -35,8 +35,12 @@ bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsig
 		case Touch::TOUCH_PRESS: {
 			if(_touchNode == NULL) break;
 			_groundFace = -1;
-			_dragOffset.set(x, y);
+			_dragOffset.set(_x, _y);
 			if(_subMode == 0) { //translate
+				Vector2 basePix;
+				_camera->project(app->getViewport(), _basePoint, &basePix);
+				_dragOffset.set(basePix.x - _x, basePix.y - _y);
+				cout << "translate: " << app->pv(_selectPoint) << " [" << _x << "," << _y << "] => " << app->pv(_basePoint) << " [" << app->pv2(basePix) << "]" << endl;
 			} else if(_subMode == 1) { //rotate
 			} else if(_subMode == 2) { //scale
 			} else if(_subMode == 3) { //ground face - determine which face was selected
@@ -48,25 +52,27 @@ bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsig
 			break;
 		}
 		case Touch::TOUCH_MOVE: case Touch::TOUCH_RELEASE: {
-			if(!_touching || _selectedNode == NULL) break;
+			if(_touchNode == NULL) break;
 			bool finalize = evt == Touch::TOUCH_RELEASE;
+			if((!finalize && !_touching) || _selectedNode == NULL) break;
 			Ray ray;
-			Camera *camera = app->_scene->getActiveCamera();
 			if(_subMode == 0) { //translate
-				camera->pickRay(app->getViewport(), x, y, &ray);
+				_camera->pickRay(app->getViewport(), _dragOffset.x + _x, _dragOffset.y + _y, &ray);
 				float distance = ray.intersects(_plane);
 				if(distance == Ray::INTERSECTS_NONE) break;
 				Vector3 point(ray.getOrigin() + ray.getDirection() * distance);
-				Vector3 delta(point - _selectPoint);
-				_transDir = delta / delta.length();
-				setPosition(delta.length(), finalize);
+				Vector3 delta(point - _basePoint);
+				float length = delta.length();
+				if(length > 0) _transDir = delta / length;
+				else _transDir.set(1, 0, 0);
+				setPosition(length, finalize);
 			} else if(_subMode == 1) { //rotate
-				float angle = (x - _dragOffset.x) * 2 * M_PI / 500;
+				float angle = (_x - _dragOffset.x) * 2 * M_PI / 500;
 				while(angle < 0) angle += 2 * M_PI;
 				while(angle > 2 * M_PI) angle -= 2 * M_PI;
 				setPosition(angle, finalize);
 			} else if(_subMode == 2) { //scale
-				float exp = (x - _dragOffset.x) / 500.0f;
+				float exp = (_x - _dragOffset.x) / 500.0f;
 				if(exp < -1.0f) exp = -1.0f;
 				if(exp > 1.0f) exp = 1.0f;
 				float scale = pow(10.0f, exp);
@@ -86,6 +92,7 @@ bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsig
 void T4TApp::PositionMode::controlEvent(Control *control, Control::Listener::EventType evt)
 {
 	Mode::controlEvent(control, evt);
+	const char *id = control->getId();
 	if(control == _valueSlider) {
 		if(_subMode == 0) {
 			_transDir.set(0, 0, 0);
@@ -100,10 +107,13 @@ void T4TApp::PositionMode::controlEvent(Control *control, Control::Listener::Eve
 			_selectedNode->removePhysics();
 			_selectedNode->addPhysics();
 		}
+	} else if(strcmp(id, "delete") == 0 && _selectedNode != NULL) {
+		app->doConfirm(MyNode::concat(2, "Are you sure you want to delete node ", _selectedNode->getId()), &T4TApp::confirmDelete);
 	}
 }
 
-void T4TApp::PositionMode::setSelectedNode(MyNode *node) {
+void T4TApp::PositionMode::setSelectedNode(MyNode *node, Vector3 point) {
+	Mode::setSelectedNode(node, point);
 	if(_selectedNode != NULL) {
 		//move the root of this node tree, or the nearest parent-child constraint joint, whichever is closer
 		MyNode *parent;
@@ -127,12 +137,15 @@ void T4TApp::PositionMode::setSelectedNode(MyNode *node) {
 		_parentNode = _selectedNode->_constraintParent;
 		float distance;
 		if(_parentNode) {
+			_basePoint = _selectPoint;
 			_normal = _selectedNode->parentAxis;
 			Matrix m = _parentNode->getWorldMatrix();
 			m.transformVector(&_normal);
 			_normal.normalize(&_normal);
-			distance = _selectPoint.dot(_normal);
+			distance = _basePoint.dot(_normal);
 		} else {
+			_basePoint = _selectPoint;
+			_basePoint.y = 0;
 			_normal.set(0, 1, 0);
 			distance = 0;
 		}
@@ -204,6 +217,7 @@ void T4TApp::PositionMode::setPosition(float value, bool finalize) {
 		}
 		_selectedNode->enablePhysics(true);
 		_selectedNode->updateData();
+		cout << "re-enabled physics on " << _selectedNode->getId() << endl;
 	}
 }
 

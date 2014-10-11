@@ -1,7 +1,7 @@
 #include "T4TApp.h"
 
 T4TApp::NavigateMode::NavigateMode() 
-  : T4TApp::Mode::Mode("mode_Navigate", "res/common/navigate.form") {
+  : T4TApp::Mode::Mode("navigate") {
 	_doSelect = false;
 	_subModes.push_back("Rotating");
 	_subModes.push_back("Translating");

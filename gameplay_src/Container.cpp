@@ -1676,8 +1676,8 @@ bool Container::pointerEvent(bool mouse, char evt, int x, int y, int data)
         offset = &_scrollPosition;
     }
 
-    std::vector<Control*>::const_iterator it;
-    for (it = _controls.begin(); it < _controls.end(); it++)
+    std::vector<Control*>::reverse_iterator it;
+    for (it = _controls.rbegin(); it < _controls.rend() && !eventConsumed; it++)
     {
         Control* control = *it;
         GP_ASSERT(control);
