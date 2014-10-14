@@ -51,12 +51,12 @@ bool Button::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
             {
                 _contactIndex = (int) contactIndex;
                 notifyListeners(Control::Listener::PRESS);
-                setState(Control::ACTIVE);
+                if(getState() != Control::DISABLED) setState(Control::ACTIVE);
                 return _consumeInputEvents;
             }
             else
             {
-                setState(Control::NORMAL);
+                if(getState() != Control::DISABLED) setState(Control::NORMAL);
             }
         }
         break;
@@ -71,11 +71,11 @@ bool Button::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
                 y > _clipBounds.y && y <= _clipBounds.y + _clipBounds.height)
             {
                 notifyListeners(Control::Listener::CLICK);
-                setState(Control::FOCUS);
+                if(getState() != Control::DISABLED) setState(Control::FOCUS);
             }
             else
             {
-                setState(Control::NORMAL);
+                if(getState() != Control::DISABLED) setState(Control::NORMAL);
             }
             return _consumeInputEvents;
         }

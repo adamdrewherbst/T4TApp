@@ -329,7 +329,7 @@ private:
     BoundingSphere _boundingSphere;
 public:
 	std::vector<Vector3> *vertices;
-	std::vector<std::vector<unsigned short> > *hulls;
+	std::vector<std::vector<Vector3> > *hulls;
 };
 
 }

@@ -1093,11 +1093,12 @@ PhysicsCollisionShape* PhysicsController::createMesh(Mesh* mesh, const Vector3& 
 	Vector3 v;
 
     btCompoundShape* btShape = bullet_new<btCompoundShape>();
+    
 	for(unsigned int i = 0; i < mesh->hulls->size(); i++)
 	{
 		btConvexHullShape *hull = bullet_new<btConvexHullShape>();
 		for(int j = 0; j < mesh->hulls->at(i).size(); j++) {
-			v.set(mesh->vertices->at(mesh->hulls->at(i).at(j)));
+			v.set(mesh->hulls->at(i).at(j));
 			v *= m;
 			hull->addPoint(btVector3(v.x, v.y, v.z));
 		}
