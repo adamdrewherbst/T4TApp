@@ -338,9 +338,11 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		//physics object
 		out << "sphere" << endl;
 		//convex hulls
-		out << 1 << endl << segments*(segments-1)+2 << endl;
+		out << 0 << endl;
+/*		out << 1 << endl << segments*(segments-1)+2 << endl;
 		for(int i = 0; i < segments*(segments-1)+2; i++) out << i << "\t";
 		out << endl;
+//*/
 	}
 	if(strcmp(type, "cylinder") == 0) {
 		float radius = (float)va_arg(arguments, double);
@@ -353,21 +355,23 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		out << "0\t0\t0" << endl;
 		out << "1\t1\t1" << endl;
 		//write vertex/edge data
-		out << 2*segments+2 << endl;
-		for(int i = 0; i < 2*segments+2; i++) {
-			printVector(out, mesh->GetControlPointAt(i));
+		out << 2*segments << endl;
+		float angle;
+		for(int i = 0; i < 2*segments; i++) {
+			angle = i * 2*M_PI / segments;
+			out << radius*cos(angle) << "\t" << radius*sin(angle) << "\t" << (2*(i/segments) - 1) * height/2 << endl;
 		}
 		out << 3*segments << endl;
 		for(int i = 0; i < segments; i++) {
 			printEdge(out, i, (i+1)%segments);
-			printEdge(out, segments+1 + i, segments+1 + (i+1)%segments);
-			printEdge(out, i, segments+1 + i);
+			printEdge(out, segments + i, segments + (i+1)%segments);
+			printEdge(out, i, segments + i);
 		}
 		//faces/triangles
 		out << segments+2 << endl;
 		for(int i = 0; i < segments; i++) { //walls
 			out << 4 << endl; //face
-			out << i << "\t" << (i+1)%segments << "\t" << segments+1 + (i+1)%segments << "\t" << segments+1 + i << endl;
+			out << i << "\t" << (i+1)%segments << "\t" << segments + (i+1)%segments << "\t" << segments + i << endl;
 			out << 2 << endl; //triangles
 			out << 0 << "\t" << 1 << "\t" << 2 << endl;
 			out << 0 << "\t" << 2 << "\t" << 3 << endl;
@@ -376,21 +380,18 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		}
 		for(int n = 0; n < 2; n++) { //end caps
 			out << segments << endl; //face
-			for(int i = 0; i < segments; i++) out << n*(segments+1) + (n == 0 ? segments-1-i : i) << "\t";
+			for(int i = 0; i < segments; i++) out << n*segments + (n == 0 ? segments-1-i : i) << "\t";
 			out << endl;
-			out << segments << endl; //triangles
-			for(int i = 0; i < segments; i++) {
-				out << i << "\t" << (i+1)%segments << "\t" << segments << endl;
+			out << segments-2 << endl; //triangles
+			for(int i = 1; i <= segments-2; i++) {
+				out << 0 << "\t" << i+n << "\t" << i+1-n << endl;
 			}
-			//out << segments << endl; //neighbors
-			//for(int i = 0; i < segments; i++) out << i << "\t";
-			//out << endl;
 		}
 		//physics object
 		out << "mesh" << endl;
 		//convex hulls
-		out << 1 << endl << 2*segments+2 << endl;
-		for(int i = 0; i < 2*segments+2; i++) out << i << "\t";
+		out << 1 << endl << 2*segments << endl;
+		for(int i = 0; i < 2*segments; i++) out << i << "\t";
 		out << endl;
 	}
 	else if(strcmp(type, "halfpipe") == 0) {
@@ -402,12 +403,14 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		mesh = arr[0];
 		numParts = 1+segments;
 		//rotation, translation, scale
-		out << "1\t0\t0\t180" << endl;
+		out << "1\t0\t0\t0" << endl;
 		out << "0\t0\t0" << endl;
 		out << "4\t1\t1" << endl;
 		//write vertex/edge data
 		out << 2*segments+4 << endl;
+		float angle;
 		for(int i = 0; i < 2*segments+4; i++) {
+			out << radius
 			printVector(out, mesh->GetControlPointAt(i));
 		}
 		out << 3*segments+6 << endl;
@@ -459,7 +462,8 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		//physics object
 		out << "mesh" << endl;
 		//convex hulls
-		out << 2*segments+2 << endl;
+		out << 0 << endl;
+/*		out << 2*segments+2 << endl;
 		for(int n = 0; n < 4; n++) {
 			for(int i = 0; i < segments/2; i++) {
 				out << 4 << endl;
@@ -475,6 +479,7 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		out << 0 << "\t" << 1 << "\t" << segments+2+1 << "\t" << segments+2 << endl;
 		out << 4 << endl;
 		out << segments << "\t" << segments+1 << "\t" << segments+2+segments+1 << "\t" << segments+2+segments << endl;
+//*/
 	}
 	else if(strcmp(type, "box") == 0) {
 		float length = (float)va_arg(arguments, double);
@@ -516,7 +521,8 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 		//physics object
 		out << "box" << endl;
 		//convex hulls
-		out << 6 << endl;
+		out << 0 << endl;
+/*		out << 6 << endl;
 		for(int i = 0; i < 6; i++) {
 			out << 4 << endl;
 			d1 = dir[(i/2 + 1 - (1-i%2)) % 3];
@@ -524,6 +530,7 @@ FbxNode** CreateNode(FbxScene* pScene, const char* pName, const char* type, ...)
 			start = (i%2) * dir[(i/2 + 2) % 3];
 			out << start << "\t" << start+d1 << "\t" << start+d1+d2 << "\t" << start+d2 << endl;
 		}
+//*/
 	} else if(strcmp(type, "gear") == 0) {
 		float innerRadius = (float)va_arg(arguments, double);
 		float outerRadius = (float)va_arg(arguments, double);

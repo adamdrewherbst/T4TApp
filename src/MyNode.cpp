@@ -1,4 +1,10 @@
 #include "MyNode.h"
+//for convex hull decomposition
+#include "hacdCircularList.h"
+#include "hacdVector.h"
+#include "hacdICHull.h"
+#include "hacdGraph.h"
+#include "hacdHACD.h"
 
 MyNode::MyNode(const char *id) : Node::Node(id)
 {
@@ -148,7 +154,7 @@ void MyNode::rotateFaceToPlane(unsigned short f, Plane p) {
 	float angle;
 	Vector3 axis, face, plane;
 	//get model space face normal
-	data->normals[f].normalize(&face);
+	face = getScaleNormal(f);
 	//get axis/angle rotation required to align face normal with plane normal
 	plane.set(-p.getNormal());
 	setRotation(getVectorRotation(face, plane));
@@ -167,6 +173,10 @@ void MyNode::rotateFaceToFace(unsigned short f, MyNode *other, unsigned short g)
 	Vector3 center1(0, 0, 0), center2(0, 0, 0);
 	translate(other->faceCenter(g) - faceCenter(f));
 	updateData();
+}
+
+void MyNode::addVertex(float x, float y, float z) {
+	data->vertices.push_back(Vector3(x, y, z));
 }
 
 void MyNode::addEdge(unsigned short e1, unsigned short e2) {
@@ -202,29 +212,22 @@ void MyNode::addFace(std::vector<unsigned short>& face, std::vector<std::vector<
 	addFaceHelper(face, triangles);
 }
 
+void MyNode::addFace(short n, ...) {
+	va_list arguments;
+	va_start(arguments, n);
+	std::vector<unsigned short> face;
+	for(short i = 0; i < n; i++) {
+		face.push_back((unsigned short)va_arg(arguments, int));
+	}
+	std::vector<std::vector<unsigned short> > triangles;
+	addFace(face, triangles);
+}
+
 void MyNode::addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
 	data->faces.push_back(face);
 	data->triangles.push_back(triangles);
-	data->normals.push_back(getNormal(face, true));
-	data->worldNormals.push_back(getNormal(face));
 	unsigned short n = face.size(), i;
 	for(i = 0; i < n; i++) addEdge(face[i], face[(i+1)%n]);
-}
-
-//calculate the properly oriented face normal by Newell's method
-// - https://www.opengl.org/wiki/Calculating_a_Surface_Normal#Newell.27s_Method
-Vector3 MyNode::getNormal(std::vector<unsigned short>& face, bool modelSpace) {
-	Vector3 v1, v2, normal(0, 0, 0);
-	unsigned short i, n = face.size();
-	for(i = 0; i < n; i++) {
-		v1.set(data->worldVertices[face[i]]);
-		v2.set(data->worldVertices[face[(i+1)%n]]);
-		normal.x += (v1.y - v2.y) * (v1.z + v2.z);
-		normal.y += (v1.z - v2.z) * (v1.x + v2.x);
-		normal.z += (v1.x - v2.x) * (v1.y + v2.y);
-	}
-	if(modelSpace) getInverseRotTrans().transformVector(&normal);
-	return normal.normalize();
 }
 
 void MyNode::triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
@@ -235,7 +238,7 @@ void MyNode::triangulate(std::vector<unsigned short>& face, std::vector<std::vec
 		copy[i] = face[i];
 		inds[i] = i;
 	}
-	triangulateHelper(copy, inds, triangles, getNormal(face));
+	triangulateHelper(copy, inds, triangles, getNormal(face, true));
 }
 
 void MyNode::triangulateHelper(std::vector<unsigned short>& face,
@@ -252,8 +255,8 @@ void MyNode::triangulateHelper(std::vector<unsigned short>& face,
 	if(n == 3) v = 1;
 	else {
 		for(i = 1; i <= n; i++) {
-			v1.set(data->worldVertices[face[i-1]] - data->worldVertices[face[i%n]]);
-			v2.set(data->worldVertices[face[(i+1)%n]] - data->worldVertices[face[i%n]]);
+			v1.set(data->vertices[face[i-1]] - data->vertices[face[i%n]]);
+			v2.set(data->vertices[face[(i+1)%n]] - data->vertices[face[i%n]]);
 			Vector3::cross(v2, v1, &v3);
 			if(v3.dot(normal) < 0) continue;
 			m.set(v1.x, v2.x, v3.x, 0, v1.y, v2.y, v3.y, 0, v1.z, v2.z, v3.z, 0, 0, 0, 0, 1);
@@ -261,7 +264,7 @@ void MyNode::triangulateHelper(std::vector<unsigned short>& face,
 			//get barycentric coords of all other vertices of this face in the proposed triangle
 			valid = true;
 			for(j = (i+2)%n; j != i-1; j = (j+1)%n) {
-				m.transformVector(data->worldVertices[face[j]] - data->worldVertices[face[i%n]], &coords);
+				m.transformVector(data->vertices[face[j]] - data->vertices[face[i%n]], &coords);
 				if(coords.x >= 0 && coords.y >= 0 && coords.x + coords.y <= 1) {
 					valid = false;
 					break;
@@ -448,11 +451,12 @@ void MyNode::loadData(const char *file)
 		for(int i = 0; i < nh; i++) {
 			str = stream->readLine(line, 2048);
 			hullSize = atoi(str);
-			str = stream->readLine(line, 2048);
-			in.str(str);
+			data->hulls[i].resize(hullSize);
 			for(int j = 0; j < hullSize; j++) {
-				in >> v1;
-				data->hulls[i].push_back(v1);
+				str = stream->readLine(line, 2048);
+				in.str(str);
+				in >> x >> y >> z;
+				data->hulls[i][j].set(x, y, z);
 			}
 		}
 		str = stream->readLine(line, 2048);
@@ -491,6 +495,11 @@ void MyNode::loadData(const char *file)
 		addChild(child);
 	}
     stream->close();
+
+	//if no hulls specified for a mesh type object, calculate the hulls on the fly
+	if(data->objType.compare("mesh") == 0 && data->hulls.size() == 0) {
+		calculateHulls();
+	}
 }
 
 void MyNode::writeData(const char *file) {
@@ -554,7 +563,8 @@ void MyNode::writeData(const char *file) {
 		os << data->hulls.size() << endl;
 		for(int i = 0; i < data->hulls.size(); i++) {
 			os << data->hulls[i].size() << endl;
-			for(int j = 0; j < data->hulls[i].size(); j++) os << data->hulls[i][j] << "\t";
+			for(int j = 0; j < data->hulls[i].size(); j++)
+				os << data->hulls[i][j].x << data->hulls[i][j].y << data->hulls[i][j].z << endl;
 			os << endl;
 		}
 		line = os.str();
@@ -595,20 +605,31 @@ void MyNode::updateData() {
 	if(data == NULL) return;
 	Matrix world = getWorldMatrix();
 	unsigned short i, nv = data->vertices.size();
+	data->worldVertices.resize(nv);
 	Vector3 min, max;
 	for(i = 0; i < nv; i++) {
 		world.transformPoint(data->vertices[i], &data->worldVertices[i]);
 	}
 	setNormals();
+	data->scale = getScale();
+	data->rotation = getRotation();
+	data->translation = getTranslationWorld();
 }
 
 void MyNode::updateModelFromData(bool doPhysics) {
 	if(data->type.compare("root") != 0) {
-		//reset the physics and transformation while loading the data
+		//must detach from parent while setting transformation since physics object is off
+		Node *parent = getParent();
+		if(parent != NULL) {
+			addRef();
+			parent->removeChild(this);
+		}
 		removePhysics();
-		setRotation(Quaternion::identity());
-		setTranslation(Vector3::zero());
-		setScale(Vector3(1,1,1));	
+		setRotation(data->rotation);
+		setTranslation(data->translation);
+		setScale(data->scale);
+		updateData();
+
 		std::string materialFile = concat(2, "res/common/models.material#", data->type.c_str());
 		//update the mesh to contain the new coordinates
 		float *vertices, radius = 0;
@@ -652,16 +673,6 @@ void MyNode::updateModelFromData(bool doPhysics) {
 		model->setMaterial(materialFile.c_str());
 		setModel(model);
 		model->release();
-		//detach from my parent long enough to set the initial transformation and add physics
-		Node *parent = getParent();
-		if(parent != NULL) {
-			addRef();
-			parent->removeChild(this);
-		}
-		setRotation(data->rotation);
-		setTranslation(data->translation);
-		setScale(data->scale);
-		updateData();
 		if(doPhysics) addPhysics(false);
 		if(parent != NULL) {
 			parent->addChild(this);
@@ -685,26 +696,116 @@ void MyNode::setNormals() {
 	unsigned short nf = data->faces.size(), i, j, n;
 	data->normals.resize(nf);
 	data->worldNormals.resize(nf);
-	Vector3 v1, v2, normal;
-	Matrix invRot;
-	getRotation(&invRot);
-	invRot.invert();
 	for(i = 0; i < nf; i++) {
-		n = data->faces[i].size();
-		normal.set(0, 0, 0);
-		//first calculate the world normal
-		for(j = 0; j < n; j++) {
-			v1.set(data->worldVertices[data->faces[i][j]]);
-			v2.set(data->worldVertices[data->faces[i][(j+1)%n]]);
-			normal.x += (v1.y - v2.y) * (v1.z + v2.z);
-			normal.y += (v1.z - v2.z) * (v1.x + v2.x);
-			normal.z += (v1.x - v2.x) * (v1.y + v2.y);
-		}
-		normal.normalize(&normal);
-		data->worldNormals[i].set(normal);
-		//then undo this node's rotation to get the post-scaling model space normal
-		invRot.transformVector(data->worldNormals[i], &data->normals[i]);
+		data->normals[i] = getNormal(data->faces[i], true);
+		data->worldNormals[i] = getNormal(data->faces[i], false);
 	}
+}
+
+//calculate the properly oriented face normal by Newell's method
+// - https://www.opengl.org/wiki/Calculating_a_Surface_Normal#Newell.27s_Method
+Vector3 MyNode::getNormal(std::vector<unsigned short>& face, bool modelSpace) {
+	Vector3 v1, v2, normal(0, 0, 0);
+	unsigned short i, n = face.size();
+	for(i = 0; i < n; i++) {
+		if(modelSpace) {
+			v1.set(data->vertices[face[i]]);
+			v2.set(data->vertices[face[(i+1)%n]]);
+		} else {
+			v1.set(data->worldVertices[face[i]]);
+			v2.set(data->worldVertices[face[(i+1)%n]]);
+		}
+		normal.x += (v1.y - v2.y) * (v1.z + v2.z);
+		normal.y += (v1.z - v2.z) * (v1.x + v2.x);
+		normal.z += (v1.x - v2.x) * (v1.y + v2.y);
+	}
+	//if(modelSpace) getInverseRotTrans().transformVector(&normal);
+	return normal.normalize();
+}
+
+void MyNode::calculateHulls() {
+	//put my mesh into HACD format
+	std::vector< HACD::Vec3<HACD::Real> > points;
+	std::vector< HACD::Vec3<long> > triangles;
+	short i, j, k;
+
+	Vector3 v;
+	std::vector<unsigned short> face, triangle;
+	for(i = 0; i < data->vertices.size(); i++ ) 
+	{
+		v = data->vertices[i];
+		HACD::Vec3<HACD::Real> vertex(v.x, v.y, v.z);
+		points.push_back(vertex);
+	}
+	for(i = 0; i < data->faces.size(); i++)
+	{
+		face = data->faces[i];
+		for(j = 0; j < data->triangles[i].size(); j++) {
+			triangle = data->triangles[i][j];
+			HACD::Vec3<long> tri(face[triangle[0]], face[triangle[1]], face[triangle[2]]);
+			triangles.push_back(tri);
+		}
+	}
+
+	//initialize HACD and run it on my mesh
+	HACD::HACD myHACD;
+	myHACD.SetPoints(&points[0]);
+	myHACD.SetNPoints(points.size());
+	myHACD.SetTriangles(&triangles[0]);
+	myHACD.SetNTriangles(triangles.size());
+	myHACD.SetCompacityWeight(0.1);
+	myHACD.SetVolumeWeight(0.0);
+
+	// HACD parameters
+	// Recommended parameters: 2 100 0 0 0 0
+	size_t nClusters = 2;
+	double concavity = 1;
+	bool invert = false;
+	bool addExtraDistPoints = false;
+	bool addNeighboursDistPoints = false;
+	bool addFacesPoints = false;       
+
+	myHACD.SetNClusters(nClusters);                     // minimum number of clusters
+	myHACD.SetNVerticesPerCH(100);                      // max of 100 vertices per convex-hull
+	myHACD.SetConcavity(concavity);                     // maximum concavity
+	myHACD.SetAddExtraDistPoints(addExtraDistPoints);   
+	myHACD.SetAddNeighboursDistPoints(addNeighboursDistPoints);   
+	myHACD.SetAddFacesPoints(addFacesPoints); 
+
+	myHACD.Compute();
+	nClusters = myHACD.GetNClusters();
+	
+	//store the resulting hulls back into my data
+	data->hulls.resize(nClusters);
+	for(i = 0; i < nClusters; i++)
+	{
+		size_t nPoints = myHACD.GetNPointsCH(i), nTriangles = myHACD.GetNTrianglesCH(i);
+		HACD::Vec3<HACD::Real> * pointsCH = new HACD::Vec3<HACD::Real>[nPoints];
+		HACD::Vec3<long> * trianglesCH = new HACD::Vec3<long>[nTriangles];
+		myHACD.GetCH(i, pointsCH, trianglesCH);
+
+		data->hulls[i].resize(nPoints);
+		for(j = 0; j < nPoints; j++) data->hulls[i][j].set(pointsCH[j].X(), pointsCH[j].Y(), pointsCH[j].Z());
+
+		delete [] pointsCH;
+		delete [] trianglesCH;
+	}
+}
+
+Vector3 MyNode::getScaleVertex(short v) {
+	Vector3 ret = data->vertices[v];
+	ret.x *= data->scale.x;
+	ret.y *= data->scale.y;
+	ret.z *= data->scale.z;
+	return ret;
+}
+
+Vector3 MyNode::getScaleNormal(short f) {
+	Vector3 ret = data->normals[f];
+	ret.x /= data->scale.x;
+	ret.y /= data->scale.y;
+	ret.z /= data->scale.z;
+	return ret.normalize();
 }
 
 char* MyNode::concat(int n, ...)
@@ -731,11 +832,20 @@ char* MyNode::concat(int n, ...)
 
 /*********** OVERRIDES ***********/
 
+void MyNode::set(Matrix& trans) {
+	Vector3 translation, scale;
+	Quaternion rotation;
+	trans.decompose(&scale, &rotation, &translation);
+	setScale(scale);
+	setRotation(rotation);
+	setTranslation(translation);
+}
+
 void MyNode::myTranslate(const Vector3& delta) {
 	for(MyNode *child = dynamic_cast<MyNode*>(getFirstChild()); child; child = dynamic_cast<MyNode*>(child->getNextSibling())) {
 		child->myTranslate(delta);
 	}
-	cout << "moving " << getId() << " by " << app->pv(delta) << endl;
+	//cout << "moving " << getId() << " by " << app->pv(delta) << endl;
 	if(getParent() == NULL || !isStatic()) translate(delta);
 }
 

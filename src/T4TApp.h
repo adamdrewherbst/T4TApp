@@ -17,10 +17,62 @@ class T4TApp: public Game, Control::Listener, PhysicsCollisionObject::CollisionL
 {
 public:
 
-    T4TApp();
+	//scene setup
+    Scene* _scene;
+    Node* _lightNode;
+    Light* _light;
     
-    T4TApp* getInstance();
+    //T4T objects for modeling
+    Scene *_models;
+    std::vector<std::string> _modelNames;
+    PhysicsVehicle *_carVehicle;
+    float _steering, _braking, _driving;
+    
+    //for placing objects
+    Node *_intersectModel;
+    std::vector<MyNode*> _intersectNodeGroup;
+    BoundingBox _intersectBox;
+    Vector3 _intersectPoint;
+    Plane _groundPlane;
+    
+    //each constraint in the simulation will have an integer ID for lookup
+    std::map<int, PhysicsConstraint*> _constraints;
+    int _constraintCount;
+    
+    //current state
+    short _activeMode;
+    short _navMode; //-1 = inactive, 0 = rotate, 1 = translate, 2 = zoom - overrides currently active mode when active
+    bool _drawDebug;
+    int _running;
+    Scene *_activeScene;
+    //history
+    struct cameraState {
+    	MyNode *node;
+    	float radius, theta, phi;
+    	Vector3 target;
+    };
+    cameraState *_cameraState;
+    std::vector<cameraState*> _cameraHistory;
 
+    //user interface
+    Form *_mainMenu;
+    Container *_sideMenu, *_stage, *_sceneMenu, *_componentMenu, *_machineMenu, *_modePanel,
+      *_textDialog, *_confirmDialog, *_overlay, *_cameraMenu;
+    Label *_textPrompt, *_confirmMessage;
+    TextBox *_textName;
+    Button *_textSubmit, *_textCancel, *_confirmYes, *_confirmNo;
+    std::vector<Container*> _submenus; //submenus
+    CheckBox *_drawDebugCheckbox;
+    std::vector<std::string> _modeNames, _machineNames;
+    Theme *_theme;
+    Theme::Style *_formStyle, *_buttonStyle, *_titleStyle, *_hiddenStyle;
+    Font *_font;
+    //callbacks
+    void (T4TApp::*_textCallback)(const char*), (T4TApp::*_confirmCallback)(bool);
+
+
+    T4TApp();
+    T4TApp* getInstance();
 	void generateModels();
 	void generateModel(const char *type, ...);
 	
@@ -34,7 +86,8 @@ public:
     //misc functions
     const std::string pv(const Vector3& v);
     const std::string pv2(const Vector2& v);
-    const std::string printQuat(Quaternion& q);
+    const std::string pq(const Quaternion& q);
+    const std::string pcam(cameraState *state);
 
     void initScene();
     void setSceneName(const char *name);
@@ -55,10 +108,15 @@ public:
 
     Camera* getCamera();
     Node* getCameraNode();
+    void placeCamera();
     void setCameraEye(float radius, float theta, float phi);
     void setCameraZoom(float radius);
     void setCameraTarget(Vector3 target);
+    void setCameraNode(MyNode *node);
     void resetCamera();
+    void cameraPush();
+    void cameraPop();
+    cameraState* copyCameraState(cameraState *state, cameraState *dst = NULL);
 
     void addConstraints(MyNode *node);
     void removeConstraints(MyNode *node);
@@ -85,6 +143,7 @@ public:
     bool drawScene(Node* node);
     void placeNode(MyNode *node, float x, float y);
     void setMode(short mode);
+    void setNavMode(short mode);
 
     //see if the current touch coordinates intersect a given model in the scene
     bool checkTouchModel(Node* node);
@@ -102,62 +161,18 @@ public:
     void doConfirm(const char *message, void (T4TApp::*callback)(bool));
     void showDialog(Container *dialog, bool show = true);
     void confirmDelete(bool yes);
-
-	//scene setup
-    Scene* _scene;
-    Node* _lightNode;
-    Light* _light;
-    
-    //T4T objects for modeling
-    Scene *_models;
-    std::vector<std::string> _modelNames;
-    PhysicsVehicle *_carVehicle;
-    float _steering, _braking, _driving;
-    
-    //for placing objects
-    Node *_intersectModel;
-    std::vector<MyNode*> _intersectNodeGroup;
-    BoundingBox _intersectBox;
-    Vector3 _intersectPoint;
-    Plane _groundPlane;
-    
-    //each constraint in the simulation will have an integer ID for lookup
-    std::map<int, PhysicsConstraint*> _constraints;
-    int _constraintCount;
-    
-    //current state
-    short _activeMode;
-    bool _drawDebug;
-    int _running;
-    Scene *_activeScene;
-    Vector3 _cameraCenter;
-
-    //user interface
-    Form *_mainMenu;
-    Container *_sideMenu, *_stage, *_sceneMenu, *_componentMenu, *_machineMenu, *_modePanel,
-      *_textDialog, *_confirmDialog, *_overlay;
-    Label *_textPrompt, *_confirmMessage;
-    TextBox *_textName;
-    Button *_textSubmit, *_textCancel, *_confirmYes, *_confirmNo;
-    std::vector<Container*> _submenus; //submenus
-    CheckBox *_drawDebugCheckbox;
-    std::vector<std::string> _modeNames, _machineNames;
-    Theme *_theme;
-    Theme::Style *_formStyle, *_buttonStyle, *_titleStyle, *_hiddenStyle;
-    Font *_font;
-    //callbacks
-    void (T4TApp::*_textCallback)(const char*), (T4TApp::*_confirmCallback)(bool);
 	
+
 	class Mode : public Button, public Control::Listener
 	{
 public:
 		T4TApp *app;
 		Scene *_scene;
+		Camera *_camera;
 		
 		std::vector<std::string> _subModes;
-		short _subMode, _cameraMode;
+		short _subMode;
 		Container *_container, *_controls, *_subModePanel;
-		Button *_cameraModeButton;
 		bool _active, _touching, _doSelect;
 
 		int _x, _y; //mouse position wrt upper left of entire window, not just my button		
@@ -167,8 +182,8 @@ public:
 		Plane _plane;
 		Ray _ray;
 		//Base members remember the value from the time of the last TOUCH_PRESS event
-		Camera *_camera, *_cameraBase;
-		Vector3 _cameraCenterBase;
+		Camera *_cameraBase;
+		T4TApp::cameraState *_cameraStateBase;
 		Rectangle _viewportBase;
 		
 		Mode(const char* id);
@@ -176,9 +191,9 @@ public:
 		virtual bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		virtual void controlEvent(Control *control, EventType evt);
 		virtual void setActive(bool active);
-		virtual void setSubMode(short mode);
-		virtual void setCameraMode(short mode);
-		virtual void setSelectedNode(MyNode *node, Vector3 point = Vector3::zero());
+		virtual bool setSubMode(short mode);
+		virtual bool setSelectedNode(MyNode *node, Vector3 point = Vector3::zero());
+		virtual bool isSelecting();
 		virtual void placeCamera();
 		virtual void draw();
 	};
@@ -188,12 +203,12 @@ public:
 	{
 public:
 		NavigateMode();
+		void setActive(bool active);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
-		void setSubMode(short mode);
 	};
 	
-	//generic mode for altering a model using a tool such as a knife or drill
+	//for altering a model using a tool such as a knife or drill
 	class ToolMode : public Mode
 	{
 public:
@@ -206,28 +221,32 @@ public:
 		};
 		std::vector<std::vector<Tool*> > _tools; //my toolbox - each inner vector holds all bits for a single tool type
 		short _currentTool;
-		MyNode *_tool; //to display the tool to the user
-		Container *_bitMenu;
+		//to display the tool to the user
+		MyNode *_tool;
+		//tool translation in xy-plane and rotation about z-axis in its local frame
+		Vector2 _toolTrans;
+		float _toolRot;
+		
+		Container *_moveMenu, *_bitMenu;
+		short _moveMode;
 
 		MyNode *_newNode; //a model to hold the modified node data
 		MyNode::nodeData *data, *newData;
-		Plane _viewPlane;
-		Vector3 _touchStart, _touchPoint, _viewPlaneOrigin;
-		Quaternion _toolBaseRotation;
 		
 		short usageCount;
 
 		ToolMode();
 		void createBit(short type, ...);
 		void setActive(bool active);
-		void setSelectedNode(MyNode *node);
-		void setSubMode(short mode);
+		bool setSelectedNode(MyNode *node, Vector3 point = Vector3::zero());
+		bool setSubMode(short mode);
+		void setMoveMode(short mode);
 		void setTool(short n);
 		Tool *getTool();
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
-		void setAxis(int axis);
-		void setView();
+		void placeCamera();
+		void placeTool();
 		bool toolNode();
 		
 		//for sawing
@@ -258,10 +277,10 @@ public:
 
 		PositionMode();
 		void setActive(bool active);
-		void setSubMode(short mode);
+		bool setSubMode(short mode);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);
-		void setSelectedNode(MyNode *node, Vector3 point);
+		bool setSelectedNode(MyNode *node, Vector3 point);
 		void setAxis(short axis);
 		void setPosition(float value, bool finalize = false);
 		void updateSlider();
@@ -277,7 +296,7 @@ public:
 		
 		ConstraintMode();
 		void setActive(bool active);
-		void setSubMode(short mode);
+		bool setSubMode(short mode);
 		
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void controlEvent(Control *control, Control::Listener::EventType evt);

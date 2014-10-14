@@ -21,9 +21,10 @@ void T4TApp::ConstraintMode::setActive(bool active) {
 	_currentNode = 0;
 }
 
-void T4TApp::ConstraintMode::setSubMode(short mode) {
-	Mode::setSubMode(mode);
+bool T4TApp::ConstraintMode::setSubMode(short mode) {
+	bool changed = Mode::setSubMode(mode);
 	_currentNode = 0;
+	return changed;
 }
 
 bool T4TApp::ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
@@ -50,14 +51,10 @@ bool T4TApp::ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 				for(i = 0; i < 2; i++) {
 					_nodes[i]->updateData();
 					MyNode::nodeData *data = _nodes[i]->getData();
-					_rot[i] = MyNode::getVectorRotation(Vector3(0, 0, 1), data->normals[_faces[i]]);
+					normal = _nodes[i]->getScaleNormal(_faces[i]);
+					_rot[i] = MyNode::getVectorRotation(Vector3(0, 0, 1), normal);
 					_trans[i] = _nodes[i]->faceCenter(_faces[i], true);
-					data->normals[_faces[i]].normalize(&normal);
-					normal.x /= data->scale.x;
-					normal.y /= data->scale.y;
-					normal.z /= data->scale.z;
-					_trans[i] += normal * 0.01f;
-					PhysicsRigidBody *body = _nodes[i]->getCollisionObject()->asRigidBody();
+					_trans[i] += normal * 0.01f; //create a bit of separation
 				}
 				PhysicsConstraint *constraint;
 				constraint = app->addConstraint(_nodes[0], _nodes[1], -1, _constraintTypes[_subMode].c_str(),

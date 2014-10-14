@@ -9,10 +9,10 @@ T4TApp::PositionMode::PositionMode()
 	_gridCheckbox = (CheckBox*) _controls->getControl("snap");
 	_gridSlider = (Slider*) _controls->getControl("spacing");
 	
-	_subModes.push_back(std::string("translate"));
-	_subModes.push_back(std::string("rotate"));
-	_subModes.push_back(std::string("groundFace"));
-	//_subModes.push_back(std::string("scale"));
+	_subModes.push_back("translate");
+	_subModes.push_back("rotate");
+	_subModes.push_back("groundFace");
+	//_subModes.push_back("scale");
 	
 	_axisNames.push_back("X");
 	_axisNames.push_back("Y");
@@ -111,8 +111,8 @@ void T4TApp::PositionMode::controlEvent(Control *control, Control::Listener::Eve
 	}
 }
 
-void T4TApp::PositionMode::setSelectedNode(MyNode *node, Vector3 point) {
-	Mode::setSelectedNode(node, point);
+bool T4TApp::PositionMode::setSelectedNode(MyNode *node, Vector3 point) {
+	bool changed = Mode::setSelectedNode(node, point);
 	if(_selectedNode != NULL) {
 		//move the root of this node tree, or the nearest parent-child constraint joint, whichever is closer
 		MyNode *parent;
@@ -156,6 +156,7 @@ void T4TApp::PositionMode::setSelectedNode(MyNode *node, Vector3 point) {
 	updateSlider();
 	_staticCheckbox->setEnabled(_selectedNode != NULL);
 	_staticCheckbox->setChecked(_selectedNode != NULL && _selectedNode->isStatic());
+	return changed;
 }
 
 void T4TApp::PositionMode::updateSlider() {
@@ -220,8 +221,8 @@ void T4TApp::PositionMode::setPosition(float value, bool finalize) {
 	}
 }
 
-void T4TApp::PositionMode::setSubMode(short mode) {
-	Mode::setSubMode(mode);
+bool T4TApp::PositionMode::setSubMode(short mode) {
+	bool changed = Mode::setSubMode(mode);
 	if(_subMode == 0 && _axis == 3) setAxis(0);
 	_axisButton->setEnabled(_subMode == 0 || _subMode == 2);
 	Vector4 limits = Vector4::zero();
@@ -244,6 +245,7 @@ void T4TApp::PositionMode::setSubMode(short mode) {
 		_valueSlider->setStep(limits.z);
 		_valueSlider->setValue(limits.w);
 	}
+	return changed;
 }
 
 void T4TApp::PositionMode::setAxis(short axis) {

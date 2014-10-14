@@ -99,6 +99,8 @@ include_directories(
     ${GAMEPLAY_SRC_PATH}/external-deps/openal/include
 	${GAMEPLAY_SRC_PATH}/external-deps/openal/include/AL
     ${GAMEPLAY_SRC_PATH}/external-deps/glew/include
+    #Adam added
+    ${GAMEPLAY_SRC_PATH}/external-deps/HACD/include
 )
 
 append_gameplay_lib(GAMEPLAY_LIBRARIES)
@@ -112,6 +114,8 @@ append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "openal" "openal" "openal32")
 append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "vorbis" "oggvorbis" "libvorbis")
 append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "ogg" "oggvorbis" "libogg")
 append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "z" "zlib" "zlib")
+#Adam added
+append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "HACD" "HACD")
 
 IF (TARGET_OS STREQUAL "LINUX")
 	append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "GL" "")
@@ -131,10 +135,11 @@ source_group(res FILES ${GAME_RES} ${GAMEPLAY_RES} ${GAME_RES_SHADERS} ${GAME_RE
 source_group(src FILES ${GAME_SRC})
 
 set(GAME_SRC
-	src/T4TApp.cpp
 	src/T4TApp.h
-	src/MyNode.cpp
+	src/T4TApp.cpp
+	src/Models.cpp
 	src/MyNode.h
+	src/MyNode.cpp
 	src/Grid.cpp
 	src/Grid.h
 	src/ProjectComponent.cpp

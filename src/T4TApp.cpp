@@ -35,6 +35,8 @@ void T4TApp::initialize()
     
     initScene();
     
+    cout << "cam at: " << pcam(_cameraState) << endl;
+    
 	getPhysicsController()->setGravity(Vector3(0.0f, -10.0f, 0.0f));
 
 	_steering = _braking = _driving = 0.0f;
@@ -55,10 +57,11 @@ void T4TApp::initialize()
 	_sceneMenu = (Container*)_mainMenu->getControl("submenu_sceneMenu");
 	_componentMenu = (Container*)_mainMenu->getControl("submenu_componentMenu");
     _componentMenu->setPosition(_sideMenu->getX() + _sideMenu->getWidth() + 25.0f, 25.0f);
-    _componentMenu->setWidth(getWidth() - _componentMenu->getX() - 25.0f);
-    _componentMenu->setHeight(getHeight() - 50.0f);
+    _componentMenu->setWidth(getWidth() - 2 * _componentMenu->getX());
+    _componentMenu->setHeight(getHeight() - 2 * _componentMenu->getY());
 	_machineMenu = (Container*)_mainMenu->getControl("submenu_machineMenu");
 	_modePanel = (Container*)_sideMenu->getControl("modePanel");
+	_cameraMenu = (Container*)_stage->getControl("camera");
 	
 	//dialogs
 	_textDialog = (Container*)_mainMenu->getControl("textDialog");
@@ -95,13 +98,13 @@ void T4TApp::initialize()
 	_models->addNode(new MyNode("halfpipe"));
 	_models->addNode(new MyNode("box"));
 	_models->addNode(new MyNode("gear_basic"));
-	_models->addNode(new MyNode("gear"));
+/*	_models->addNode(new MyNode("gear"));
 	_models->addNode(new MyNode("tube"));
 	_models->addNode(new MyNode("vase"));
 	_models->addNode(new MyNode("disc"));
 	_models->addNode(new MyNode("cone"));
 	_models->addNode(new MyNode("heart"));
-	_models->addNode(new MyNode("gear_thin"));
+	_models->addNode(new MyNode("gear_thin"));//*/
 
     MyNode *modelNode = dynamic_cast<MyNode*>(_models->getFirstNode());
     while(modelNode) {
@@ -204,6 +207,10 @@ void T4TApp::setMode(short mode) {
 	if(_activeMode >= 0) _modes[_activeMode]->setActive(true);
 }
 
+void T4TApp::setNavMode(short mode) {
+	_navMode = mode;
+}
+
 void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 {
 	const char *id = control->getId();
@@ -266,6 +273,20 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	}
 
 	//misc submenu funcionality
+	else if(_cameraMenu->getControl(id) == control) {
+		if(strcmp(id, "eye") == 0) {
+			if(_navMode >= 0) setNavMode(-1);
+			else setNavMode(0);
+		} else if(strcmp(id, "rotate") == 0) {
+			setNavMode(0);
+		} else if(strcmp(id, "translate") == 0) {
+			setNavMode(1);
+		} else if(strcmp(id, "zoom") == 0) {
+			setNavMode(2);
+		} else if(strcmp(id, "reset") == 0) {
+			resetCamera();
+		}
+	}
 	else if(_modePanel->getControl(id) == control || _machineMenu->getControl(id) == control) {
 		//simple machines and interactive modes are functionally equivalent, just in different submenus
 		for(short i = 0; i < _modes.size(); i++) {
@@ -297,116 +318,6 @@ void T4TApp::keyEvent(Keyboard::KeyEvent evt, int key) {}
 void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {}
 bool T4TApp::mouseEvent(Mouse::MouseEvent evt, int x, int y, int wheelDelta) {}
 
-void T4TApp::generateModels() {
-	generateModel("gear_basic", 0.6f, 0.9f, 1.2f, 5);
-}
-
-void T4TApp::generateModel(const char *type, ...) {
-	va_list arguments;
-	va_start(arguments, type);
-	MyNode *node = MyNode::create(type);
-	MyNode::nodeData *data = node->getData();
-	data->type = type;
-	data->objType = "mesh";
-	data->mass = 10.0f;
-	short nv, nf, ne, i, j, k, m, n;
-	Vector3 vertex;
-	std::vector<unsigned short> face, hull;
-	std::vector<std::vector<unsigned short> > triangles;
-	if(strcmp(type, "gear_basic") == 0) {
-		float innerRadius = (float)va_arg(arguments, double);
-		float outerRadius = (float)va_arg(arguments, double);
-		float width = (float)va_arg(arguments, double);
-		int teeth = va_arg(arguments, int);
-		nv = teeth * 8;
-		float angle, dAngle = 2*M_PI / teeth, gearWidth = innerRadius * sin(dAngle/2);
-		Matrix rot;
-		//vertices
-		for(n = 0; n < teeth; n++) {
-			angle = n * dAngle;
-			Matrix::createRotation(Vector3(0, 0, 1), -angle, &rot);
-			for(i = 0; i < 2; i++) {
-				for(j = 0; j < 2; j++) {
-					for(k = 0; k < 2; k++) {
-						vertex.set(0, innerRadius, -width/2);
-						if(i == 1) vertex.z += width;
-						if(j == 1) vertex.y = outerRadius;
-						if(k == 1) vertex.x += gearWidth;
-						rot.transformPoint(&vertex);
-						data->vertices.push_back(vertex);
-						data->worldVertices.push_back(vertex);
-					}
-				}
-			}
-		}
-		//faces
-		for(i = 0; i < 2; i++) {
-			face.clear();
-			triangles.clear();
-			for(j = 0; j < teeth; j++) {
-				face.push_back(8 * j + 4*i);
-				face.push_back(8 * j + 1 + 4*i);
-			}
-			node->addFace(face, triangles, i == 1);
-		}
-		for(n = 0; n < teeth; n++) {
-			for(i = 0; i < 2; i++) {
-				//tooth sides
-				face.clear();
-				triangles.clear();
-				face.push_back(0);
-				face.push_back(1);
-				face.push_back(3);
-				face.push_back(2);
-				for(j = 0; j < 4; j++) face[j] += n*8 + i*4;
-				node->addFace(face, triangles, i == 0);
-				//tooth front/back
-				face.clear();
-				triangles.clear();
-				face.push_back(0);
-				face.push_back(2);
-				face.push_back(6);
-				face.push_back(4);
-				for(j = 0; j < 4; j++) face[j] += n*8 + i;
-				node->addFace(face, triangles, i == 0);
-			}
-			//tooth top
-			face.clear();
-			triangles.clear();
-			face.push_back(2);
-			face.push_back(6);
-			face.push_back(7);
-			face.push_back(3);
-			for(j = 0; j < 4; j++) face[j] += n*8;
-			node->addFace(face, triangles);
-			//tooth connector
-			face.clear();
-			triangles.clear();
-			face.push_back(1);
-			face.push_back(5);
-			face.push_back(12);
-			face.push_back(8);
-			for(j = 0; j < 4; j++) face[j] = (face[j] + n*8) % nv;
-			node->addFace(face, triangles);
-		}
-		//convex hulls
-		hull.resize(8);
-		for(n = 0; n < teeth; n++) {
-			for(i = 0; i < 8; i++) hull[i] = i + n*8;
-			data->hulls.push_back(hull);
-		}
-		hull.clear();
-		for(n = 0; n < teeth; n++) {
-			hull.push_back(0 + n*8);
-			hull.push_back(1 + n*8);
-			hull.push_back(4 + n*8);
-			hull.push_back(5 + n*8);
-		}
-		data->hulls.push_back(hull);
-	}
-	node->writeData("res/common/");
-}
-
 void T4TApp::initScene()
 {
     // Generate game scene
@@ -418,6 +329,7 @@ void T4TApp::initScene()
     
     // Set the aspect ratio for the scene's camera to match the current resolution
     _scene->getActiveCamera()->setAspectRatio(getAspectRatio());
+    _cameraState = new cameraState();
     resetCamera();
     
     // Get light node
@@ -819,35 +731,91 @@ Node* T4TApp::getCameraNode() {
 	return getCamera()->getNode();
 }
 
-void T4TApp::setCameraEye(float radius, float theta, float phi) {
+void T4TApp::placeCamera() {
+	float radius = _cameraState->radius, theta = _cameraState->theta, phi = _cameraState->phi;
+	cout << "setting camera: " << radius << "," << theta << "," << phi << endl;
 	Vector3 eye(radius * cos(theta) * cos(phi), radius * sin(phi), radius * sin(theta) * cos(phi));
-	eye += _cameraCenter;
+	eye += _cameraState->target;
 	Vector3 up(-cos(theta) * sin(phi), cos(phi), -sin(theta) * sin(phi));
 	Matrix cam;
-	Matrix::createLookAt(eye, _cameraCenter, up, &cam);
+	Matrix::createLookAt(eye, _cameraState->target, up, &cam);
 	cam.invert();
+	cout << "looking from " << pv(eye) << " to " << pv(_cameraState->target) << ", up = " << pv(up) << endl;
+	if(_cameraState->node != NULL) {
+		Matrix node = _cameraState->node->getRotTrans(), camCopy = cam;
+		Matrix::multiply(node, camCopy, &cam);
+	}
 	Vector3 scale, translation; Quaternion rotation;
 	cam.decompose(&scale, &rotation, &translation);
+	cout << "placing camera: " << pq(rotation) << endl;
 	getCameraNode()->set(scale, rotation, translation);
+	cout << "camera placed: " << pq(getCameraNode()->getRotation()) << endl;
+}
+
+void T4TApp::setCameraEye(float radius, float theta, float phi) {
+	cout << "setting eye: " << radius << "," << theta << "," << phi << endl;
+	_cameraState->radius = radius;
+	_cameraState->theta = theta;
+	_cameraState->phi = phi;
+	placeCamera();
 }
 
 void T4TApp::setCameraZoom(float radius) {
-	Node *cam = getCameraNode();
-	Vector3 eye(cam->getTranslationWorld() - _cameraCenter);
-	eye = radius * eye.normalize();
-	cam->setTranslation(_cameraCenter + eye);
+	_cameraState->radius = radius;
+	placeCamera();
 }
 
 void T4TApp::setCameraTarget(Vector3 target) {
-	Node *cam = getCameraNode();
-	Vector3 eye(cam->getTranslationWorld() - _cameraCenter);
-	_cameraCenter = target;
-	cam->setTranslation(_cameraCenter + eye);
+	_cameraState->target = target;
+	placeCamera();
+}
+
+void T4TApp::setCameraNode(MyNode *node) {
+	_cameraState->node = node;
+	_cameraMenu->getControl("translate")->setEnabled(node == NULL);
+	if(node != NULL) {
+		cameraPush();
+		resetCamera();
+		if(_navMode == 1) setNavMode(0);
+	} else {
+		cameraPop();
+	}
 }
 
 void T4TApp::resetCamera() {
-	_cameraCenter.set(0, 0, 0);
-	setCameraEye(30, M_PI/2, M_PI/12);
+	_cameraState->target.set(0, 0, 0);
+	if(_cameraState->node == NULL) {
+		_cameraState->radius = 30;
+		_cameraState->theta = M_PI / 2;
+		_cameraState->phi = M_PI / 12;
+	} else {
+		_cameraState->radius = 20;
+		_cameraState->theta = -M_PI/2;
+		_cameraState->phi = 0;
+	}
+	placeCamera();
+}
+
+T4TApp::cameraState* T4TApp::copyCameraState(T4TApp::cameraState *state, T4TApp::cameraState *dst) {
+	if(dst == NULL) dst = new cameraState();
+	dst->node = state->node;
+	dst->radius = state->radius;
+	dst->theta = state->theta;
+	dst->phi = state->phi;
+	dst->target = state->target;
+	return dst;
+}
+
+void T4TApp::cameraPush() {
+	cameraState *state = copyCameraState(_cameraState);
+	_cameraHistory.push_back(state);
+}
+
+void T4TApp::cameraPop() {
+	cameraState *state = _cameraHistory.back();
+	copyCameraState(state, _cameraState);
+	_cameraHistory.pop_back();
+	placeCamera();
 }
 
 const std::string T4TApp::pv(const Vector3& v) {
@@ -862,11 +830,18 @@ const std::string T4TApp::pv2(const Vector2& v) {
 	return os.str();
 }
 
-const std::string T4TApp::printQuat(Quaternion& q) {
+const std::string T4TApp::pq(const Quaternion& q) {
 	std::ostringstream os;
 	Vector3 axis;
 	float ang = q.toAxisAngle(&axis);
-	os << (int)(ang*180/M_PI) << " degrees about " << "<" << axis.x << "," << axis.y << "," << axis.z << ">";
+	os << "<" << axis.x << "," << axis.y << "," << axis.z << " ; " << (int)(ang*180/M_PI) << ">";
+	return os.str();
+}
+
+const std::string T4TApp::pcam(T4TApp::cameraState *state) {
+	std::ostringstream os;
+	os << state->radius << "," << state->theta << "," << state->phi << " => " << pv(state->target);
+	if(state->node != NULL) os << " [node " << state->node->getId() << "]";
 	return os.str();
 }
 

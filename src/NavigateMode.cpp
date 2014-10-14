@@ -3,14 +3,18 @@
 T4TApp::NavigateMode::NavigateMode() 
   : T4TApp::Mode::Mode("navigate") {
 	_doSelect = false;
-	_subModes.push_back("Rotating");
-	_subModes.push_back("Translating");
-	_subModes.push_back("Zooming");
 }
 
-void T4TApp::NavigateMode::setSubMode(short mode) {
-	Mode::setSubMode(mode);
-	setCameraMode(_subMode);
+void T4TApp::NavigateMode::setActive(bool active) {
+	Mode::setActive(active);
+	if(active) {
+		app->setNavMode(0);
+		app->_cameraMenu->setPosition(20, 10);
+	} else {
+		app->_cameraMenu->setPosition(900, 10);
+	}
+	//don't let the user turn off navigation in this mode
+	app->_cameraMenu->getControl("eye")->setEnabled(!active);
 }
 
 bool T4TApp::NavigateMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
@@ -21,8 +25,4 @@ bool T4TApp::NavigateMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsig
 void T4TApp::NavigateMode::controlEvent(Control *control, Control::Listener::EventType evt)
 {
 	Mode::controlEvent(control, evt);
-	const char *id = control->getId();
-	if(strcmp(id, "reset") == 0) {
-		app->resetCamera();
-	}
 }

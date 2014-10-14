@@ -51,7 +51,7 @@ public:
 		std::string objType; //mesh, box, sphere, capsule
 		float mass;
 		bool staticObj;
-		std::vector<std::vector<unsigned short> > hulls; //vertex indices of convex hulls
+		std::vector<std::vector<Vector3> > hulls; //vertex indices of convex hulls
 		std::vector<nodeConstraint*> constraints;
 	};
 	nodeData *data;
@@ -65,11 +65,15 @@ public:
 	void updateData();
 	void updateModelFromData(bool addPhysics = true);
 	void setNormals();
+	void calculateHulls();
 
 	Matrix getRotTrans();
 	Matrix getInverseRotTrans();
 	Matrix getInverseWorldMatrix();
+	Vector3 getScaleVertex(short v);
+	Vector3 getScaleNormal(short f);
 	BoundingBox getWorldBox();
+	void set(Matrix& trans);
 	void myTranslate(const Vector3& delta);
 	void setMyTranslation(const Vector3& translation);
 	void myRotate(const Quaternion& delta);
@@ -83,9 +87,11 @@ public:
 	void rotateFaceToPlane(unsigned short f, Plane p);
 	void rotateFaceToFace(unsigned short f, MyNode *other, unsigned short g);
 
+	void addVertex(float x, float y, float z);
 	void addEdge(unsigned short e1, unsigned short e2);
 	void updateEdges();
 	void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles, bool reverse = false);
+	void addFace(short n, ...);
 	void addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 	Vector3 getNormal(std::vector<unsigned short>& face, bool modelSpace = false);
 	void triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);

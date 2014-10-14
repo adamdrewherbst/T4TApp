@@ -85,65 +85,72 @@ form mainMenu {
 		autoHeight = true
 		alignment = ALIGN_TOP
 		layout = LAYOUT_ABSOLUTE
+		
+		container camera {
+			style = basicContainer
+			position = 900, 10
+			size = 150, 350
+			layout = LAYOUT_VERTICAL
+			consumeInputEvents = true
+			zIndex = 10
 
+			image eye {
+				style = buttonStyle
+				autoWidth = true
+				height = 60
+				path = res/png/eye.png
+			}			
+			container subMode {
+				style = basicContainer
+				autoWidth = true
+				height = 100
+				layout = LAYOUT_FLOW
+				
+				image rotate {
+					style = buttonStyle
+					size = 40, 40
+					path = res/png/rotate.png
+				}
+				image translate {
+					style = buttonStyle
+					size = 40, 40
+					path = res/png/translate.png
+				}
+				image zoom {
+					style = buttonStyle
+					size = 40, 40
+					path = res/png/zoom.png
+				}
+			}
+			button reset {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = Reset
+			}
+			button axis {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = X
+			}
+			slider axisValue {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				orientation = HORIZONTAL
+				text = Value
+				valueTextVisible = true
+				valueTextPrecision = 1
+				enabled = false
+			}
+		}
+		
 		container mode_navigate {
 			style = hiddenContainer
 			autoWidth = true
 			autoHeight = true
 			layout = LAYOUT_ABSOLUTE
-			
-			container controls {
-				style = basicContainer
-				position = 20, 10
-				size = 120, 350
-				layout = LAYOUT_VERTICAL
-				consumeInputEvents = true
-				zIndex = 5
-				
-				container subMode {
-					style = basicContainer
-					size = 100, 100
-					layout = LAYOUT_FLOW
-					
-					image translate {
-						style = buttonStyle
-						size = 40, 40
-						path = res/png/translate.png
-					}
-					image rotate {
-						style = buttonStyle
-						size = 40, 40
-						path = res/png/rotate.png
-					}
-					image zoom {
-						style = buttonStyle
-						size = 40, 40
-						path = res/png/zoom.png
-					}
-				}
-				button reset {
-					style = buttonStyle
-					width = 100
-					height = 50
-					text = Reset
-				}
-				button axis {
-					style = buttonStyle
-					width = 100
-					height = 50
-					text = X
-				}
-				slider axisValue {
-					style = buttonStyle
-					width = 100
-					height = 50
-					orientation = HORIZONTAL
-					text = Value
-					valueTextVisible = true
-					valueTextPrecision = 1
-					enabled = false
-				}
-			}
 		}
 		
 		container mode_position {
@@ -286,35 +293,60 @@ form mainMenu {
 			container controls {
 				style = basicContainer
 				position = 20, 10
-				size = 120, 240
+				size = 160, 370
 				layout = LAYOUT_VERTICAL
 				consumeInputEvents = true
 				zIndex = 5
 				
 				container subMode {
 					style = basicContainer
-					width = 100
-					height = 50
+					autoWidth = true
+					height = 150
 					layout = LAYOUT_FLOW
 					
 					image saw {
 						style = buttonStyle
-						width = 40
-						height = 40
+						width = 80
+						height = 60
 						path = res/png/saw.png
+						alignment = ALIGN_HCENTER
 					}
 					image drill {
 						style = buttonStyle
-						width = 40
-						height = 40
+						width = 80
+						height = 60
 						path = res/png/drill.png
+						alignment = ALIGN_HCENTER
+					}
+				}
+				container moveMenu {
+					style = basicContainer
+					autoWidth = true
+					height = 80
+					layout = LAYOUT_FLOW
+					
+					image rotate {
+						style = buttonStyle
+						size = 50, 50
+						path = res/png/rotate.png
+					}
+					image translate {
+						style = buttonStyle
+						size = 50, 50
+						path = res/png/rotate.png
 					}
 				}
 				button doTool {
 					style = buttonStyle
-					width = 100
+					autoWidth = true
 					height = 50
 					text = Go!
+				}
+				button cancel {
+					style = buttonStyle
+					autoWidth = true
+					height = 50
+					text = Cancel
 				}
 			}
 			
@@ -324,6 +356,7 @@ form mainMenu {
 				scroll = SCROLL_VERTICAL
 				zIndex = 10
 				consumeInputEvents = true
+				layout = LAYOUT_FLOW
 			}
 		}
 

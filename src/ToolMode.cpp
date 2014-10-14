@@ -2,13 +2,18 @@
 
 T4TApp::ToolMode::ToolMode() 
   : T4TApp::Mode::Mode("tool") {
+
+	_tool = MyNode::create("tool_tool");
 	_newNode = MyNode::create("newNode_tool");
 	newData = _newNode->getData();
+	
+	_moveMenu = (Container*)_controls->getControl("moveMenu");
+	setMoveMode(-1);
 
 	//when drilling, have the user start by selecting a bit - shape and size
 	_bitMenu = (Container*)_container->getControl("bitMenu");
-	_bitMenu->setWidth(_container->getWidth() - _bitMenu->getX() - 25.0f);
-	_bitMenu->setHeight(_container->getHeight() - 50.0f);
+	_bitMenu->setWidth(app->_componentMenu->getWidth());
+	_bitMenu->setHeight(app->_componentMenu->getHeight());
 	_bitMenu->setVisible(false);
 
 	_subModes.push_back("saw");
@@ -40,7 +45,7 @@ void T4TApp::ToolMode::createBit(short type, ...) {
 	_tools[type].push_back(tool);
 	
 	std::vector<float> vertices;
-	short i, j, k, v = 0;
+	short i, j, k, m, v = 0;
 	float color[3] = {1.0f, 1.0f, 1.0f};
 
 	switch(type) {
@@ -48,15 +53,15 @@ void T4TApp::ToolMode::createBit(short type, ...) {
 			float spacing = 0.5f, radius = 3.25f, vec[2];
 			int numLines = (int)(radius/spacing);
 			vertices.resize(4*(2*numLines+1)*6);
-			for(int i = -numLines; i <= numLines; i++) {
-				for(int j = 0; j < 2; j++) {
-					for(int k = 0; k < 2; k++) {
+			for(i = -numLines; i <= numLines; i++) {
+				for(j = 0; j < 2; j++) {
+					for(k = 0; k < 2; k++) {
 						vec[j] = i*spacing;
 						vec[1-j] = (2*k-1) * sqrt(radius*radius - vec[j]*vec[j]);
+						vertices[v++] = 0;
 						vertices[v++] = vec[0];
 						vertices[v++] = vec[1];
-						vertices[v++] = 0;
-						for(int i = 0; i < 3; i++) vertices[v++] = color[i];
+						for(m = 0; m < 3; m++) vertices[v++] = color[m];
 					}
 				}
 			}
@@ -71,20 +76,20 @@ void T4TApp::ToolMode::createBit(short type, ...) {
 			tool->fparam[0] = radius;
 			float length = 5.0f, angle, dAngle = 2*M_PI / segments;
 			vertices.resize(6*segments*6);
-			for(int i = 0; i < segments; i++) {
+			for(i = 0; i < segments; i++) {
 				angle = (2*M_PI * i) / segments;
-				for(int j = 0; j < 2; j++) {
-					vertices[v++] = (2*j-1) * length;
-					vertices[v++] = radius * cos(angle);
+				for(j = 0; j < 2; j++) {
 					vertices[v++] = radius * sin(angle);
-					for(int i = 0; i < 3; i++) vertices[v++] = color[i];
+					vertices[v++] = radius * cos(angle);
+					vertices[v++] = (2*j-1) * length;
+					for(k = 0; k < 3; k++) vertices[v++] = color[k];
 				}
-				for(int j = 0; j < 2; j++) {
-					for(int k = 0; k < 2; k++) {
-						vertices[v++] = (2*j-1) * length;
-						vertices[v++] = radius * cos(angle + k*dAngle);
+				for(j = 0; j < 2; j++) {
+					for(k = 0; k < 2; k++) {
 						vertices[v++] = radius * sin(angle + k*dAngle);
-						for(int i = 0; i < 3; i++) vertices[v++] = color[i];
+						vertices[v++] = radius * cos(angle + k*dAngle);
+						vertices[v++] = (2*j-1) * length;
+						for(m = 0; m < 3; m++) vertices[v++] = color[m];
 					}
 				}
 			}
@@ -110,6 +115,7 @@ void T4TApp::ToolMode::createBit(short type, ...) {
 	mesh->setPrimitiveType(Mesh::LINES);
 	mesh->setVertexData(&vertices[0], 0, v/6);
 	Model *model = Model::create(mesh);
+	model->setMaterial("res/common/grid.material");
 	mesh->release();
 	tool->model = model;
 }
@@ -127,59 +133,56 @@ void T4TApp::ToolMode::setActive(bool active) {
 	Mode::setActive(active);
 }
 
-void T4TApp::ToolMode::setSelectedNode(MyNode *node) {
-	Mode::setSelectedNode(node);
+bool T4TApp::ToolMode::setSelectedNode(MyNode *node, Vector3 point) {
+	bool changed = Mode::setSelectedNode(node, point);
+	if(changed) app->setCameraNode(node);
 	if(node != NULL) {
-		setAxis(0);
+		_toolTrans.set(0, 0);
+		_toolRot = 0;
+		placeTool();
 		_scene->addNode(_tool);
 	} else {
 		_scene->removeNode(_tool);
+		_plane = app->_groundPlane;
+		setMoveMode(-1);
 	}
+	_controls->getControl("doTool")->setEnabled(node != NULL);
+	_controls->getControl("cancel")->setEnabled(node != NULL);
+	return changed;
 }
 
-void T4TApp::ToolMode::setSubMode(short mode) {
-	Mode::setSubMode(mode);
-	setCameraMode(-1);
+bool T4TApp::ToolMode::setSubMode(short mode) {
+	bool changed = Mode::setSubMode(mode);
+	if(changed) setTool(0);
+	return changed;
 }
 
-void T4TApp::ToolMode::setAxis(int axis) {
-	//translate the camera to look at the center of the node
-	//and face along the <axis> direction in its model space
-	float yaw = 0, pitch = 0;
-	Vector3 sliceNormal, viewNormal, translation(_selectedNode->getTranslationWorld());
-	Matrix rotation;
-	_selectedNode->getRotation(&rotation);
-	_tool->setRotation(rotation);
-	switch(axis) {
-		case 0: //x
-			yaw = 0;
-			pitch = 0;
-			break;
-		case 1: //y
-			yaw = 0;
-			pitch = M_PI/2;
-			break;
-		case 2: //z
-			yaw = M_PI/2;
-			pitch = 0;
-			break;
-	}
-	_tool->setTranslation(translation);
-	_toolBaseRotation = _tool->getRotation();
-	app->getScriptController()->executeFunction<void>("camera_rotateTo", "ff", yaw, pitch);
-	setView();
+void T4TApp::ToolMode::setMoveMode(short mode) {
+	if(_selectedNode == NULL) return;
+	_moveMode = mode;
+	_doSelect = _moveMode < 0;
 }
 
-void T4TApp::ToolMode::setView() {
-	//align the tool to the viewing axis
-	Node *camNode = _camera->getNode();
-	Quaternion rot = camNode->getRotation(), offset;
-	Quaternion::createFromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), M_PI/2, &offset);
-	rot.multiply(offset);
-	_tool->setRotation(rot);
-	//make the view plane orthogonal to the viewing axis
-	Vector3 cam(camNode->getTranslationWorld()), camToNode(_selectedNode->getTranslationWorld() - cam);
-	_viewPlane.setNormal(camToNode);
+void T4TApp::ToolMode::placeCamera() {
+	Mode::placeCamera();
+	placeTool();
+}
+
+void T4TApp::ToolMode::placeTool() {
+	if(_selectedNode == NULL) return;
+	//tool is positioned at target node's center but with same orientation as camera
+	Node *cam = _camera->getNode();
+	Vector3 node = _selectedNode->getTranslationWorld();
+	Matrix trans;
+	trans.translate(node);
+	trans.rotate(cam->getRotation());
+	trans.translate(_toolTrans.x, _toolTrans.y, 0);
+	trans.rotate(Vector3(0, 0, 1), _toolRot);
+	_tool->set(trans);
+	
+	//view plane is orthogonal to the viewing axis and passing through the target node
+	_plane.setNormal(node - cam->getTranslationWorld());
+	_plane.setDistance(-_plane.getNormal().dot(node));
 }
 
 bool T4TApp::ToolMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
@@ -189,6 +192,24 @@ bool T4TApp::ToolMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 			break;
 		}
 		case Touch::TOUCH_MOVE: {
+			if(_touching && _moveMode >= 0) {
+				Vector2 center;
+				switch(_moveMode) {
+					case 0: { //rotate
+						_camera->project(app->getViewport(), _tool->getTranslationWorld(), &center);
+						float angle = atan2(_x - center.x, _y - center.y);
+						_toolRot = angle;
+						break;
+					} case 1: { //translate
+						_camera->project(app->getViewport(), _selectedNode->getTranslationWorld(), &center);
+						float angle = atan2(_x - center.x, _y - center.y);
+						float length = (_mousePoint - _selectedNode->getTranslationWorld()).length();
+						_toolTrans.set(length * sin(angle), -length * cos(angle));
+						break;
+					}
+				}
+				placeTool();
+			}
 			break;
 		}
 		case Touch::TOUCH_RELEASE:
@@ -200,20 +221,37 @@ void T4TApp::ToolMode::controlEvent(Control *control, Control::Listener::EventTy
 	Mode::controlEvent(control, evt);
 	
 	const char *id = control->getId();
-
-	if(_subModePanel->getControl(id) == control && _subMode == 1) {
-		_bitMenu->setVisible(true);
+	
+	if(_subModePanel->getControl(id) == control) {
+		if(_tools[_subMode].size() > 1) {
+			//the selected tool type has more than 1 bit to choose from => prompt which bit they want to use
+			_bitMenu->setVisible(true);
+		}
 	} else if(_bitMenu->getControl(id) == control) {
 		for(short i = 0; i < _tools[_subMode].size(); i++) {
 			if(_tools[_subMode][i]->id.compare(id) == 0) setTool(i);
 		}
+		_bitMenu->setVisible(false);
+	} else if(_moveMenu->getControl(id) == control) {
+		if(strcmp(id, "rotate") == 0) {
+			setMoveMode(0);
+		} else if(strcmp(id, "translate") == 0) {
+			setMoveMode(1);
+		}
 	} else if(strcmp(id, "doTool") == 0) {
 		toolNode();
-		setActive(false);
+		setSelectedNode(NULL);
+	} else if(strcmp(id, "cancel") == 0) {
+		setSelectedNode(NULL);
+	}
+	
+	if(control && control != this && _moveMenu->getControl(id) != control) {
+		setMoveMode(-1);
 	}
 }
 
 bool T4TApp::ToolMode::toolNode() {
+	if(_selectedNode == NULL) return false;
 	_selectedNode->updateData();
 	data = _selectedNode->getData();
 	
@@ -230,6 +268,7 @@ bool T4TApp::ToolMode::toolNode() {
 	newData->scale = data->scale;
 	newData->constraints = data->constraints;
 	
+	
 	bool success = false;
 	switch(getTool()->type) {
 		case 0:
@@ -245,17 +284,13 @@ bool T4TApp::ToolMode::toolNode() {
 	//transform the new vertices back to model space before saving the data
 	Matrix worldModel;
 	_selectedNode->getWorldMatrix().invert(&worldModel);
-	Vector3 translation(_selectedNode->getTranslationWorld()), scale(_selectedNode->getScale());
-	newData->translation.set(translation);
-	newData->scale.set(scale);
-	translation.x /= scale.x; translation.y /= scale.y; translation.z /= scale.z;
 	for(short i = 0; i < newData->vertices.size(); i++) {
-		worldModel.transformVector(&newData->vertices[i]);
-		newData->vertices[i] -= translation;
+		worldModel.transformPoint(&newData->vertices[i]);
 	}
 
 	_newNode->data = NULL;
 	_selectedNode->setData(newData);
+	_selectedNode->calculateHulls();
 	_selectedNode->updateModelFromData();
 }
 
@@ -427,11 +462,6 @@ bool T4TApp::ToolMode::sawNode() {
 		}
 		if(!found) GP_ERROR("Didn't find edge to continue new polygon");
 	}
-
-	//just add 1 convex hull for each convex face
-	for(int i = 0; i < newData->faces.size(); i++)
-		newData->hulls.push_back(newData->faces[i]);
-
 	return true;
 }
 
@@ -451,8 +481,8 @@ bool T4TApp::ToolMode::drillNode() {
 	float _radius = tool->fparam[0];
 	int _segments = tool->iparam[0];
 	//store all the lines and planes of the drill bit
-	std::vector<Ray> lines;
-	std::vector<Plane> planes;
+	std::vector<Ray> lines(_segments);
+	std::vector<Plane> planes(_segments);
 	//contiguous patches of the surface based on alignment of normal with drill
 	std::vector<Vector3> drillVertices; //coords of model vertices wrt drill axis
 	//edgeInt[edge vertex 1][edge vertex 2] = (drill ray number, index of intersection point in new model's vertex list)
@@ -479,17 +509,17 @@ bool T4TApp::ToolMode::drillNode() {
 	//store the planes and lines of the drillbit segments for calculations
 	float angle, dAngle = 2*M_PI/_segments, planeDistance = _radius * cos(dAngle/2);
 	Matrix trans(_tool->getWorldMatrix());
-	_axis.setOrigin(-50.0f, 0, 0);
-	_axis.setDirection(1, 0, 0);
+	_axis.setOrigin(0, 0, -50.0f);
+	_axis.setDirection(0, 0, 1);
 	_axis.transform(trans);
 	for(i = 0; i < _segments; i++) {
 		angle = (2*M_PI*i) / _segments;
 		//line
-		lines[i].setOrigin(-50.0f, _radius*cos(angle), _radius*sin(angle));
-		lines[i].setDirection(1, 0, 0);
+		lines[i].setOrigin(_radius*cos(angle), _radius*sin(angle), -50.0f);
+		lines[i].setDirection(0, 0, 1);
 		lines[i].transform(trans);
 		//plane
-		planes[i].setNormal(0, cos(angle+dAngle/2), sin(angle+dAngle/2));
+		planes[i].setNormal(cos(angle+dAngle/2), sin(angle+dAngle/2), 0.0f);
 		planes[i].setDistance(-planeDistance);
 		planes[i].transform(trans);
 		v1.set(planes[i].getNormal());
@@ -501,13 +531,13 @@ bool T4TApp::ToolMode::drillNode() {
 	}
 
 	//take the drill axis as the z-axis and store the transformed coordinates of all vertices in the model
-	Vector3 right(0, 0, 1), up(0, 1, 0), axis(_axis.getDirection());
+	Vector3 axis(_axis.getDirection()), right(-1, 0, 0), up(0, 1, 0);
 	trans.transformVector(&right);
 	trans.transformVector(&up);
 	Matrix drillRot;
 	trans.invert(&drillRot);
-	Matrix axisSwap(0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1);
-	Matrix::multiply(axisSwap, drillRot, &drillRot);
+	//Matrix axisSwap(0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1);
+	//Matrix::multiply(axisSwap, drillRot, &drillRot);
 	drillVertices.resize(data->vertices.size());
 	for(i = 0; i < data->vertices.size(); i++) {
 		drillVertices[i].set(data->worldVertices[i]);
@@ -548,7 +578,7 @@ bool T4TApp::ToolMode::drillNode() {
 		//find the angles where this edge enters and exits the drill circle
 		//|v0 + a*v2| = r => (v0x + a*v2x)^2 + (v0y + a*v2y)^2 = r^2 => |v2|^2 * a^2 + 2*(v0*v2)*a + |v0|^2 - r^2 = 0
 		// => a = [-2*v0*v2 +/- sqrt(4*(v0*v2)^2 - 4*(|v2|^2)*(|v0|^2 - r^2))] / 2*|v2|^2
-		// = [-v0*v2 +/- sqrt((v0*v2)^2 - (|v2|^2)*(|v0|^2 - r^2)) / |v2|^2
+		// = [-v0*v2 +/- sqrt((v0*v2)^2 - (|v2|^2)*(|v0|^2 - r^2))] / |v2|^2
 		f1 = v[0].dot(v[2]);
 		f2 = v[0].lengthSquared() - _radius * _radius;
 		f3 = v[2].lengthSquared();
@@ -562,7 +592,7 @@ bool T4TApp::ToolMode::drillNode() {
 		for(j = 0; j < 2; j++) {
 			if(keep[e[j]] < 0) continue;
 			v1.set(v[0] + v[2] * (j == 0 ? s : t));
-			angle = atan2(v1.x, v1.y);
+			angle = atan2(v1.y, v1.x);
 			while(angle < 0) angle += 2*M_PI;
 			lineInd[j] = (unsigned short)(angle / dAngle);
 		}
@@ -572,7 +602,7 @@ bool T4TApp::ToolMode::drillNode() {
 		for(j = 0; j < 2; j++) {
 			if(keep[e[j]] < 0) continue;
 			lineAngle = lineInd[j] * dAngle + dAngle/2;
-			v2.set(sin(lineAngle), cos(lineAngle), 0);
+			v2.set(cos(lineAngle), sin(lineAngle), 0);
 			//(v0 + a*v2) * r = planeDistance => a = (planeDistance - v0*r) / v2*r
 			distance = (planeDistance - v[0].dot(v2)) / v[2].dot(v2);
 			n = newData->vertices.size();
@@ -606,6 +636,13 @@ bool T4TApp::ToolMode::drillNode() {
 		n = data->faces[i].size();
 		keeping.clear();
 		faceInts.clear();
+
+		ccw = data->worldNormals[i].dot(axis) < 0;
+		dir = ccw ? 1 : -1;
+		offset = dir == 1 ? 1 : 0;
+		facePlane.set(data->worldNormals[i],
+		  -data->worldVertices[data->faces[i][0]].dot(data->worldNormals[i]));
+
 		//index the edge intersections in this face by drill line number
 		for(j = 0; j < n; j++) {
 			p = data->faces[i][j];
@@ -615,7 +652,7 @@ bool T4TApp::ToolMode::drillNode() {
 			if(edgeInt.find(p) != edgeInt.end() && edgeInt[p].find(q) != edgeInt[p].end()) {
 				lineNum = edgeInt[p][q].first;
 				v1.set(newData->vertices[edgeInt[p][q].second] - _axis.getOrigin());
-				angle = atan2(v1.dot(right), v1.dot(up));
+				angle = atan2(v1.dot(up), -v1.dot(right));
 				while(angle < 0) angle += 2*M_PI;
 				//within a given line number, if there are multiple intersections, order by angle wrt drill center
 				// - order in the same direction we will walk the drill
@@ -625,11 +662,6 @@ bool T4TApp::ToolMode::drillNode() {
 			}
 		}
 		if(keeping.empty()) continue; //not keeping any part of this face
-		ccw = data->normals[i].dot(axis) < 0;
-		dir = ccw ? 1 : -1;
-		offset = dir == 1 ? 1 : 0;
-		facePlane.set(data->normals[i],
-		  -data->worldVertices[data->faces[i][0]].dot(data->normals[i]));
 
 		//if there are edge intersections, build the set of new faces that this one is split into
 		if(!faceInts.empty()) while(!keeping.empty()) {
@@ -661,7 +693,7 @@ bool T4TApp::ToolMode::drillNode() {
 						newFace.push_back(p);
 						lastInter = p;
 						v1.set(newData->vertices[p] - _axis.getOrigin());
-						angle = atan2(v1.dot(right), v1.dot(up));
+						angle = atan2(v1.dot(up), -v1.dot(right));
 						while(angle < 0) angle += 2*M_PI;
 						break;
 					case 2: //walking the drill
@@ -747,7 +779,7 @@ bool T4TApp::ToolMode::drillNode() {
 				angles.clear();
 				for(j = 0; j < n; j++) {
 					k = data->faces[i][j];
-					angle = atan2(drillVertices[k].x, drillVertices[k].y);
+					angle = atan2(drillVertices[k].y, drillVertices[k].x);
 					while(angle < 0) angle += 2*M_PI;
 					for(fit = angles.begin(); fit != angles.end() && angle > fit->second; fit++);
 					angles.insert(fit, std::pair<unsigned short, float>(j, angle));
@@ -763,7 +795,7 @@ bool T4TApp::ToolMode::drillNode() {
 					offset = 1;
 					do {
 						q = angles[m].first;
-						v1.set(_radius * sin(angle), _radius * cos(angle), 0);
+						v1.set(_radius * cos(angle), _radius * sin(angle), 0);
 						v2.set(drillVertices[data->faces[i][q]] - v1);
 						found = true;
 						for(k = (q+1)%n; k != (q-1+n)%n; k = (k+1)%n) {
@@ -826,7 +858,7 @@ bool T4TApp::ToolMode::drillNode() {
 			edgeLen = v2.length();
 			for(vit = lineInt[lineNum].begin();	vit != lineInt[lineNum].end() && vit->second < edgeLen; vit++);
 			lineInt[lineNum].insert(vit, std::pair<unsigned short, float>(n, edgeLen));
-			enterInt[n] = data->normals[it1->first].dot(axis) < 0;
+			enterInt[n] = data->worldNormals[it1->first].dot(axis) < 0;
 		}
 		//now they are ordered, note the edges they form
 		numInt = lineInt[lineNum].size();
@@ -883,10 +915,5 @@ bool T4TApp::ToolMode::drillNode() {
 			}
 		}
 	}
-	
-	//just add 1 convex hull for each convex face - is there a better way?
-	for(i = 0; i < newData->faces.size(); i++)
-		newData->hulls.push_back(newData->faces[i]);
-
 	return true;
 }
