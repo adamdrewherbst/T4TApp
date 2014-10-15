@@ -13,7 +13,10 @@ bool T4TApp::TestMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 			if(distance != Ray::INTERSECTS_NONE) {
 				Vector3 point(_ray.getOrigin() + _ray.getDirection() * distance);
 				MyNode *node = app->duplicateModelNode("sphere");
-				node->getData()->mass = 3.0f;
+				node->setScale(0.3f);
+				MyNode::nodeData *data = node->getData();
+				data->scale = Vector3(0.3f, 0.3f, 0.3f);
+				data->mass = 3.0f;
 				node->addCollisionObject();
 				PhysicsRigidBody *body = node->getCollisionObject()->asRigidBody();
 				body->setEnabled(false);

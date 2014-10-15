@@ -37,9 +37,9 @@ void T4TApp::generateModel(const char *type, ...) {
 		}
 		node->addVertex(0, 0, radius);
 		for(i = 0; i < segments; i++) {
-			node->addFace(3, 0, i, (i+1)%segments);
-			m = (segments-2)*segments + 1;
-			node->addFace(3, m+(i+1)%segments, m+i, m+segments);
+			node->addFace(3, 1+i, 0, 1+(i+1)%segments);
+			m = 1 + (segments-2)*segments;
+			node->addFace(3, m+i, m+(i+1)%segments, m+segments);
 		}
 		for(i = 0; i < segments-2; i++) {
 			m = 1 + i*segments;
@@ -54,7 +54,7 @@ void T4TApp::generateModel(const char *type, ...) {
 		int segments = va_arg(arguments, int);
 		float angle;
 		for(i = 0; i < segments; i++) {
-			angle = i * M_PI / segments;
+			angle = i * 2*M_PI / segments;
 			node->addVertex(radius * cos(angle), radius * sin(angle), height/2);
 			node->addVertex(radius * cos(angle), radius * sin(angle), -height/2);
 		}
@@ -86,14 +86,14 @@ void T4TApp::generateModel(const char *type, ...) {
 			node->addVertex(outerRadius * cos(angle), outerRadius * sin(angle), -height/2);
 		}
 		for(i = 0; i < segments/2; i++) {
-			node->addFace(4, i*4, i*4+1, i*4+5, i*4+4);
-			node->addFace(4, i*4+3, i*4+2, i*4+6, i*4+7);
+			node->addFace(4, i*4, i*4+4, i*4+5, i*4+1);
+			node->addFace(4, i*4+2, i*4+3, i*4+7, i*4+6);
 			node->addFace(4, i*4+4, i*4, i*4+2, i*4+6);
 			node->addFace(4, i*4+1, i*4+5, i*4+7, i*4+3);
 		}
-		node->addFace(4, 0, 1, 2, 3);
-		m = (segments/2 - 1) * 4;
-		node->addFace(4, m + 3, m + 2, m + 1, m);
+		node->addFace(4, 0, 1, 3, 2);
+		m = (segments/2) * 4;
+		node->addFace(4, m+1, m, m+2, m+3);
 		
 		data->hulls.resize(segments/2);
 		for(i = 0; i < segments/2; i++) {

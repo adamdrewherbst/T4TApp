@@ -255,6 +255,16 @@ public:
 		//for drilling
 		bool drillNode();
 		void addDrillEdge(unsigned short v1, unsigned short v2, unsigned short lineNum);
+		bool getEdgeDrillInt(unsigned short *e, Vector3 *v, short *lineInd, float *distance);
+		bool drillKeep(unsigned short n, Vector3& v);
+		
+		//general purpose
+		Ray _axis;
+		std::vector<Vector3> toolVertices; //coords of model vertices in tool frame
+		std::vector<short> keep; //-1 if discarding the vertex, otherwise its index in the new model's vertex list
+		//edgeInt[edge vertex 1][edge vertex 2] = (tool plane number, index of intersection point in new model's vertex list)
+		std::map<unsigned short, std::map<unsigned short, std::pair<unsigned short, unsigned short> > > edgeInt;
+		//new edges in tool planes
 		std::map<unsigned short, std::map<unsigned short, unsigned short> > segmentEdges;
 	};
 

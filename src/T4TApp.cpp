@@ -733,27 +733,22 @@ Node* T4TApp::getCameraNode() {
 
 void T4TApp::placeCamera() {
 	float radius = _cameraState->radius, theta = _cameraState->theta, phi = _cameraState->phi;
-	cout << "setting camera: " << radius << "," << theta << "," << phi << endl;
 	Vector3 eye(radius * cos(theta) * cos(phi), radius * sin(phi), radius * sin(theta) * cos(phi));
 	eye += _cameraState->target;
 	Vector3 up(-cos(theta) * sin(phi), cos(phi), -sin(theta) * sin(phi));
 	Matrix cam;
 	Matrix::createLookAt(eye, _cameraState->target, up, &cam);
 	cam.invert();
-	cout << "looking from " << pv(eye) << " to " << pv(_cameraState->target) << ", up = " << pv(up) << endl;
 	if(_cameraState->node != NULL) {
 		Matrix node = _cameraState->node->getRotTrans(), camCopy = cam;
 		Matrix::multiply(node, camCopy, &cam);
 	}
 	Vector3 scale, translation; Quaternion rotation;
 	cam.decompose(&scale, &rotation, &translation);
-	cout << "placing camera: " << pq(rotation) << endl;
 	getCameraNode()->set(scale, rotation, translation);
-	cout << "camera placed: " << pq(getCameraNode()->getRotation()) << endl;
 }
 
 void T4TApp::setCameraEye(float radius, float theta, float phi) {
-	cout << "setting eye: " << radius << "," << theta << "," << phi << endl;
 	_cameraState->radius = radius;
 	_cameraState->theta = theta;
 	_cameraState->phi = phi;

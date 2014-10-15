@@ -189,16 +189,6 @@ void MyNode::addEdge(unsigned short e1, unsigned short e2) {
 	data->edges.push_back(edge);
 }
 
-void MyNode::updateEdges() {
-	unsigned short i, j, n;
-	for(i = 0; i < data->faces.size(); i++) {
-		n = data->faces[i].size();
-		for(j = 0; j < n; j++) {
-			addEdge(data->faces[i][j], data->faces[i][(j+1)%n]);
-		}
-	}
-}
-
 void MyNode::addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles, bool reverse) {
 	if(reverse) {
 		unsigned short i, n = face.size(), temp;
@@ -378,25 +368,11 @@ void MyNode::loadData(const char *file)
 			data->vertices.push_back(Vector3(x, y, z));
 			data->worldVertices.push_back(Vector3(x, y, z));
 		}
-		str = stream->readLine(line, 2048);
-		int ne = atoi(str), e = 0;
 		unsigned short v1, v2, v3;
-		std::vector<unsigned short> edge(2);
-		for(int i = 0; i < ne; i++) {
-			str = stream->readLine(line, 2048);
-			in.str(str);
-			in >> v1 >> v2;
-			edge[0] = v1; edge[1] = v2;
-			data->edges.push_back(edge);
-			data->edgeInd[v1][v2] = data->edges.size()-1;
-			data->edgeInd[v2][v1] = data->edges.size()-1;
-		}
 		str = stream->readLine(line, 2048);
 		int nf = atoi(str), faceSize, numTriangles, numNeighbors;
 		std::vector<unsigned short> triangle(3), face;
 		data->triangles.resize(nf);
-		data->faceNeighbors.resize(nf);
-		Vector3 vec1, vec2, normal;
 		//faces, along with their constituent triangles and neighboring faces (sharing an edge)
 		for(int i = 0; i < nf; i++) {
 			str = stream->readLine(line, 2048);
@@ -421,15 +397,6 @@ void MyNode::loadData(const char *file)
 				}
 				data->triangles[i].push_back(triangle);
 			}
-			//neighbors
-	/*    	str = stream->readLine(line, 2048);
-			numNeighbors = atoi(str);
-			str = stream->readLine(line, 2048);
-			in.str(str);
-			for(int j = 0; j < numNeighbors; j++) {
-				in >> v1;
-				data->faceNeighbors[i].push_back(v1);
-			}//*/
 		}
 		//set the vertices according to the initial rotation, translation, & scale
 		data->initTrans = Matrix::identity();
@@ -496,6 +463,7 @@ void MyNode::loadData(const char *file)
 	}
     stream->close();
 
+	updateEdges();
 	//if no hulls specified for a mesh type object, calculate the hulls on the fly
 	if(data->objType.compare("mesh") == 0 && data->hulls.size() == 0) {
 		calculateHulls();
@@ -533,15 +501,6 @@ void MyNode::writeData(const char *file) {
 		line = os.str();
 		stream->write(line.c_str(), sizeof(char), line.length());
 
-		updateEdges();
-		os.str("");
-		os << data->edges.size() << endl;
-		for(int i = 0; i < data->edges.size(); i++) {
-			for(int j = 0; j < 2; j++) os << data->edges[i][j] << "\t";
-			os << endl;
-		}
-		line = os.str();
-		stream->write(line.c_str(), sizeof(char), line.length());
 		os.str("");
 		os << data->faces.size() << endl;
 		for(int i = 0; i < data->faces.size(); i++) {
@@ -552,9 +511,6 @@ void MyNode::writeData(const char *file) {
 				for(int k = 0; k < 3; k++) os << data->triangles[i][j][k] << "\t";
 				os << endl;
 			}
-			//os << data->faceNeighbors[i].size() << endl;
-			//for(int j = 0; j < data->faceNeighbors[i].size(); j++) os << data->faceNeighbors[i][j] << "\t";
-			//os << endl;
 		}
 		line = os.str();
 		stream->write(line.c_str(), sizeof(char), line.length());
@@ -564,8 +520,7 @@ void MyNode::writeData(const char *file) {
 		for(int i = 0; i < data->hulls.size(); i++) {
 			os << data->hulls[i].size() << endl;
 			for(int j = 0; j < data->hulls[i].size(); j++)
-				os << data->hulls[i][j].x << data->hulls[i][j].y << data->hulls[i][j].z << endl;
-			os << endl;
+				os << data->hulls[i][j].x << "\t" << data->hulls[i][j].y << "\t" << data->hulls[i][j].z << endl;
 		}
 		line = os.str();
 		stream->write(line.c_str(), sizeof(char), line.length());
@@ -614,6 +569,18 @@ void MyNode::updateData() {
 	data->scale = getScale();
 	data->rotation = getRotation();
 	data->translation = getTranslationWorld();
+}
+
+void MyNode::updateEdges() {
+	unsigned short i, j, n;
+	data->edges.clear();
+	data->edgeInd.clear();
+	for(i = 0; i < data->faces.size(); i++) {
+		n = data->faces[i].size();
+		for(j = 0; j < n; j++) {
+			addEdge(data->faces[i][j], data->faces[i][(j+1)%n]);
+		}
+	}
 }
 
 void MyNode::updateModelFromData(bool doPhysics) {

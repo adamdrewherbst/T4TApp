@@ -22,6 +22,13 @@ public:
 	static MyNode* create(const char *id = NULL);
 	void init();
 	static MyNode* cloneNode(Node *node);
+	
+	struct convexHull {
+		std::vector<Vector3> vertices;
+		std::vector<std::vector<unsigned short> > faces;
+		std::vector<std::vector<unsigned short> > edges;
+		std::map<unsigned short, std::map<unsigned short, unsigned short> > edgeInd;
+	};
 
     struct nodeConstraint {
     	int id; //global ID in simulation for this constraint
@@ -38,20 +45,22 @@ public:
 		Vector3 translation;
 		Vector3 scale;
 		Matrix initTrans; //combination of inital rotation, translation, and scaling
+		
+		//topology
 		std::vector<Vector3> vertices, worldVertices, //model space and world space coords
 			normals, worldNormals; //model space (after scaling) and world space normal for each face
 		std::vector<std::vector<unsigned short> > edges; //vertex index pairs
 		std::map<unsigned short, std::map<unsigned short, unsigned short> > edgeInd; //index into edge list by vertex pair
 		std::vector<std::vector<unsigned short> > faces; //vertex indices of polygons (not triangles)
 		std::vector<std::vector<std::vector<unsigned short> > > triangles; //triangulation of each polygon
-		std::vector<std::vector<unsigned short> > faceNeighbors;
 		std::string type;
 		int typeCount; //number of clones of this model currently in the simulation
+		
 		//physics
 		std::string objType; //mesh, box, sphere, capsule
 		float mass;
 		bool staticObj;
-		std::vector<std::vector<Vector3> > hulls; //vertex indices of convex hulls
+		std::vector<convexHull*> hulls; //vertex indices of convex hulls
 		std::vector<nodeConstraint*> constraints;
 	};
 	nodeData *data;

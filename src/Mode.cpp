@@ -75,10 +75,7 @@ void T4TApp::Mode::placeCamera() {
 			float deltaPhi = delta.y * M_PI / 400.0f, deltaTheta = delta.x * M_PI / 400.0f;
 			phi = fmin(89.9f * M_PI/180, fmax(-89.9f * M_PI/180, phi + deltaPhi));
 			theta += deltaTheta;
-			cout << "rotating to " << theta << "," << phi << endl;
 			app->setCameraEye(radius, theta, phi);
-			cout << "camera now at " << app->pv(app->getCameraNode()->getTranslationWorld());
-			cout << ", rotated " << app->pq(app->getCameraNode()->getRotation()) << endl;
 			break;
 		} case 1: { //translate
 			Ray ray;
