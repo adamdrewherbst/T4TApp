@@ -266,6 +266,8 @@ public:
 		std::map<unsigned short, std::map<unsigned short, std::pair<unsigned short, unsigned short> > > edgeInt;
 		//new edges in tool planes
 		std::map<unsigned short, std::map<unsigned short, unsigned short> > segmentEdges;
+		
+		void addHullEdge(MyNode::convexHull *hull, unsigned short v1, unsigned short v2, short segment = -1);
 	};
 
 	class PositionMode : public Mode

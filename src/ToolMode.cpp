@@ -843,21 +843,26 @@ bool T4TApp::ToolMode::drillNode() {
 	
 	//split convex hulls using the radial and tangential planes of the drill
 	MyNode::convexHull *hull, *newHull;
-	Matrix m = drillRot * _selectedNode->getWorldMatrix();
+	Matrix world = _selectedNode->getWorldMatrix(), tool = _tool->getWorldMatrix();
+	tool.invert();
+	tool *= world;
+	std::vector<Vector3> face;
 	for(i = 0; i < data->hulls.size(); i++) {
 		hull = data->hulls[i];
-		short nv = hull->vertices.size(), nf = hull->faces.size(), ne = hull->edges.size();
+		short nv = hull->vertices.size(), nf = hull->faces.size(), ne = hull->edges.size(), numKeep = 0;
 		//get the drill-axis coords for the vertices of this hull
 		toolVertices.resize(nv);
 		keep.resize(nv);
 		for(j = 0; j < nv; j++) {
 			toolVertices[j] = hull->vertices[j];
-			m.transformPoint(&toolVertices[j]);
+			tool.transformPoint(&toolVertices[j]);
 			keep[j] = drillKeep(j, toolVertices[j]) ? 1 : -1;
+			if(keep[j] >= 0) numKeep++;
 		}
-		//only split this hull if one or more of its edges intersects the drill bit
-		bool found = false;
-		for(j = 0; j < ne; j++) {
+		if(numKeep == 0) continue;
+		//only split this hull if one or more of its vertices is inside the drill or edges intersects the drill bit
+		bool found = numKeep < nv;
+		if(!found) for(j = 0; j < ne; j++) {
 			for(k = 0; k < 2; k++) {
 				e[k] = hull->edges[j][k];
 				v[k] = toolVertices[e[k]];
@@ -867,27 +872,165 @@ bool T4TApp::ToolMode::drillNode() {
 				break;
 			}
 		}
-		if(!found) continue;
-		//determine the angular range of this hull wrt drill center
-		float minAngle = 1000.0f, maxAngle = -1000.0f;
-		for(j = 0; j < nv; j++) {
-			angle = atan2(toolVertices[i].y, toolVertices[i].x);
-			if(angle < 0) angle += 2*M_PI;
-			if(angle < minAngle) minAngle = angle;
-			if(angle > maxAngle) maxAngle = angle;
+		if(!found) { //leave hull as is
+			newHull = new MyNode::convexHull(*hull);
+			newData->hulls.push_back(newHull);
+			continue;
 		}
-		//for each drill segment in its angular range, make a new hull for that segment
-		short start = (short)(minAngle / dAngle), end = (short)(maxAngle / dAngle);
-		for(j = start; j <= end; j++) {
+		//for each drill segment, if the hull intersects its angle range, build a new hull from the intersection
+		for(j = 0; j <= _segments; j++) {
 			newHull = new MyNode::convexHull();
-			minAngle = j * dAngle;
-			maxAngle = (j+1) * dAngle;
+			edgeInt.clear();
+			drillInt.clear();
+			segmentEdges.clear();
+			float minAngle = j * dAngle, maxAngle = (j+1) * dAngle;
+			short numKeep, start, lastPlane, plane;
+			//determine which vertices are included
 			for(k = 0; k < nv; k++) {
 				angle = atan2(toolVertices[k].y, toolVertices[k].x);
 				if(keep[k] >= 0 && angle > minAngle && angle < maxAngle) {
 					keep[k] = newHull->vertices.size();
 					newHull->vertices.push_back(hull->vertices[k]);
+					numKeep++;
 				} else keep[k] = -1;
+			}
+			//find all edge intersections
+			Vector3 best[2];
+			short planeInd[2];
+			for(k = 0; k < ne; k++) {
+				for(m = 0; m < 2; m++) {
+					e[m] = hull->edges[k][m];
+					v[m] = toolVertices[e[m]];
+					v[m].z = 0;
+				}
+				if(keep[e[0]] >= 0 && keep[e[1]] >= 0) continue;
+				v[2] = v[1] - v[0];
+				for(m = 0; m < 2; m++) {
+					dist[m] = 1000;
+					planeInd[m] = -1;
+				}
+				//first check the two radial planes
+				for(m = 0; m < 2; m++) {
+					// (v0 + a*v2) * n = 0 => a = -v0*n / v2*n
+					angle = m == 0 ? minAngle : maxAngle;
+					normal.set(-sin(angle), cos(angle), 0);
+					f1 = v[2].dot(normal);
+					if(f1 == 0) {
+						if((keep[e[0]] < 0) != (keep[e[1]] < 0)) distance = keep[e[0]] >= 0 ? 0 : 1;
+						else continue;
+					} else distance = -v[0].dot(normal) / f1;
+					if(distance < 0 || distance > 1) continue;
+					v1 = v[0] + distance * v[2];
+					v2.set(cos(angle), sin(angle), 0);
+					if(v1.dot(v2) < _radius) continue;
+					for(n = 0; n < 2; n++) {
+						if(keep[e[n]] < 0) continue;
+						f1 = n == 0 ? distance : 1 - distance;
+						if(distance < dist[n]) {
+							dist[n] = distance;
+							best[n] = v1;
+							planeInd[n] = m*2;
+						}
+					}
+				}
+				//then the drill plane
+				for(m = 0; m < 1; m++) {
+					// (v0 + a*v2) * r = planeDistance => a = (planeDistance - v0*r) / v2*r
+					angle = minAngle + dAngle/2;
+					normal.set(cos(angle), sin(angle), 0);
+					f1 = v[2].dot(normal);
+					if(f1 == 0) {
+						if((keep[e[0]] < 0) != (keep[e[1]] < 0)) distance = keep[e[0]] >= 0 ? 0 : 1;
+						else continue;
+					} else distance = (planeDistance - v[0].dot(normal)) / f1;
+					if(distance < 0 || distance > 1) continue;
+					v1 = v[0] + distance * v[2];
+					
+				}
+			}
+			if(numKeep == 0 && edgeInt.empty()) continue;
+			newData->hulls.push_back(newHull);
+			//build modified faces
+			for(k = 0; k < nf; k++) {
+				faceSize = hull->faces[k].size();
+				newFace.clear();
+				lastPlane = -1;
+				lastInter = -1;
+				//determine the plane for this face in world space
+				face.resize(faceSize);
+				for(m = 0; m < faceSize; m++) face[m] = hull->vertices[hull->faces[k][m]];
+				normal = MyNode::getNormal(face);
+				facePlane.set(normal, -normal.dot(face[0]));
+				facePlane.transform(world);
+				//start on a vertex we are keeping, if any
+				for(start = 0; start < faceSize && keep[hull->faces[k][start]] < 0; start++);
+				//if not, look for an edge intersection exiting the segment
+				if(start == faceSize) for(start = 0; start < faceSize; start++) {
+					for(m = 0; m < 2; m++) e[m] = hull->faces[k][(start+m)%faceSize];
+					if(edgeInt.find(e[1]) != edgeInt.end() && edgeInt[e[1]].find(e[0]) != edgeInt[e[1]].end()) {
+						newFace.push_back(edgeInt[e[1]][e[0]].second);
+						lastPlane = edgeInt[e[1]][e[0]].first;
+						lastInter = newFace[0];
+						start = (start+1) % faceSize;
+						break;
+					}
+				}
+				//if none of those either, we are discarding the whole face
+				if(start == faceSize) continue;
+				//otherwise, loop around the face adding kept vertices and intersections
+				for(m = start; m != (start+1)%faceSize; m = (m+1)%faceSize) {
+					for(n = 0; n < 2; n++) e[n] = hull->faces[k][(m+n)%faceSize];
+					if(keep[e[0]] >= 0) newFace.push_back(keep[e[0]]);
+					if(edgeInt.find(e[0]) != edgeInt.end() && edgeInt[e[0]].find(e[1]) != edgeInt[e[0]].end()) {
+						plane = edgeInt[e[0]][e[1]].first;
+						//if we are re-entering the segment on a different plane than we exited,
+						//the drill lines in between those planes must intersect the face
+						if(keep[e[0]] < 0 && lastPlane >= 0 && lastPlane != plane) {
+							dir = plane > lastPlane ? 1 : -1;
+							offset = dir == 1 ? 0 : -1;
+							for(n = lastPlane + offset; n != plane + offset; n += dir) {
+								distance = lines[j+n].intersects(facePlane);
+								p = newHull->vertices.size();
+								newFace.push_back(p);
+								newHull->vertices.push_back(lines[j+n].getOrigin() + distance * lines[j+n].getDirection());
+								addHullEdge(newHull, lastInter, p, lastPlane);
+								lastPlane = n - offset;
+							}
+						}
+						newFace.push_back(edgeInt[e[0]][e[1]].second);
+						if(keep[e[0]] < 0) addHullEdge(newHull, lastInter, edgeInt[e[0]][e[1]].second, plane);
+						if(edgeInt[e[1]][e[0]].second != edgeInt[e[0]][e[1]].second
+						  && edgeInt[e[1]][e[0]].second != newFace[0]) {
+							newFace.push_back(edgeInt[e[1]][e[0]].second);
+							lastPlane = edgeInt[e[1]][e[0]].first;
+							lastInter = edgeInt[e[1]][e[0]].second;
+						} else if(keep[e[1]] < 0) lastPlane = plane;
+					}
+				}
+				
+			}
+			//add faces on drill planes
+			for(k = 0; k < 3; k++) {
+				newFace.clear();
+				while(!segmentEdges[k].empty()) {
+					if(newFace.empty()) {
+						eit = segmentEdges[k].begin();
+						p = eit->first;
+						newFace.push_back(p);
+					} else {
+						p = newFace[newFace.size()-1];
+					}
+					if(segmentEdges[k].find(p) == segmentEdges[k].end()) {
+						GP_WARN("Couldn't continue hull face from point %d", p);
+						return false;
+					}
+					q = segmentEdges[k][p];
+					segmentEdges[k].erase(p);
+					if(!newFace.empty() && q == newFace[0]) {
+						newHull->faces.push_back(newFace);
+						newFace.clear();
+					} else newFace.push_back(q);
+				}
 			}
 		}
 	}
@@ -949,5 +1092,16 @@ bool T4TApp::ToolMode::getEdgeDrillInt(unsigned short *e, Vector3 *v, unsigned s
 void T4TApp::ToolMode::addDrillEdge(unsigned short v1, unsigned short v2, unsigned short lineNum) {
 	_newNode->addEdge(v1, v2);
 	segmentEdges[lineNum][v1] = v2;
+}
+
+void T4TApp::ToolMode::addHullEdge(MyNode::convexHull *hull, unsigned short v1, unsigned short v2, short segment) {
+	if(hull->edgeInd.find(v1) != hull->edgeInd.end() && hull->edgeInd[v1].find(v2) != hull->edgeInd[v1].end()) return;
+	hull->edgeInd[v1][v2] = hull->edges.size();
+	hull->edgeInd[v2][v1] = hull->edges.size();
+	std::vector<unsigned short> edge(2);
+	edge[0] = v1;
+	edge[1] = v2;
+	hull->edges.push_back(edge);
+	if(segment >= 0) segmentEdges[segment][v2] = v1;
 }
 
