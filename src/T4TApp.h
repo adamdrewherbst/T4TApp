@@ -230,8 +230,8 @@ public:
 		Container *_moveMenu, *_bitMenu;
 		short _moveMode;
 
-		MyNode *_newNode; //a model to hold the modified node data
-		MyNode::nodeData *data, *newData;
+		MyNode *_node, *_newNode; //a model to hold the modified node data
+		Meshy *_mesh, *_newMesh; //whatever node/hull we are currently working on
 		
 		short usageCount;
 
@@ -248,26 +248,34 @@ public:
 		void placeCamera();
 		void placeTool();
 		bool toolNode();
+		void setMesh(Meshy *mesh);
 		
 		//for sawing
 		bool sawNode();
 		
 		//for drilling
 		bool drillNode();
-		void addDrillEdge(unsigned short v1, unsigned short v2, unsigned short lineNum);
-		bool getEdgeDrillInt(unsigned short *e, Vector3 *v, short *lineInd, float *distance);
-		bool drillKeep(unsigned short n, Vector3& v);
+		bool getEdgeDrillInt(unsigned short *e, unsigned short *lineInd, float *distance);
+		bool getHullSliceInt(unsigned short *e, unsigned short *lineInd, float *distance);
+		bool drillKeep(unsigned short n);
 		
 		//general purpose
-		Ray _axis;
+		Ray _axis; //geometry of the tool
+		std::vector<Ray> lines;
+		std::vector<Plane> planes;
 		std::vector<Vector3> toolVertices; //coords of model vertices in tool frame
 		std::vector<short> keep; //-1 if discarding the vertex, otherwise its index in the new model's vertex list
 		//edgeInt[edge vertex 1][edge vertex 2] = (tool plane number, index of intersection point in new model's vertex list)
 		std::map<unsigned short, std::map<unsigned short, std::pair<unsigned short, unsigned short> > > edgeInt;
+		//toolInt[tool line #][model face #] = index of line-face intersection in new model's vertex list
+		std::map<unsigned short, std::map<unsigned short, unsigned short> > toolInt;
 		//new edges in tool planes
 		std::map<unsigned short, std::map<unsigned short, unsigned short> > segmentEdges;
+		short _hullSlice; //which convex hull segment we are working on
 		
-		void addHullEdge(MyNode::convexHull *hull, unsigned short v1, unsigned short v2, short segment = -1);
+		void getEdgeInt(bool (T4TApp::ToolMode::*getInt)(unsigned short*, unsigned short*, float*));
+		void addToolEdge(unsigned short v1, unsigned short v2, unsigned short lineNum);
+		void addToolFaces();
 	};
 
 	class PositionMode : public Mode

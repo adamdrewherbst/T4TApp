@@ -112,7 +112,7 @@ void T4TApp::ProjectComponent::loadScene() {
 	
 	//create the root node for the component - not a physical node, just holds all the pieces
 	_rootNode = MyNode::create(_nodeId.c_str());
-	_rootNode->data->type = "root";
+	_rootNode->_type = "root";
 	_scene->addNode(_rootNode);
 }
 

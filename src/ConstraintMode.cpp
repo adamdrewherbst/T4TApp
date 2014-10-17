@@ -36,7 +36,7 @@ bool T4TApp::ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 			if(_touchNode == NULL) break;
 			if(_currentNode == 1 && _touchNode == _nodes[0]) break; //don't allow self-constraint
 			_nodes[_currentNode] = _touchNode;
-			_touchNode->updateData();
+			_touchNode->updateTransform();
 			//find the clicked face
 			if(_subMode == 0 || _subMode == 1 || _subMode == 2 || _subMode == 3) {
 				_faces[_currentNode] = _selectedNode->pt2Face(_touchPoint,
@@ -46,11 +46,10 @@ bool T4TApp::ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 			_currentNode++;
 			if(_currentNode == 2) { //we have both attachment points - add the constraint
 				_nodes[1]->rotateFaceToFace(_faces[1], _nodes[0], _faces[0]);
-				_nodes[1]->translate(_nodes[0]->getData()->worldNormals[_faces[0]] * 0.02f); //back away a tad
+				_nodes[1]->translate(_nodes[0]->_worldNormals[_faces[0]] * 0.02f); //back away a tad
 				Vector3 normal; //default hinge axis is model space z-axis, we want face normal
 				for(i = 0; i < 2; i++) {
-					_nodes[i]->updateData();
-					MyNode::nodeData *data = _nodes[i]->getData();
+					_nodes[i]->updateTransform();
 					normal = _nodes[i]->getScaleNormal(_faces[i]);
 					_rot[i] = MyNode::getVectorRotation(Vector3(0, 0, 1), normal);
 					_trans[i] = _nodes[i]->faceCenter(_faces[i], true);
@@ -62,11 +61,11 @@ bool T4TApp::ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 				//the second node clicked becomes a child of the first node clicked
 				_nodes[0]->addChild(_nodes[1]);
 				_nodes[1]->_constraintParent = _nodes[0];
-				_nodes[1]->parentOffset = _trans[0];
+				_nodes[1]->_parentOffset = _trans[0];
 				Matrix rot;
 				Matrix::createRotation(_rot[0], &rot);
-				_nodes[1]->parentAxis.set(0, 0, 1);
-				rot.transformVector(&_nodes[1]->parentAxis);
+				_nodes[1]->_parentAxis.set(0, 0, 1);
+				rot.transformVector(&_nodes[1]->_parentAxis);
 			}
 			break;
 		}

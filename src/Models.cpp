@@ -12,21 +12,20 @@ void T4TApp::generateModel(const char *type, ...) {
 	va_list arguments;
 	va_start(arguments, type);
 	MyNode *node = MyNode::create(type);
-	MyNode::nodeData *data = node->getData();
-	data->type = type;
-	data->objType = "mesh";
-	data->mass = 10.0f;
+	node->_type = type;
+	node->_objType = "mesh";
+	node->_mass = 10.0f;
 	short nv, nf, ne, i, j, k, m, n;
 	Vector3 vertex;
 	std::vector<unsigned short> face;
 	std::vector<std::vector<unsigned short> > triangles;
-	std::vector<Vector3> hull;
+	MyNode::ConvexHull *hull;
 
 	if(strcmp(type, "sphere") == 0) {
 		float radius = (float)va_arg(arguments, double);
 		int segments = va_arg(arguments, int);
 		float theta, phi;
-		data->objType = "sphere";
+		node->_objType = "sphere";
 		node->addVertex(0, 0, -radius);
 		for(i = 1; i <= segments-1; i++) {
 			phi = (i - segments/2) * M_PI/segments;
@@ -47,6 +46,7 @@ void T4TApp::generateModel(const char *type, ...) {
 				node->addFace(4, m+j, m+(j+1)%segments, m+segments+(j+1)%segments, m+segments+j);
 			}
 		}
+		node->setOneHull();
 	}
 	else if(strcmp(type, "cylinder") == 0) {
 		float radius = (float)va_arg(arguments, double);
@@ -66,11 +66,9 @@ void T4TApp::generateModel(const char *type, ...) {
 		for(i = 0; i < 2; i++) {
 			for(j = 0; j < segments; j++) face[j] = i == 0 ? 2*j : 2*segments-1 - 2*j;
 			triangles.clear();
-			node->addFace(face, triangles);
+			node->addFace(face);
 		}
-		data->hulls.resize(1);
-		data->hulls[0].resize(2*segments);
-		for(i = 0; i < 2*segments; i++) data->hulls[0].push_back(data->vertices[i]);
+		node->setOneHull();
 	}
 	else if(strcmp(type, "halfpipe") == 0) {
 		float radius = (float)va_arg(arguments, double);
@@ -95,22 +93,22 @@ void T4TApp::generateModel(const char *type, ...) {
 		m = (segments/2) * 4;
 		node->addFace(4, m+1, m, m+2, m+3);
 		
-		data->hulls.resize(segments/2);
 		for(i = 0; i < segments/2; i++) {
-			data->hulls[i].clear();
-			for(j = 0; j < 8; j++) data->hulls[i].push_back(data->vertices[i*4 + j]);
+			hull = new MyNode::ConvexHull(node);
+			for(j = 0; j < 8; j++) hull->addVertex(node->_vertices[i*4 + j]);
+			node->_hulls.push_back(hull);
 		}
 	}
 	else if(strcmp(type, "box") == 0) {
 		float length = (float)va_arg(arguments, double);
 		float height = (float)va_arg(arguments, double);
 		float width = (float)va_arg(arguments, double);
-		data->objType = "box";
-		data->vertices.resize(8);
+		node->_objType = "box";
+		node->_vertices.resize(8);
 		for(i = 0; i < 2; i++) {
 			for(j = 0; j < 2; j++) {
 				for(k = 0; k < 2; k++) {
-					data->vertices[i*4 + j*2 + k].set((2*k-1) * length/2, (2*j-1) * height/2, (2*i-1) * width/2);
+					node->_vertices[i*4 + j*2 + k].set((2*k-1) * length/2, (2*j-1) * height/2, (2*i-1) * width/2);
 				}
 			}
 		}
@@ -120,6 +118,7 @@ void T4TApp::generateModel(const char *type, ...) {
 		node->addFace(4, 2, 6, 7, 3);
 		node->addFace(4, 4, 6, 2, 0);
 		node->addFace(4, 1, 3, 7, 5);
+		node->setOneHull();
 	}
 	else if(strcmp(type, "gear_basic") == 0) {
 		float innerRadius = (float)va_arg(arguments, double);
@@ -141,8 +140,7 @@ void T4TApp::generateModel(const char *type, ...) {
 						if(j == 1) vertex.y = outerRadius;
 						if(k == 1) vertex.x += gearWidth;
 						rot.transformPoint(&vertex);
-						data->vertices.push_back(vertex);
-						data->worldVertices.push_back(vertex);
+						node->_vertices.push_back(vertex);
 					}
 				}
 			}
@@ -155,7 +153,7 @@ void T4TApp::generateModel(const char *type, ...) {
 				face.push_back(8 * j + 4*i);
 				face.push_back(8 * j + 1 + 4*i);
 			}
-			node->addFace(face, triangles, i == 1);
+			node->addFace(face, i == 1);
 		}
 		for(n = 0; n < teeth; n++) {
 			for(i = 0; i < 2; i++) {
@@ -167,7 +165,7 @@ void T4TApp::generateModel(const char *type, ...) {
 				face.push_back(3);
 				face.push_back(2);
 				for(j = 0; j < 4; j++) face[j] += n*8 + i*4;
-				node->addFace(face, triangles, i == 0);
+				node->addFace(face, i == 0);
 				//tooth front/back
 				face.clear();
 				triangles.clear();
@@ -176,7 +174,7 @@ void T4TApp::generateModel(const char *type, ...) {
 				face.push_back(6);
 				face.push_back(4);
 				for(j = 0; j < 4; j++) face[j] += n*8 + i;
-				node->addFace(face, triangles, i == 0);
+				node->addFace(face, i == 0);
 			}
 			//tooth top
 			face.clear();
@@ -186,7 +184,7 @@ void T4TApp::generateModel(const char *type, ...) {
 			face.push_back(7);
 			face.push_back(3);
 			for(j = 0; j < 4; j++) face[j] += n*8;
-			node->addFace(face, triangles);
+			node->addFace(face);
 			//tooth connector
 			face.clear();
 			triangles.clear();
@@ -195,22 +193,22 @@ void T4TApp::generateModel(const char *type, ...) {
 			face.push_back(12);
 			face.push_back(8);
 			for(j = 0; j < 4; j++) face[j] = (face[j] + n*8) % nv;
-			node->addFace(face, triangles);
+			node->addFace(face);
 		}
 		//convex hulls
-		hull.resize(8);
 		for(n = 0; n < teeth; n++) {
-			for(i = 0; i < 8; i++) hull[i] = data->vertices[i + n*8];
-			data->hulls.push_back(hull);
+			hull = new MyNode::ConvexHull(node);
+			for(i = 0; i < 8; i++) hull->addVertex(node->_vertices[i + n*8]);
+			node->_hulls.push_back(hull);
 		}
-		hull.clear();
+		hull = new MyNode::ConvexHull(node);
 		for(n = 0; n < teeth; n++) {
-			hull.push_back(data->vertices[0 + n*8]);
-			hull.push_back(data->vertices[1 + n*8]);
-			hull.push_back(data->vertices[4 + n*8]);
-			hull.push_back(data->vertices[5 + n*8]);
+			hull->addVertex(node->_vertices[0 + n*8]);
+			hull->addVertex(node->_vertices[1 + n*8]);
+			hull->addVertex(node->_vertices[4 + n*8]);
+			hull->addVertex(node->_vertices[5 + n*8]);
 		}
-		data->hulls.push_back(hull);
+		node->_hulls.push_back(hull);
 	}
 	node->writeData("res/common/");
 }

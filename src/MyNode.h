@@ -9,25 +9,39 @@ using namespace gameplay;
 
 class T4TApp;
 
-class MyNode : public Node {
+//generic wrapper for keeping track of mesh's data - node or convex hull
+class Meshy {
+public:
+	Node *_node;
+	std::vector<Vector3> _vertices, _worldVertices, _normals, _worldNormals;
+	std::vector<std::vector<unsigned short> > _faces, _edges;
+	std::map<unsigned short, std::map<unsigned short, unsigned short> > _edgeInd;
+	
+	Meshy();
+	short nv();
+	short nf();
+	short ne();
+	void addVertex(const Vector3 &v);
+	void addVertex(float x, float y, float z);
+	virtual void addFace(std::vector<unsigned short> &face, bool reverse = false);
+	void addFace(short n, ...);
+	void addEdge(unsigned short e1, unsigned short e2);
+	virtual void update();
+	virtual void updateTransform();
+	void updateEdges();
+	void setNormals();
+	Vector3 getNormal(std::vector<unsigned short> &face, bool modelSpace = false);
+};
+
+class MyNode : public Node, public Meshy {
 
 public:
 
 	T4TApp *app;
-	MyNode *_constraintParent;
-	//location and axis of constraint joint with parent in parent's model space
-	Vector3 parentOffset, parentAxis;
 
-	MyNode(const char *id);
-	static MyNode* create(const char *id = NULL);
-	void init();
-	static MyNode* cloneNode(Node *node);
-	
-	struct convexHull {
-		std::vector<Vector3> vertices;
-		std::vector<std::vector<unsigned short> > faces;
-		std::vector<std::vector<unsigned short> > edges;
-		std::map<unsigned short, std::map<unsigned short, unsigned short> > edgeInd;
+	class ConvexHull : public Meshy {
+		public:
+		ConvexHull(Node *node);
 	};
 
     struct nodeConstraint {
@@ -38,75 +52,65 @@ public:
     	Quaternion rotation; //rotation offset of the constraint point
     };
 
-   	//any data associated with a node
-	struct nodeData {
-		//model
-		Quaternion rotation;
-		Vector3 translation;
-		Vector3 scale;
-		Matrix initTrans; //combination of inital rotation, translation, and scaling
-		
-		//topology
-		std::vector<Vector3> vertices, worldVertices, //model space and world space coords
-			normals, worldNormals; //model space (after scaling) and world space normal for each face
-		std::vector<std::vector<unsigned short> > edges; //vertex index pairs
-		std::map<unsigned short, std::map<unsigned short, unsigned short> > edgeInd; //index into edge list by vertex pair
-		std::vector<std::vector<unsigned short> > faces; //vertex indices of polygons (not triangles)
-		std::vector<std::vector<std::vector<unsigned short> > > triangles; //triangulation of each polygon
-		std::string type;
-		int typeCount; //number of clones of this model currently in the simulation
-		
-		//physics
-		std::string objType; //mesh, box, sphere, capsule
-		float mass;
-		bool staticObj;
-		std::vector<convexHull*> hulls; //vertex indices of convex hulls
-		std::vector<nodeConstraint*> constraints;
-	};
-	nodeData *data;
+	std::string _type; //which item this is from the catalog
+	int _typeCount; //number of clones of this model currently in the simulation
 
-	nodeData* getData();
-	void setData(nodeData *newData);
-	nodeData* copyData();
+	//topology		
+	std::vector<std::vector<std::vector<unsigned short> > > _triangles; //triangulation of each polygon
+
+	//physics
+	std::string _objType; //mesh, box, sphere, capsule
+	float _mass;
+	bool _staticObj;
+	std::vector<ConvexHull*> _hulls;
+	std::vector<nodeConstraint*> _constraints;
+	MyNode *_constraintParent;
+	//location and axis of constraint joint with parent in parent's model space
+	Vector3 _parentOffset, _parentAxis;
+
+	MyNode(const char *id);
+	static MyNode* create(const char *id = NULL);
+	void init();
+	static MyNode* cloneNode(Node *node);
+	
 	std::string resolveFilename(const char *filename = NULL);
-	void loadData(const char *filename = NULL);
+	void loadData(const char *filename = NULL, bool doPhysics = true);
 	void writeData(const char *filename = NULL);
-	void updateData();
-	void updateModelFromData(bool addPhysics = true);
-	void setNormals();
+	void updateTransform();
+	void updateModel(bool doPhysics = true);
 	void calculateHulls();
 
+	//transform
 	Matrix getRotTrans();
 	Matrix getInverseRotTrans();
 	Matrix getInverseWorldMatrix();
 	Vector3 getScaleVertex(short v);
 	Vector3 getScaleNormal(short f);
 	BoundingBox getWorldBox();
-	void set(Matrix& trans);
+	void set(const Matrix& trans);
 	void myTranslate(const Vector3& delta);
 	void setMyTranslation(const Vector3& translation);
 	void myRotate(const Quaternion& delta);
 	void setMyRotation(const Quaternion& rotation);
 	void myScale(const Vector3& scale);
 	void setMyScale(const Vector3& scale);
-
+	
 	short pt2Face(Vector3 point, Vector3 viewer = Vector3::zero());
 	Plane facePlane(unsigned short f, bool modelSpace = false);
 	Vector3 faceCenter(unsigned short f, bool modelSpace = false);
 	void rotateFaceToPlane(unsigned short f, Plane p);
 	void rotateFaceToFace(unsigned short f, MyNode *other, unsigned short g);
 
-	void addVertex(float x, float y, float z);
-	void addEdge(unsigned short e1, unsigned short e2);
-	void updateEdges();
-	void addFace(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles, bool reverse = false);
+	//topology
+	void addFace(std::vector<unsigned short>& face, bool reverse = false);
 	void addFace(short n, ...);
-	void addFaceHelper(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
-	Vector3 getNormal(std::vector<unsigned short>& face, bool modelSpace = false);
 	void triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 	void triangulateHelper(std::vector<unsigned short>& face, std::vector<unsigned short>& inds,
 	  std::vector<std::vector<unsigned short> >& triangles, Vector3 normal);
-	
+
+	//physics
+	void addHullFace(ConvexHull *hull, short f);
+	void setOneHull();
 	bool isStatic();
 	void setStatic(bool stat);
 	void addCollisionObject();
@@ -115,7 +119,7 @@ public:
 	void enablePhysics(bool enable = true, bool recur = true);
 	bool physicsEnabled();
 	nodeConstraint* getNodeConstraint(MyNode *other);
-	
+	//general purpose
 	static Quaternion getVectorRotation(Vector3 v1, Vector3 v2);
 	static float gv(Vector3 *v, int dim);
 	static void sv(Vector3 *v, int dim, float val);

@@ -28,18 +28,17 @@ bool T4TApp::TouchMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned
 			Vector3 point = hitResult.point, v1, v2, v3, p, coords, normal;
 			cout << "touched " << node->getId() << " at " << point.x << "," << point.y << "," << point.z << endl;
 			Matrix m;
-			MyNode::nodeData *data = node->getData();
 			unsigned short i, j, k;
 			short touchFace = -1;
 			std::vector<unsigned short> face, triangle;
-			for(i = 0; i < data->faces.size() && touchFace < 0; i++) {
-				face = data->faces[i];
-				for(j = 0; j < data->triangles[i].size(); j++) {
-					triangle = data->triangles[i][j];
-					v1.set(data->worldVertices[face[triangle[1]]] - data->worldVertices[face[triangle[0]]]);
-					v2.set(data->worldVertices[face[triangle[2]]] - data->worldVertices[face[triangle[0]]]);
-					v3.set(data->normals[i]);
-					p.set(point - data->worldVertices[face[triangle[0]]]);
+			for(i = 0; i < node->_faces.size() && touchFace < 0; i++) {
+				face = node->_faces[i];
+				for(j = 0; j < node->_triangles[i].size(); j++) {
+					triangle = node->_triangles[i][j];
+					v1.set(node->_worldVertices[face[triangle[1]]] - node->_worldVertices[face[triangle[0]]]);
+					v2.set(node->_worldVertices[face[triangle[2]]] - node->_worldVertices[face[triangle[0]]]);
+					v3.set(node->_normals[i]);
+					p.set(point - node->_worldVertices[face[triangle[0]]]);
 					//m.set(v1.x, v1.y, v1.z, 0, v2.x, v2.y, v2.z, 0, v3.x, v3.y, v3.z, 0, 0, 0, 0, 1);
 					m.set(v1.x, v2.x, v3.x, 0, v1.y, v2.y, v3.y, 0, v1.z, v2.z, v3.z, 0, 0, 0, 0, 1);
 					m.invert();
@@ -52,15 +51,15 @@ bool T4TApp::TouchMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned
 				}
 			}
 			if(touchFace < 0) break;
-			std::vector<float> vertices(6 * data->triangles[touchFace].size() * 3);
+			std::vector<float> vertices(6 * node->_triangles[touchFace].size() * 3);
 			unsigned short v = 0;
 			float color[3] = {1.0f, 0.0f, 1.0f};
-			normal.set(data->normals[touchFace]);
-			face = data->faces[touchFace];
-			for(i = 0; i < data->triangles[touchFace].size(); i++) {
-				triangle = data->triangles[touchFace][i];
+			normal.set(node->_worldNormals[touchFace]);
+			face = node->_faces[touchFace];
+			for(i = 0; i < node->_triangles[touchFace].size(); i++) {
+				triangle = node->_triangles[touchFace][i];
 				for(j = 0; j < 3; j++) {
-					v1.set(data->worldVertices[face[triangle[j]]] + data->normals[touchFace] * 0.003f);
+					v1.set(node->_worldVertices[face[triangle[j]]] + node->_worldNormals[touchFace] * 0.003f);
 					vertices[v++] = v1.x;
 					vertices[v++] = v1.y;
 					vertices[v++] = v1.z;

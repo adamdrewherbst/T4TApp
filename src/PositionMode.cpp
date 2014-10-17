@@ -137,7 +137,7 @@ bool T4TApp::PositionMode::setSelectedNode(MyNode *node, Vector3 point) {
 		float distance;
 		if(_parentNode) {
 			_basePoint = _selectPoint;
-			_normal = _selectedNode->parentAxis;
+			_normal = _selectedNode->_parentAxis;
 			Matrix m = _parentNode->getWorldMatrix();
 			m.transformVector(&_normal);
 			_normal.normalize(&_normal);
@@ -216,7 +216,7 @@ void T4TApp::PositionMode::setPosition(float value, bool finalize) {
 			app->reloadConstraint(_parentNode, constraint);
 		}
 		_selectedNode->enablePhysics(true);
-		_selectedNode->updateData();
+		_selectedNode->updateTransform();
 		cout << "re-enabled physics on " << _selectedNode->getId() << endl;
 	}
 }

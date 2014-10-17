@@ -109,15 +109,13 @@ void T4TApp::initialize()
     MyNode *modelNode = dynamic_cast<MyNode*>(_models->getFirstNode());
     while(modelNode) {
     	if(strstr(modelNode->getId(), "_part") == NULL) {
-			modelNode->loadData("res/common/");
-			modelNode->updateModelFromData(false);
+			modelNode->loadData("res/common/", false);
+			modelNode->_type = modelNode->getId();
 			ImageControl* itemImage = addButton <ImageControl> (_componentMenu, concat(2, "comp_", modelNode->getId()));
 			itemImage->setZIndex(_componentMenu->getZIndex());
 			itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
 			itemImage->setWidth(150.0f);
 			itemImage->setHeight(150.0f);
-			MyNode::nodeData *data = modelNode->getData();
-			data->type = modelNode->getId();
 		}
 		modelNode->setTranslation(Vector3(1000.0f,0.0f,0.0f));
 		modelNode = dynamic_cast<MyNode*>(modelNode->getNextSibling());
@@ -296,6 +294,7 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	else if(_componentMenu->getControl(id) == control && strncmp(id, "comp_", 5) == 0) {
 		MyNode *node = duplicateModelNode(id+5);
 		node->addPhysics();
+		node->enablePhysics();
 		_scene->addNode(node);
 		placeNode(node, 0.0f, 0.0f);
 	}
@@ -342,7 +341,7 @@ void T4TApp::initScene()
     gridModel->setMaterial("res/common/grid.material");
     node->setModel(gridModel);
     gridModel->release();
-    node->data->objType = "box";
+    node->_objType = "box";
     node->setStatic(true);
     node->addPhysics();
     _scene->addNode(node);
@@ -393,7 +392,6 @@ MyNode* T4TApp::loadNode(const char *id) {
 	MyNode *node = MyNode::create(id);
 	_scene->addNode(node);
 	node->loadData();
-	node->updateModelFromData();
 	return node;
 }
 
@@ -676,11 +674,10 @@ MyNode* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 	MyNode *node = MyNode::cloneNode(modelNode);
 	BoundingBox box = node->getModel()->getMesh()->getBoundingBox();
 	node->loadData(concat(3, "res/common/", type, ".node"));
-	node->setTranslation(Vector3(0.0f, (box.max.y - box.min.y)/2.0f, 0.0f));
-	MyNode::nodeData *data = modelNode->getData();
-	const char count[2] = {(char)(++data->typeCount + 48), '\0'};
+	const char count[2] = {(char)(++modelNode->_typeCount + 48), '\0'};
 	node->setId(concat(2, modelNode->getId(), count));
-	node->updateData();
+	node->setTranslation(Vector3(0.0f, (box.max.y - box.min.y)/2.0f, 0.0f));
+	node->updateTransform();
 	node->setStatic(isStatic);
 	return node;
 }
@@ -885,14 +882,13 @@ PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const c
 	if(id < 0) {
 		id = _constraintCount++;
 		for(i = 0; i < 2; i++) {
-			MyNode::nodeData *data = node[i]->getData();
-			j = data->constraints.size();
-			data->constraints.push_back(new MyNode::nodeConstraint());
-			data->constraints[j]->other = node[(i+1)%2]->getId();
-			data->constraints[j]->type = type;
-			data->constraints[j]->rotation = rot[i];
-			data->constraints[j]->translation = trans[i];
-			data->constraints[j]->id = id;
+			j = node[i]->_constraints.size();
+			node[i]->_constraints.push_back(new MyNode::nodeConstraint());
+			node[i]->_constraints[j]->other = node[(i+1)%2]->getId();
+			node[i]->_constraints[j]->type = type;
+			node[i]->_constraints[j]->rotation = rot[i];
+			node[i]->_constraints[j]->translation = trans[i];
+			node[i]->_constraints[j]->id = id;
 		}
 	}
 	_constraints[id] = ret;
@@ -900,22 +896,19 @@ PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const c
 }
 
 void T4TApp::addConstraints(MyNode *node) {
-	MyNode::nodeData *data = node->getData();
 	MyNode::nodeConstraint *c1, *c2;
 	unsigned short i, j;
-	for(i = 0; i < data->constraints.size(); i++) {
-		c1 = data->constraints[i];
+	for(i = 0; i < node->_constraints.size(); i++) {
+		c1 = node->_constraints[i];
 		if(c1->id >= 0) continue;
 		MyNode *other = dynamic_cast<MyNode*>(_scene->findNode(c1->other.c_str()));
 		if(!other || !other->getCollisionObject()) continue;
-		std::string type = c1->type;
-		MyNode::nodeData *otherData = other->getData();
-		for(j = 0; j < otherData->constraints.size(); j++) {
-			c2 = otherData->constraints[j];
-			if(c2->other.compare(node->getId()) == 0 && c2->type.compare(type) == 0 && c2->id < 0) {
+		for(j = 0; j < other->_constraints.size(); j++) {
+			c2 = other->_constraints[j];
+			if(c2->other.compare(node->getId()) == 0 && c2->type.compare(c1->type) == 0 && c2->id < 0) {
 				c1->id = _constraintCount;
 				c2->id = _constraintCount++;
-				addConstraint(node, other, c1->id, type.c_str(), &c1->rotation, &c1->translation,
+				addConstraint(node, other, c1->id, c1->type.c_str(), &c1->rotation, &c1->translation,
 					&c2->rotation, &c2->translation);
 			}
 		}
@@ -924,19 +917,16 @@ void T4TApp::addConstraints(MyNode *node) {
 
 void T4TApp::removeConstraints(MyNode *node) {
 	PhysicsController *controller = getPhysicsController();
-	MyNode::nodeData *data = node->getData();
 	MyNode::nodeConstraint *c1, *c2;
 	unsigned short i, j;
-	for(i = 0; i < data->constraints.size(); i++) {
-		c1 = data->constraints[i];
+	for(i = 0; i < node->_constraints.size(); i++) {
+		c1 = node->_constraints[i];
 		if(c1->id < 0) continue;
 		MyNode *other = dynamic_cast<MyNode*>(_scene->findNode(c1->other.c_str()));
 		if(!other) continue;
-		std::string type = c1->type;
-		MyNode::nodeData *otherData = other->getData();
-		for(j = 0; j < otherData->constraints.size(); j++) {
-			c2 = otherData->constraints[j];
-			if(c2->other.compare(node->getId()) == 0 && c2->type.compare(type) == 0 && c2->id == c1->id) {
+		for(j = 0; j < other->_constraints.size(); j++) {
+			c2 = other->_constraints[j];
+			if(c2->other.compare(node->getId()) == 0 && c2->type.compare(c1->type) == 0 && c2->id == c1->id) {
 				controller->removeConstraint(_constraints[c1->id]);
 				_constraints.erase(c1->id);
 				c1->id = -1;
@@ -947,10 +937,9 @@ void T4TApp::removeConstraints(MyNode *node) {
 }
 
 void T4TApp::enableConstraints(MyNode *node, bool enable) {	
-	MyNode::nodeData *data = node->getData();
 	int id;
-	for(short i = 0; i < data->constraints.size(); i++) {
-		id = data->constraints[i]->id;
+	for(short i = 0; i < node->_constraints.size(); i++) {
+		id = node->_constraints[i]->id;
 		if(id < 0 || _constraints.find(id) == _constraints.end()) continue;
 		_constraints[id]->setEnabled(enable);
 	}
@@ -964,10 +953,9 @@ void T4TApp::reloadConstraint(MyNode *node, MyNode::nodeConstraint *constraint) 
 	}
 	MyNode *other = dynamic_cast<MyNode*>(_scene->findNode(constraint->other.c_str()));
 	if(!other) return;
-	MyNode::nodeData *data = other->getData();
 	MyNode::nodeConstraint *otherConstraint;
-	for(short i = 0; i < data->constraints.size(); i++) {
-		otherConstraint = data->constraints[i];
+	for(short i = 0; i < other->_constraints.size(); i++) {
+		otherConstraint = other->_constraints[i];
 		if(otherConstraint->id == id) {
 			addConstraint(node, other, id, constraint->type.c_str(), &constraint->rotation, &constraint->translation,
 			  &otherConstraint->rotation, &otherConstraint->translation);
