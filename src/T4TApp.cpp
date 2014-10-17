@@ -27,8 +27,8 @@ T4TApp* T4TApp::getInstance() {
 
 void T4TApp::initialize()
 {
-	generateModels();
-//*/
+	//generateModels();
+	
     // Load font
     _font = Font::create("res/common/arial18.gpb");
     assert(_font);
@@ -135,8 +135,8 @@ void T4TApp::initialize()
 	_activeMode = -1;
 	setMode(0);
 
-	_drawDebugCheckbox = addControl <CheckBox> (_sideMenu, "drawDebug", _buttonStyle, "Draw Debug");
-	Button *debugButton = addControl <Button> (_sideMenu, "debugButton", _buttonStyle, "Debug");
+	//_drawDebugCheckbox = addControl <CheckBox> (_sideMenu, "drawDebug", _buttonStyle, "Draw Debug");
+	//Button *debugButton = addControl <Button> (_sideMenu, "debugButton", _buttonStyle, "Debug");
 	
 	_drawDebug = true;	
     _sideMenu->setState(Control::FOCUS);

@@ -339,6 +339,23 @@ theme mainMenu
 			textColor = #ff0000ff
 		}
 	}
+	
+	style imageSquare : buttonStyle {
+		padding {
+			top = 0
+			bottom = 0
+			left = 0
+			right = 0
+		}
+	}
+	
+	style imageWide : buttonStyle
+	{
+		padding {
+			left = 15
+			right = 15
+		}
+	}
 
     style noBorder
     {

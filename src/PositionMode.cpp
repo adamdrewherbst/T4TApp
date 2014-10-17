@@ -24,7 +24,7 @@ void T4TApp::PositionMode::setActive(bool active) {
 	Mode::setActive(active);
 	setSubMode(0);
 	setAxis(0);
-	_valueSlider->setEnabled(false);
+	//_valueSlider->setEnabled(false);
 }
 
 bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
@@ -92,7 +92,7 @@ void T4TApp::PositionMode::controlEvent(Control *control, Control::Listener::Eve
 {
 	Mode::controlEvent(control, evt);
 	const char *id = control->getId();
-	if(control == _valueSlider) {
+	if(control && control == _valueSlider) {
 		if(_subMode == 0) {
 			_transDir.set(0, 0, 0);
 			MyNode::sv(&_transDir, _axis, 1);
@@ -161,8 +161,8 @@ bool T4TApp::PositionMode::setSelectedNode(MyNode *node, Vector3 point) {
 
 void T4TApp::PositionMode::updateSlider() {
 	bool enable = _selectedNode != NULL;
-	_valueSlider->setEnabled(enable);
-	_valueSlider->setValue(_positionValue);
+	//_valueSlider->setEnabled(enable);
+	//_valueSlider->setValue(_positionValue);
 }
 
 void T4TApp::PositionMode::setPosition(float value, bool finalize) {
@@ -224,7 +224,7 @@ void T4TApp::PositionMode::setPosition(float value, bool finalize) {
 bool T4TApp::PositionMode::setSubMode(short mode) {
 	bool changed = Mode::setSubMode(mode);
 	if(_subMode == 0 && _axis == 3) setAxis(0);
-	_axisButton->setEnabled(_subMode == 0 || _subMode == 2);
+	//_axisButton->setEnabled(_subMode == 0 || _subMode == 2);
 	Vector4 limits = Vector4::zero();
 	switch(_subMode) {
 		case 0: //translate
@@ -238,13 +238,13 @@ bool T4TApp::PositionMode::setSubMode(short mode) {
 			break;
 	}
 	bool enable = !limits.isZero();
-	_valueSlider->setEnabled(enable);
+	/*_valueSlider->setEnabled(enable);
 	if(enable) {
 		_valueSlider->setMin(limits.x);
 		_valueSlider->setMax(limits.y);
 		_valueSlider->setStep(limits.z);
 		_valueSlider->setValue(limits.w);
-	}
+	}//*/
 	return changed;
 }
 
@@ -257,7 +257,7 @@ void T4TApp::PositionMode::setAxis(short axis) {
 		_transDir.set(0, 0, 0);
 		MyNode::sv(&_transDir, axis, 1);
 	}
-	_axisButton->setText(_axisNames[axis].c_str());
+	//_axisButton->setText(_axisNames[axis].c_str());
 	_axis = axis;
 }
 
