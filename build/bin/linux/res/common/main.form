@@ -38,7 +38,7 @@ form mainMenu {
 			text = Add Machine >>			
 		}
 		container modePanel {
-			style = basicContainer
+			style = hiddenContainer
 			autoWidth = true
 			height = 530
 			layout = LAYOUT_VERTICAL
@@ -262,47 +262,45 @@ form mainMenu {
 			container controls {
 				style = basicContainer
 				position = 20, 10
-				size = 160, 370
+				size = 180, 370
 				layout = LAYOUT_VERTICAL
 				consumeInputEvents = true
 				zIndex = 5
 				
 				container subMode {
-					style = basicContainer
+					style = hiddenContainer
 					autoWidth = true
-					height = 150
-					layout = LAYOUT_FLOW
+					height = 170
+					layout = LAYOUT_VERTICAL
 					
 					image saw {
-						style = buttonStyle
-						width = 80
-						height = 60
+						style = imageWide
+						autoWidth = true
+						height = 80
 						path = res/png/saw.png
-						alignment = ALIGN_HCENTER
 					}
 					image drill {
-						style = buttonStyle
-						width = 80
-						height = 60
+						style = imageWide
+						autoWidth = true
+						height = 80
 						path = res/png/drill.png
-						alignment = ALIGN_HCENTER
 					}
 				}
 				container moveMenu {
-					style = basicContainer
+					style = hiddenContainer
 					autoWidth = true
 					height = 80
 					layout = LAYOUT_FLOW
 					
 					image rotate {
-						style = buttonStyle
-						size = 50, 50
+						style = imageSquare
+						size = 75, 75
 						path = res/png/rotate.png
 					}
 					image translate {
-						style = buttonStyle
-						size = 50, 50
-						path = res/png/rotate.png
+						style = imageSquare
+						size = 75, 75
+						path = res/png/translate.png
 					}
 				}
 				button doTool {
@@ -348,6 +346,56 @@ form mainMenu {
 			autoWidth = true
 			autoHeight = true
 			layout = LAYOUT_ABSOLUTE
+			
+			container controls {
+				style = basicContainer
+				position = 20, 10
+				size = 180, 350
+				layout = LAYOUT_VERTICAL
+				zIndex = 5
+				
+				container moveElement {
+					style = hiddenContainer
+					autoWidth = true
+					height = 140
+					layout = LAYOUT_VERTICAL
+					
+					image translate {
+						style = imageWide
+						autoWidth = true
+						height = 75
+						path = res/png/translate.png
+					}
+					container rotate {
+						style = hiddenContainer
+						autoWidth = true
+						height = 60
+						layout = LAYOUT_FLOW
+						
+						image rotateY {
+							style = imageSquare
+							size = 50, 50
+							path = res/png/rotateY.png
+						}
+						image rotateZ {
+							style = imageSquare
+							size = 50, 50
+							path = res/png/rotateZ.png
+						}
+						image rotateX {
+							style = imageSquare
+							size = 50, 50
+							path = res/png/rotateX.png
+						}
+					}
+				}
+				button finishElement {
+					style = buttonStyle
+					autoWidth = true
+					height = 40
+					text = Finish
+				}
+			}
 		}
 
 		container mode_pulley {

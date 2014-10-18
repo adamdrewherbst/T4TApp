@@ -89,8 +89,6 @@ void T4TApp::initialize()
 		}
 	}
 	
-    _theme->release();   // So we can release it once we're done creating forms with it.
-    
 	// populate catalog of items
 	_models = Scene::create("models");
 	_models->addNode(new MyNode("sphere"));
@@ -131,6 +129,8 @@ void T4TApp::initialize()
 	//simple machines
     _modes.push_back(new Lever());
     _modes.push_back(new Pulley());
+    
+    _theme->release();   // So we can release it once we're done creating forms with it.
     
 	_activeMode = -1;
 	setMode(0);
@@ -481,9 +481,9 @@ bool T4TApp::showNode(Node *node) {
 	return true;
 }
 
-template <class ButtonType> ButtonType* T4TApp::addButton(Container *parent, const char *id, const char *text)
+template <class ButtonType> ButtonType* T4TApp::addButton(Container *parent, const char *id, const char *text, Theme::Style *style)
 {
-	ButtonType* button = ButtonType::create(id, _buttonStyle);
+	ButtonType* button = ButtonType::create(id, style == NULL ? _buttonStyle : style);
 	if(text == NULL) button->setText(id);
 	else button->setText(text);
 	button->setAutoWidth(true);
@@ -493,9 +493,9 @@ template <class ButtonType> ButtonType* T4TApp::addButton(Container *parent, con
 	return button;
 }
 
-template <class ControlType> ControlType* T4TApp::addControl(Container *parent, const char *id, Theme::Style *style, const char *text)
+template <class ControlType> ControlType* T4TApp::addControl(Container *parent, const char *id, const char *text, Theme::Style *style)
 {
-	ControlType* control = ControlType::create(id, style);
+	ControlType* control = ControlType::create(id, style == NULL ? _buttonStyle : style);
 	if(text == NULL) control->setText(id);
 	else control->setText(text);
 	control->setHeight(50);
@@ -721,7 +721,7 @@ void T4TApp::setActiveScene(Scene *scene)
 }
 
 Camera* T4TApp::getCamera() {
-	return _scene->getActiveCamera();
+	return _activeScene->getActiveCamera();
 }
 
 Node* T4TApp::getCameraNode() {

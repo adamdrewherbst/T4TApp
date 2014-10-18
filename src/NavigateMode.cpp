@@ -1,11 +1,11 @@
 #include "T4TApp.h"
 
-T4TApp::NavigateMode::NavigateMode() 
-  : T4TApp::Mode::Mode("navigate") {
+NavigateMode::NavigateMode() 
+  : Mode::Mode("navigate") {
 	_doSelect = false;
 }
 
-void T4TApp::NavigateMode::setActive(bool active) {
+void NavigateMode::setActive(bool active) {
 	Mode::setActive(active);
 	if(active) {
 		app->setNavMode(0);
@@ -17,12 +17,12 @@ void T4TApp::NavigateMode::setActive(bool active) {
 	app->_cameraMenu->getControl("eye")->setEnabled(!active);
 }
 
-bool T4TApp::NavigateMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
+bool NavigateMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
 {
 	Mode::touchEvent(evt, x, y, contactIndex);
 }
 
-void T4TApp::NavigateMode::controlEvent(Control *control, Control::Listener::EventType evt)
+void NavigateMode::controlEvent(Control *control, Control::Listener::EventType evt)
 {
 	Mode::controlEvent(control, evt);
 }

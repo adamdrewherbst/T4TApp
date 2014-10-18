@@ -135,10 +135,11 @@ source_group(res FILES ${GAME_RES} ${GAMEPLAY_RES} ${GAME_RES_SHADERS} ${GAME_RE
 source_group(src FILES ${GAME_SRC})
 
 set(GAME_SRC
+	src/MyNode.h
+	src/Modes.h
 	src/T4TApp.h
 	src/T4TApp.cpp
 	src/Models.cpp
-	src/MyNode.h
 	src/MyNode.cpp
 	src/Grid.cpp
 	src/Grid.h

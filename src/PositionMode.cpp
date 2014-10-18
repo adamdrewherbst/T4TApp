@@ -1,7 +1,7 @@
 #include "T4TApp.h"
 
-T4TApp::PositionMode::PositionMode() 
-  : T4TApp::Mode::Mode("position") {
+PositionMode::PositionMode() 
+  : Mode::Mode("position") {
 
 	_axisButton = (Button*) _controls->getControl("axis");
 	_valueSlider = (Slider*) _controls->getControl("axisValue");
@@ -20,14 +20,14 @@ T4TApp::PositionMode::PositionMode()
 	_axisNames.push_back("All");
 }
 
-void T4TApp::PositionMode::setActive(bool active) {
+void PositionMode::setActive(bool active) {
 	Mode::setActive(active);
 	setSubMode(0);
 	setAxis(0);
 	//_valueSlider->setEnabled(false);
 }
 
-bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
+bool PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
 {
 	Mode::touchEvent(evt, x, y, contactIndex);
 	switch(evt) {
@@ -88,7 +88,7 @@ bool T4TApp::PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsig
 	}
 }
 
-void T4TApp::PositionMode::controlEvent(Control *control, Control::Listener::EventType evt)
+void PositionMode::controlEvent(Control *control, Control::Listener::EventType evt)
 {
 	Mode::controlEvent(control, evt);
 	const char *id = control->getId();
@@ -111,7 +111,7 @@ void T4TApp::PositionMode::controlEvent(Control *control, Control::Listener::Eve
 	}
 }
 
-bool T4TApp::PositionMode::setSelectedNode(MyNode *node, Vector3 point) {
+bool PositionMode::setSelectedNode(MyNode *node, Vector3 point) {
 	bool changed = Mode::setSelectedNode(node, point);
 	if(_selectedNode != NULL) {
 		//move the root of this node tree, or the nearest parent-child constraint joint, whichever is closer
@@ -159,13 +159,13 @@ bool T4TApp::PositionMode::setSelectedNode(MyNode *node, Vector3 point) {
 	return changed;
 }
 
-void T4TApp::PositionMode::updateSlider() {
+void PositionMode::updateSlider() {
 	bool enable = _selectedNode != NULL;
 	//_valueSlider->setEnabled(enable);
 	//_valueSlider->setValue(_positionValue);
 }
 
-void T4TApp::PositionMode::setPosition(float value, bool finalize) {
+void PositionMode::setPosition(float value, bool finalize) {
 	_positionValue = value;
 	//when finalizing, if this node has a constraint parent, get the constraint that will need to be modified
 	MyNode::nodeConstraint *constraint = NULL;
@@ -221,7 +221,7 @@ void T4TApp::PositionMode::setPosition(float value, bool finalize) {
 	}
 }
 
-bool T4TApp::PositionMode::setSubMode(short mode) {
+bool PositionMode::setSubMode(short mode) {
 	bool changed = Mode::setSubMode(mode);
 	if(_subMode == 0 && _axis == 3) setAxis(0);
 	//_axisButton->setEnabled(_subMode == 0 || _subMode == 2);
@@ -248,7 +248,7 @@ bool T4TApp::PositionMode::setSubMode(short mode) {
 	return changed;
 }
 
-void T4TApp::PositionMode::setAxis(short axis) {
+void PositionMode::setAxis(short axis) {
 	if(_subMode == 0) {
 		if(axis == 3) {
 			setAxis(0);

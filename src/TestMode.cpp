@@ -1,10 +1,10 @@
 #include "T4TApp.h"
 
-T4TApp::TestMode::TestMode() 
-  : T4TApp::Mode::Mode("test") {
+TestMode::TestMode() 
+  : Mode::Mode("test") {
 }
 
-bool T4TApp::TestMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
+bool TestMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
 {
 	Mode::touchEvent(evt, x, y, contactIndex);
 	switch(evt) {
@@ -30,7 +30,7 @@ bool T4TApp::TestMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 	}
 }
 
-void T4TApp::TestMode::controlEvent(Control *control, Control::Listener::EventType evt)
+void TestMode::controlEvent(Control *control, Control::Listener::EventType evt)
 {
 }
 

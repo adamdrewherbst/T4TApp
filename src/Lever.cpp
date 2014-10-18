@@ -1,22 +1,27 @@
 #include "T4TApp.h"
 
-T4TApp::Lever::Lever() : T4TApp::ProjectComponent::ProjectComponent("lever") {
-	addElement("Base", static_cast<T4TApp::ProjectComponent::TouchCallback>(&T4TApp::Lever::baseTouch), true);
-	addElement("Arm", static_cast<T4TApp::ProjectComponent::TouchCallback>(&T4TApp::Lever::armTouch));
+Lever::Lever() : ProjectComponent::ProjectComponent("lever") {
+	addElement("Base", static_cast<ProjectComponent::TouchCallback>(&Lever::baseTouch), true);
+	addElement("Arm", static_cast<ProjectComponent::TouchCallback>(&Lever::armTouch));
+	_elements[0]->setRotable(false, true, false);
+	_elements[1]->setMovable(false, true, false, 0);
+	_elements[1]->setLimits(1, 0.0f, 20.0f);
+	_elements[1]->setRotable(true, true, true);
 }
 
-bool T4TApp::Lever::baseTouch(Touch::TouchEvent evt, int x, int y) {
+bool Lever::baseTouch(Touch::TouchEvent evt, int x, int y) {
 	return true;
 }
 
-bool T4TApp::Lever::armTouch(Touch::TouchEvent evt, int x, int y) {
+bool Lever::armTouch(Touch::TouchEvent evt, int x, int y) {
 	return true;
 }
 
-void T4TApp::Lever::placeElement() {
+void Lever::placeElement() {
 	MyNode *node = getNode();
 	BoundingBox box = node->getModel()->getMesh()->getBoundingBox();
 	float x, y;
+	Element *el = _elements[_currentElement];
 	switch(_currentElement) {
 		case 0: //base
 			y = (box.max.y - box.min.y) / 2.0f;
@@ -28,7 +33,7 @@ void T4TApp::Lever::placeElement() {
 	}
 }
 
-void T4TApp::Lever::finishElement() {
+void Lever::finishElement() {
 	switch(_currentElement) {
 		case 0:
 			break;

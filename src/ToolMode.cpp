@@ -1,7 +1,7 @@
 #include "T4TApp.h"
 
-T4TApp::ToolMode::ToolMode() 
-  : T4TApp::Mode::Mode("tool") {
+ToolMode::ToolMode() 
+  : Mode::Mode("tool") {
 
 	_tool = MyNode::create("tool_tool");
 	_newNode = MyNode::create("newNode_tool");
@@ -35,7 +35,7 @@ T4TApp::ToolMode::ToolMode()
 	}
 }
 
-void T4TApp::ToolMode::createBit(short type, ...) {
+void ToolMode::createBit(short type, ...) {
 	va_list args;
 	va_start(args, type);
 	
@@ -97,7 +97,7 @@ void T4TApp::ToolMode::createBit(short type, ...) {
 			os << "drill_bit_" << segments << "_" << (int)(radius * 100 + 0.1);
 			tool->id = os.str();
 			std::string file = "res/png/" + tool->id + ".png";
-			ImageControl *image = (ImageControl*) app->addButton<ImageControl>(_bitMenu, tool->id.c_str(), "");
+			ImageControl *image = (ImageControl*) app->addButton<ImageControl>(_bitMenu, tool->id.c_str(), "", app->_theme->getStyle("imageSquare"));
 			image->setZIndex(_bitMenu->getZIndex());
 			image->setSize(100.0f, 100.0f);
 			image->setImage(file.c_str());
@@ -119,20 +119,20 @@ void T4TApp::ToolMode::createBit(short type, ...) {
 	tool->model = model;
 }
 
-void T4TApp::ToolMode::setTool(short n) {
+void ToolMode::setTool(short n) {
 	_currentTool = n;
 	_tool->setModel(getTool()->model);
 }
 
-T4TApp::ToolMode::Tool* T4TApp::ToolMode::getTool() {
+ToolMode::Tool* ToolMode::getTool() {
 	return _tools[_subMode][_currentTool];
 }
 
-void T4TApp::ToolMode::setActive(bool active) {
+void ToolMode::setActive(bool active) {
 	Mode::setActive(active);
 }
 
-bool T4TApp::ToolMode::setSelectedNode(MyNode *node, Vector3 point) {
+bool ToolMode::setSelectedNode(MyNode *node, Vector3 point) {
 	bool changed = Mode::setSelectedNode(node, point);
 	if(changed) app->setCameraNode(node);
 	if(node != NULL) {
@@ -150,24 +150,24 @@ bool T4TApp::ToolMode::setSelectedNode(MyNode *node, Vector3 point) {
 	return changed;
 }
 
-bool T4TApp::ToolMode::setSubMode(short mode) {
+bool ToolMode::setSubMode(short mode) {
 	bool changed = Mode::setSubMode(mode);
 	if(changed) setTool(0);
 	return changed;
 }
 
-void T4TApp::ToolMode::setMoveMode(short mode) {
+void ToolMode::setMoveMode(short mode) {
 	if(_selectedNode == NULL) return;
 	_moveMode = mode;
 	_doSelect = _moveMode < 0;
 }
 
-void T4TApp::ToolMode::placeCamera() {
+void ToolMode::placeCamera() {
 	Mode::placeCamera();
 	placeTool();
 }
 
-void T4TApp::ToolMode::placeTool() {
+void ToolMode::placeTool() {
 	if(_selectedNode == NULL) return;
 	//tool is positioned at target node's center but with same orientation as camera
 	Node *cam = _camera->getNode();
@@ -184,7 +184,7 @@ void T4TApp::ToolMode::placeTool() {
 	_plane.setDistance(-_plane.getNormal().dot(node));
 }
 
-bool T4TApp::ToolMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
+bool ToolMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
 	Mode::touchEvent(evt, x, y, contactIndex);
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
@@ -216,7 +216,7 @@ bool T4TApp::ToolMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 	}
 }
 
-void T4TApp::ToolMode::controlEvent(Control *control, Control::Listener::EventType evt) {
+void ToolMode::controlEvent(Control *control, Control::Listener::EventType evt) {
 	Mode::controlEvent(control, evt);
 	
 	const char *id = control->getId();
@@ -249,7 +249,7 @@ void T4TApp::ToolMode::controlEvent(Control *control, Control::Listener::EventTy
 	}
 }
 
-void T4TApp::ToolMode::setMesh(Meshy *mesh) {
+void ToolMode::setMesh(Meshy *mesh) {
 	_mesh = mesh;
 	short nv = _mesh->_vertices.size(), i, j, k;
 	keep.resize(nv);
@@ -261,7 +261,7 @@ void T4TApp::ToolMode::setMesh(Meshy *mesh) {
 	}
 }
 
-bool T4TApp::ToolMode::toolNode() {
+bool ToolMode::toolNode() {
 	if(_selectedNode == NULL) return false;
 	_node = _selectedNode;
 	_node->updateTransform();
@@ -326,14 +326,14 @@ bool T4TApp::ToolMode::toolNode() {
 
 /************ SAWING ************/
 
-bool T4TApp::ToolMode::sawNode() {
+bool ToolMode::sawNode() {
 	return true;
 }
 
 
 /************ DRILLING ***************/
 
-bool T4TApp::ToolMode::drillNode() {
+bool ToolMode::drillNode() {
 
 	Tool *tool = getTool();
 
@@ -381,7 +381,7 @@ bool T4TApp::ToolMode::drillNode() {
 	}
 
 	//find all intersections between edges of the model and the planes of the drill bit
-	getEdgeInt(&T4TApp::ToolMode::getEdgeDrillInt);
+	getEdgeInt(&ToolMode::getEdgeDrillInt);
 	
 	//loop around each original face, building modified faces according to the drill intersections
 	bool ccw, drillInside, found;
@@ -644,7 +644,7 @@ bool T4TApp::ToolMode::drillNode() {
 				} else keep[k] = -1;
 			}
 			//find all edge intersections
-			getEdgeInt(&T4TApp::ToolMode::getHullSliceInt);
+			getEdgeInt(&ToolMode::getHullSliceInt);
 			if(numKeep == 0 && edgeInt.empty()) continue;
 			_newNode->_hulls.push_back(newHull);
 			//build modified faces
@@ -717,7 +717,7 @@ bool T4TApp::ToolMode::drillNode() {
 	return true;
 }
 
-bool T4TApp::ToolMode::drillKeep(unsigned short n) {
+bool ToolMode::drillKeep(unsigned short n) {
 	Tool *tool = getTool();
 	short _segments = tool->iparam[0];
 	float _radius = tool->fparam[0], dAngle = 2*M_PI / _segments, planeDistance = _radius * cos(dAngle/2);
@@ -730,7 +730,7 @@ bool T4TApp::ToolMode::drillKeep(unsigned short n) {
 	return testRadius >= radius;
 }
 
-void T4TApp::ToolMode::getEdgeInt(bool (T4TApp::ToolMode::*getInt)(unsigned short*, unsigned short*, float*)) {
+void ToolMode::getEdgeInt(bool (ToolMode::*getInt)(unsigned short*, unsigned short*, float*)) {
 	short i, j, k, ne = _mesh->ne();
 	unsigned short e[2], line[2];
 	float dist[2];
@@ -747,7 +747,7 @@ void T4TApp::ToolMode::getEdgeInt(bool (T4TApp::ToolMode::*getInt)(unsigned shor
 	}
 }
 
-bool T4TApp::ToolMode::getEdgeDrillInt(unsigned short *e, unsigned short *lineInd, float *distance) {
+bool ToolMode::getEdgeDrillInt(unsigned short *e, unsigned short *lineInd, float *distance) {
 	if(keep[e[0]] < 0 && keep[e[1]] < 0) return false;
 
 	Tool *tool = getTool();
@@ -797,7 +797,7 @@ bool T4TApp::ToolMode::getEdgeDrillInt(unsigned short *e, unsigned short *lineIn
 	return true;
 }
 
-bool T4TApp::ToolMode::getHullSliceInt(unsigned short *e, unsigned short *planeInd, float *dist) {
+bool ToolMode::getHullSliceInt(unsigned short *e, unsigned short *planeInd, float *dist) {
 	if(keep[e[0]] >= 0 && keep[e[1]] >= 0) return false;
 	
 	Tool *tool = getTool();	
@@ -861,7 +861,7 @@ bool T4TApp::ToolMode::getHullSliceInt(unsigned short *e, unsigned short *planeI
 	return found;
 }
 
-void T4TApp::ToolMode::addToolFaces() {
+void ToolMode::addToolFaces() {
 	Tool *tool = getTool();
 	short _segments = tool->iparam[0], i, j, k, m, n, p, q, lineNum, numInt, e[2];
 	Vector3 v1, v2;
@@ -923,7 +923,7 @@ void T4TApp::ToolMode::addToolFaces() {
 	}
 }
 
-void T4TApp::ToolMode::addToolEdge(unsigned short v1, unsigned short v2, unsigned short lineNum) {
+void ToolMode::addToolEdge(unsigned short v1, unsigned short v2, unsigned short lineNum) {
 	_newMesh->addEdge(v1, v2);
 	segmentEdges[lineNum][v1] = v2;
 }

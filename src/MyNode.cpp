@@ -164,6 +164,19 @@ void MyNode::sv(Vector3 *v, int dim, float val) {
 	}
 }
 
+Vector3 MyNode::unitV(short axis) {
+	switch(axis) {
+		case 0: return Vector3::unitX();
+		case 1: return Vector3::unitY();
+		case 2: return Vector3::unitZ();
+	}
+	return Vector3::zero();
+}
+
+float MyNode::inf() {
+	return std::numeric_limits<float>::infinity();
+}
+
 Quaternion MyNode::getVectorRotation(Vector3 v1, Vector3 v2) {
 	Vector3 axis;
 	Vector3::cross(v1, v2, &axis);

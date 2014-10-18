@@ -1,6 +1,6 @@
 #include "T4TApp.h"
 
-T4TApp::Mode::Mode(const char* id) {
+Mode::Mode(const char* id) {
 
 	app = dynamic_cast<T4TApp*>(Game::getInstance());
 	_scene = app->_scene;
@@ -37,9 +37,9 @@ T4TApp::Mode::Mode(const char* id) {
 	setActive(false);
 }
 
-void T4TApp::Mode::draw() {}
+void Mode::draw() {}
 
-void T4TApp::Mode::setActive(bool active) {
+void Mode::setActive(bool active) {
 	_active = active;
 	setSelectedNode(NULL);
 	_container->setVisible(active);
@@ -52,7 +52,7 @@ void T4TApp::Mode::setActive(bool active) {
 	}
 }
 
-bool T4TApp::Mode::setSubMode(short mode) {
+bool Mode::setSubMode(short mode) {
 	if(_subModes.empty()) return false;
 	short newMode = mode % _subModes.size();
 	bool changed = newMode != _subMode;
@@ -60,14 +60,14 @@ bool T4TApp::Mode::setSubMode(short mode) {
 	return changed;
 }
 
-bool T4TApp::Mode::setSelectedNode(MyNode *node, Vector3 point) {
+bool Mode::setSelectedNode(MyNode *node, Vector3 point) {
 	bool changed = _selectedNode != node;
 	_selectedNode = node;
 	_selectPoint = point;
 	return changed;
 }
 
-void T4TApp::Mode::placeCamera() {
+void Mode::placeCamera() {
 	Vector2 delta(_mousePix - _touchPix);
 	float radius = _cameraStateBase->radius, theta = _cameraStateBase->theta, phi = _cameraStateBase->phi;
 	switch(app->_navMode) {
@@ -93,20 +93,18 @@ void T4TApp::Mode::placeCamera() {
 	}
 }
 
-bool T4TApp::Mode::isSelecting() {
+bool Mode::isSelecting() {
 	return _doSelect && app->_navMode < 0;
 }
 
-bool T4TApp::Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
+bool Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
 	_x = (int)(x + getX() + _container->getX() + app->_stage->getX());
 	_y = (int)(y + getY() + _container->getY() + app->_stage->getY());
 	_mousePix.set(_x, _y);
 	_camera = _scene->getActiveCamera();
 	_camera->pickRay(app->getViewport(), _x, _y, &_ray);
-	if(!isSelecting()) {
-		float distance = _ray.intersects(_plane);
-		_mousePoint.set(_ray.getOrigin() + distance * _ray.getDirection());
-	}
+	float distance = _ray.intersects(_plane);
+	if(distance != Ray::INTERSECTS_NONE) _mousePoint.set(_ray.getOrigin() + distance * _ray.getDirection());
 	switch(evt) {
 		case Touch::TOUCH_PRESS:
 			cout << "mode ray: " << app->pv(_ray.getOrigin()) << " => " << app->pv(_ray.getDirection()) << endl;
@@ -141,7 +139,7 @@ bool T4TApp::Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int 
 	}
 }
 
-void T4TApp::Mode::controlEvent(Control *control, EventType evt) {
+void Mode::controlEvent(Control *control, EventType evt) {
 	const char *id = control->getId();
 	if(control != this)	app->setNavMode(-1);
 

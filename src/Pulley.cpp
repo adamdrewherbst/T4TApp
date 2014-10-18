@@ -1,29 +1,29 @@
 #include "T4TApp.h"
 
-T4TApp::Pulley::Pulley() : T4TApp::ProjectComponent::ProjectComponent("pulley") {
+Pulley::Pulley() : ProjectComponent::ProjectComponent("pulley") {
 
 	_wheelLinks = 10;
 	_linkWidth = 0.2f;
 	
-	addElement("Base", static_cast<T4TApp::ProjectComponent::TouchCallback>(&T4TApp::Pulley::baseTouch), true);
-	addElement("Wheel", static_cast<T4TApp::ProjectComponent::TouchCallback>(&T4TApp::Pulley::wheelTouch), true);
-	addElement("LeftBucket", static_cast<T4TApp::ProjectComponent::TouchCallback>(&T4TApp::Pulley::bucketTouch));
-	addElement("RightBucket", static_cast<T4TApp::ProjectComponent::TouchCallback>(&T4TApp::Pulley::bucketTouch));
+	addElement("Base", static_cast<ProjectComponent::TouchCallback>(&Pulley::baseTouch), true);
+	addElement("Wheel", static_cast<ProjectComponent::TouchCallback>(&Pulley::wheelTouch), true);
+	addElement("LeftBucket", static_cast<ProjectComponent::TouchCallback>(&Pulley::bucketTouch));
+	addElement("RightBucket", static_cast<ProjectComponent::TouchCallback>(&Pulley::bucketTouch));
 }
 
-bool T4TApp::Pulley::baseTouch(Touch::TouchEvent evt, int x, int y) {
+bool Pulley::baseTouch(Touch::TouchEvent evt, int x, int y) {
 	return true;
 }
 
-bool T4TApp::Pulley::wheelTouch(Touch::TouchEvent evt, int x, int y) {
+bool Pulley::wheelTouch(Touch::TouchEvent evt, int x, int y) {
 	return true;
 }
 
-bool T4TApp::Pulley::bucketTouch(Touch::TouchEvent evt, int x, int y) {
+bool Pulley::bucketTouch(Touch::TouchEvent evt, int x, int y) {
 	return true;
 }
 
-void T4TApp::Pulley::placeElement() {
+void Pulley::placeElement() {
 	MyNode *node = getNode();
 	BoundingBox box = node->getWorldBox();
 	float x, y;
@@ -55,7 +55,7 @@ void T4TApp::Pulley::placeElement() {
 	}
 }
 
-void T4TApp::Pulley::finishElement() {
+void Pulley::finishElement() {
 	switch(_currentElement) {
 		case 0:
 			break;

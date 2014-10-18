@@ -1,11 +1,11 @@
 #include "T4TApp.h"
 
-T4TApp::TouchMode::TouchMode() 
-  : T4TApp::Mode::Mode("touch") {
+TouchMode::TouchMode() 
+  : Mode::Mode("touch") {
 	_face = MyNode::create("touchFace");
 }
 
-void T4TApp::TouchMode::setActive(bool active) {
+void TouchMode::setActive(bool active) {
 	Mode::setActive(active);
 	if(active) {
 		_scene->addNode(_face);
@@ -14,7 +14,7 @@ void T4TApp::TouchMode::setActive(bool active) {
 	}
 }
 
-bool T4TApp::TouchMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
+bool TouchMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
 {
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
@@ -87,7 +87,7 @@ bool T4TApp::TouchMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned
 	}
 }
 
-void T4TApp::TouchMode::controlEvent(Control *control, Control::Listener::EventType evt)
+void TouchMode::controlEvent(Control *control, Control::Listener::EventType evt)
 {
 }
 

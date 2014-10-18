@@ -123,11 +123,13 @@ public:
 	static Quaternion getVectorRotation(Vector3 v1, Vector3 v2);
 	static float gv(Vector3 *v, int dim);
 	static void sv(Vector3 *v, int dim, float val);
+	static Vector3 unitV(short axis);
 	
 	static char* concat(int n, ...);
+	static float inf();
 };
 
-#endif
-
 #include "T4TApp.h"
+
+#endif
 

@@ -1,7 +1,7 @@
 #include "T4TApp.h"
 
-T4TApp::ConstraintMode::ConstraintMode()
-  : T4TApp::Mode::Mode("constraint") {
+ConstraintMode::ConstraintMode()
+  : Mode::Mode("constraint") {
 
 	_currentNode = 0;
 	
@@ -16,18 +16,18 @@ T4TApp::ConstraintMode::ConstraintMode()
 	_constraintTypes.push_back("spring");
 }
 
-void T4TApp::ConstraintMode::setActive(bool active) {
+void ConstraintMode::setActive(bool active) {
 	Mode::setActive(active);
 	_currentNode = 0;
 }
 
-bool T4TApp::ConstraintMode::setSubMode(short mode) {
+bool ConstraintMode::setSubMode(short mode) {
 	bool changed = Mode::setSubMode(mode);
 	_currentNode = 0;
 	return changed;
 }
 
-bool T4TApp::ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
+bool ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
 {
 	Mode::touchEvent(evt, x, y, contactIndex);
 	unsigned short i, j;
@@ -78,7 +78,7 @@ bool T4TApp::ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, uns
 	}
 }
 
-void T4TApp::ConstraintMode::controlEvent(Control *control, Control::Listener::EventType evt)
+void ConstraintMode::controlEvent(Control *control, Control::Listener::EventType evt)
 {
 	Mode::controlEvent(control, evt);
 }
