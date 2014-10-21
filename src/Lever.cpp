@@ -38,14 +38,14 @@ void Lever::finishElement() {
 		case 0:
 			break;
 		case 1:
-			Quaternion rot1, rot2;
-			Quaternion::createFromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), (float)(0.0f), &rot1);
-			Quaternion::createFromAxisAngle(Vector3(1.0f, 0.0f, 0.0f), (float)(0.0f), &rot2);
-			Vector3 trans1(0.0f, 4.0f, 0.0f), trans2(0.0f, 0.0f, 0.0f);
-			//add the hinge constraint between the base and arm
-			_armConstraint = (PhysicsHingeConstraint*) app->addConstraint(getNode(0), getNode(1), -1, "hinge",
-				&rot1, &trans1, &rot2, &trans2);
 			break;
 	}
+}
+
+void Lever::finishComponent() {
+	//hinge axis goes along world z-axis through center of arm
+	_armConstraint = (PhysicsHingeConstraint*) app->addConstraint(getNode(0), getNode(1), -1, "hinge",
+	  getNode(1)->getTranslationWorld(), Vector3::unitZ());
+	ProjectComponent::finishComponent();
 }
 

@@ -101,6 +101,7 @@ include_directories(
     ${GAMEPLAY_SRC_PATH}/external-deps/glew/include
     #Adam added
     ${GAMEPLAY_SRC_PATH}/external-deps/HACD/include
+    ${GAMEPLAY_SRC_PATH}/external-deps/CGAL-4.5/include
 )
 
 append_gameplay_lib(GAMEPLAY_LIBRARIES)
@@ -116,6 +117,9 @@ append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "ogg" "oggvorbis" "libogg")
 append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "z" "zlib" "zlib")
 #Adam added
 append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "HACD" "HACD")
+append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "CGAL" "CGAL-4.5")
+append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "CGAL_Core" "CGAL-4.5")
+set(GAMEPLAY_LIBRARIES ${GAMEPLAY_LIBRARIES} "/usr/lib64/libboost_thread-mt.so.1.53.0")
 
 IF (TARGET_OS STREQUAL "LINUX")
 	append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "GL" "")
@@ -148,6 +152,7 @@ set(GAME_SRC
 	src/Pulley.cpp
 	src/Mode.cpp
 	src/ToolMode.cpp
+	src/ToolCGAL.cpp
 	src/NavigateMode.cpp
 	src/PositionMode.cpp
 	src/ConstraintMode.cpp

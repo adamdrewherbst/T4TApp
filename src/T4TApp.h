@@ -81,7 +81,10 @@ public:
     bool printNode(Node *node);
     bool prepareNode(MyNode *node);
     void translateNode(MyNode *node, Vector3 trans);
-    PhysicsConstraint* addConstraint(MyNode *n1, MyNode *n2, int id, const char *type, ...);
+    PhysicsConstraint* addConstraint(MyNode *n1, MyNode *n2, int id, const char *type,
+      Quaternion &rot1, Vector3 &trans1, Quaternion &rot2, Vector3 &trans2);
+    PhysicsConstraint* addConstraint(MyNode *n1, MyNode *n2, int id, const char *type,
+      const Vector3 &joint, const Vector3 &direction);
     //misc functions
     const std::string pv(const Vector3& v);
     const std::string pv2(const Vector2& v);

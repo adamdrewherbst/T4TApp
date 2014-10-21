@@ -46,6 +46,7 @@ void ToolMode::createBit(short type, ...) {
 	std::vector<float> vertices;
 	short i, j, k, m, v = 0;
 	float color[3] = {1.0f, 1.0f, 1.0f};
+	Vector3 vec;
 
 	switch(type) {
 		case 0: { //saw - make a hashed circle to show the cut plane
@@ -78,20 +79,38 @@ void ToolMode::createBit(short type, ...) {
 			for(i = 0; i < segments; i++) {
 				angle = (2*M_PI * i) / segments;
 				for(j = 0; j < 2; j++) {
-					vertices[v++] = radius * sin(angle);
-					vertices[v++] = radius * cos(angle);
-					vertices[v++] = (2*j-1) * length;
+					vec.set(radius * cos(angle), radius * sin(angle), (2*j-1) * length);
+					tool->vertices.push_back(vec);
+					vertices[v++] = vec.x;
+					vertices[v++] = vec.y;
+					vertices[v++] = vec.z;
 					for(k = 0; k < 3; k++) vertices[v++] = color[k];
 				}
 				for(j = 0; j < 2; j++) {
 					for(k = 0; k < 2; k++) {
-						vertices[v++] = radius * sin(angle + k*dAngle);
-						vertices[v++] = radius * cos(angle + k*dAngle);
-						vertices[v++] = (2*j-1) * length;
+						vec.set(radius * cos(angle + k*dAngle), radius * sin(angle + k*dAngle), (2*j-1) * length);
+						vertices[v++] = vec.x;
+						vertices[v++] = vec.y;
+						vertices[v++] = vec.z;
 						for(m = 0; m < 3; m++) vertices[v++] = color[m];
 					}
 				}
 			}
+			std::vector<unsigned short> face;
+			for(i = 0; i < segments; i++) {
+				j = (i+1)%segments;
+				face.resize(4);
+				face[0] = i*2 + 1;
+				face[1] = i*2;
+				face[2] = j*2;
+				face[3] = j*2 + 1;
+				tool->faces.push_back(face);
+			}
+			face.resize(segments);
+			for(i = 0; i < segments; i++) face[i] = 2*(segments-1 - i);
+			tool->faces.push_back(face);
+			for(i = 0; i < segments; i++) face[i] = 2*i + 1;
+			tool->faces.push_back(face);
 			//add a menu item for this bit
 			std::ostringstream os;
 			os << "drill_bit_" << segments << "_" << (int)(radius * 100 + 0.1);
@@ -101,6 +120,7 @@ void ToolMode::createBit(short type, ...) {
 			image->setZIndex(_bitMenu->getZIndex());
 			image->setSize(100.0f, 100.0f);
 			image->setImage(file.c_str());
+			image->addListener(this, Control::Listener::CLICK);
 			break;
 		}
 	}
@@ -121,7 +141,11 @@ void ToolMode::createBit(short type, ...) {
 
 void ToolMode::setTool(short n) {
 	_currentTool = n;
-	_tool->setModel(getTool()->model);
+	Tool *tool = getTool();
+	_tool->setModel(tool->model);
+	_tool->_vertices = tool->vertices;
+	_tool->_faces = tool->faces;
+	_tool->update();
 }
 
 ToolMode::Tool* ToolMode::getTool() {
@@ -295,7 +319,7 @@ bool ToolMode::toolNode() {
 			success = sawNode();
 			break;
 		case 1:
-			success = drillNode();
+			success = drillCGAL();
 			break;
 	}
 	if(!success) return false;

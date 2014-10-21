@@ -47,25 +47,15 @@ bool ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned in
 			if(_currentNode == 2) { //we have both attachment points - add the constraint
 				_nodes[1]->rotateFaceToFace(_faces[1], _nodes[0], _faces[0]);
 				_nodes[1]->translate(_nodes[0]->_worldNormals[_faces[0]] * 0.02f); //back away a tad
-				Vector3 normal; //default hinge axis is model space z-axis, we want face normal
-				for(i = 0; i < 2; i++) {
-					_nodes[i]->updateTransform();
-					normal = _nodes[i]->getScaleNormal(_faces[i]);
-					_rot[i] = MyNode::getVectorRotation(Vector3(0, 0, 1), normal);
-					_trans[i] = _nodes[i]->faceCenter(_faces[i], true);
-					_trans[i] += normal * 0.01f; //create a bit of separation
-				}
-				PhysicsConstraint *constraint;
-				constraint = app->addConstraint(_nodes[0], _nodes[1], -1, _constraintTypes[_subMode].c_str(),
-				  &_rot[0], &_trans[0], &_rot[1], &_trans[1]);
+				for(i = 0; i < 2; i++) _nodes[i]->updateTransform();
+				PhysicsConstraint *constraint = app->addConstraint(_nodes[0], _nodes[1], -1, _constraintTypes[_subMode].c_str(),
+				  _nodes[0]->faceCenter(_faces[0]) + _nodes[0]->_worldNormals[_faces[0]] * 0.01f,
+				  _nodes[0]->_worldNormals[_faces[0]]);
 				//the second node clicked becomes a child of the first node clicked
 				_nodes[0]->addChild(_nodes[1]);
 				_nodes[1]->_constraintParent = _nodes[0];
-				_nodes[1]->_parentOffset = _trans[0];
-				Matrix rot;
-				Matrix::createRotation(_rot[0], &rot);
-				_nodes[1]->_parentAxis.set(0, 0, 1);
-				rot.transformVector(&_nodes[1]->_parentAxis);
+				_nodes[1]->_parentOffset = _nodes[0]->faceCenter(_faces[0], true) + _nodes[0]->getScaleNormal(_faces[0]) * 0.01f;
+				_nodes[1]->_parentAxis = _nodes[0]->getScaleNormal(_faces[0]);
 			}
 			break;
 		}

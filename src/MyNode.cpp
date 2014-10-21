@@ -443,7 +443,7 @@ void MyNode::loadData(const char *file, bool doPhysics)
 		short nf = atoi(str), faceSize, numTriangles, numNeighbors;
 		std::vector<unsigned short> triangle(3), face;
 		_triangles.resize(nf);
-		//faces, along with their constituent triangles and neighboring faces (sharing an edge)
+		//faces, along with their constituent triangles
 		for(i = 0; i < nf; i++) {
 			str = stream->readLine(line, 2048);
 			faceSize = atoi(str);
@@ -561,8 +561,18 @@ void MyNode::writeData(const char *file) {
 	stream->write(line.c_str(), sizeof(char), line.length());
 	if(_type.compare("root") != 0) {
 		os.str("");
-		Vector3 axis, vec, translation = getTranslation(), scale = getScale();
-		float angle = getRotation().toAxisAngle(&axis) * 180.0f/M_PI;
+		Vector3 axis, vec, translation, scale;
+		Quaternion rotation;
+		if(getParent() != NULL && isStatic()) {
+			Matrix m = getWorldMatrix();
+			//Matrix::multiply(getParent()->getWorldMatrix(), getWorldMatrix(), &m);
+			m.decompose(&scale, &rotation, &translation);
+		} else {
+			scale = getScale();
+			rotation = getRotation();
+			translation = getTranslation();
+		}
+		float angle = rotation.toAxisAngle(&axis) * 180.0f/M_PI;
 		os << axis.x << "\t" << axis.y << "\t" << axis.z << "\t" << angle << endl;
 		os << translation.x << "\t" << translation.y << "\t" << translation.z << endl;
 		os << scale.x << "\t" << scale.y << "\t" << scale.z << endl;
@@ -904,9 +914,10 @@ void MyNode::addCollisionObject() {
 }
 
 void MyNode::addPhysics(bool recur) {
-	if(getCollisionObject() != NULL) return;
-	addCollisionObject();
-	app->addConstraints(this);
+	if(getCollisionObject() == NULL) {
+		addCollisionObject();
+		app->addConstraints(this);
+	}
 	if(recur) {
 		for(MyNode *node = dynamic_cast<MyNode*>(getFirstChild()); node; node = dynamic_cast<MyNode*>(node->getNextSibling())) {
 			node->addPhysics();
@@ -915,9 +926,10 @@ void MyNode::addPhysics(bool recur) {
 }
 
 void MyNode::removePhysics(bool recur) {
-	if(getCollisionObject() == NULL) return;
-	app->removeConstraints(this);
-	setCollisionObject(PhysicsCollisionObject::NONE);
+	if(getCollisionObject() != NULL) {
+		app->removeConstraints(this);
+		setCollisionObject(PhysicsCollisionObject::NONE);
+	}
 	if(recur) {
 		for(MyNode *node = dynamic_cast<MyNode*>(getFirstChild()); node; node = dynamic_cast<MyNode*>(node->getNextSibling())) {
 			node->removePhysics();

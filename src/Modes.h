@@ -70,6 +70,8 @@ public:
 		float *fparam; //any parameters this tool type requires
 		int *iparam;
 		Model *model; //representation of the tool
+		std::vector<Vector3> vertices;
+		std::vector<std::vector<unsigned short> > faces;
 	};
 	std::vector<std::vector<Tool*> > _tools; //my toolbox - each inner vector holds all bits for a single tool type
 	short _currentTool;
@@ -107,6 +109,7 @@ public:
 	
 	//for drilling
 	bool drillNode();
+	bool drillCGAL();
 	bool getEdgeDrillInt(unsigned short *e, unsigned short *lineInd, float *distance);
 	bool getHullSliceInt(unsigned short *e, unsigned short *lineInd, float *distance);
 	bool drillKeep(unsigned short n);
@@ -235,10 +238,10 @@ public:
 	Element* getEl();
 	MyNode* getNode(short n = -1);
 	void controlEvent(Control *control, EventType evt);
+	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 	virtual void placeElement() = 0; //position the element in space before it has physics attached
 	virtual void finishElement() = 0; //post processing once the collision object is attached
-	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
-	void finishComponent();
+	virtual void finishComponent();
 };
 
 class Lever : public ProjectComponent 
@@ -251,6 +254,7 @@ public:
 	bool armTouch(Touch::TouchEvent evt, int x, int y);
 	void placeElement();
 	void finishElement();
+	void finishComponent();
 };
 
 class Pulley : public ProjectComponent 
@@ -266,6 +270,7 @@ public:
 	bool bucketTouch(Touch::TouchEvent evt, int x, int y);
 	void placeElement();
 	void finishElement();
+	void finishComponent();
 };
 
 #endif

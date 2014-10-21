@@ -392,6 +392,7 @@ MyNode* T4TApp::loadNode(const char *id) {
 	MyNode *node = MyNode::create(id);
 	_scene->addNode(node);
 	node->loadData();
+	node->enablePhysics();
 	return node;
 }
 
@@ -849,9 +850,18 @@ void T4TApp::collisionEvent(PhysicsCollisionObject::CollisionListener::EventType
 
 /********** PHYSICS ***********/
 
-PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const char *type, ...) {
-	va_list arguments;
-	va_start(arguments, type);
+PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const char *type,
+  const Vector3 &joint, const Vector3 &direction) {
+	Quaternion rotOffset = MyNode::getVectorRotation(Vector3::unitZ(), direction),
+	  rot1 = PhysicsConstraint::getRotationOffset(n1, joint) * rotOffset,
+	  rot2 = PhysicsConstraint::getRotationOffset(n2, joint) * rotOffset;
+	Vector3 trans1 = PhysicsConstraint::getTranslationOffset(n1, joint),
+	  trans2 = PhysicsConstraint::getTranslationOffset(n2, joint);
+	return addConstraint(n1, n2, id, type, rot1, trans1, rot2, trans2);
+}
+
+PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const char *type,
+  Quaternion &rot1, Vector3 &trans1, Quaternion &rot2, Vector3 &trans2) {
 	MyNode *node[2];
 	PhysicsRigidBody *body[2];
 	Vector3 trans[2];
@@ -861,15 +871,14 @@ PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const c
 	for(i = 0; i < 2; i++) {
 		node[i] = i == 0 ? n1 : n2;
 		body[i] = node[i]->getCollisionObject()->asRigidBody();
-		rot[i] = *((Quaternion*) va_arg(arguments, Quaternion*));
-		trans[i] = *((Vector3*) va_arg(arguments, Vector3*));
+		rot[i] = i == 0 ? rot1 : rot2;
+		trans[i] = i == 0 ? trans1 : trans2;
 		if(strcmp(type, "hinge") == 0) {
 			body[i]->setEnabled(false);
 			body[i]->setFriction(0.01f);
 			body[i]->setEnabled(true);
 		}
 	}
-	va_end(arguments);
 	if(strcmp(type, "hinge") == 0) {
 		ret = getPhysicsController()->createHingeConstraint(body[0], rot[0], trans[0], body[1], rot[1], trans[1]);
 	} else if(strcmp(type, "spring") == 0) {
@@ -901,15 +910,15 @@ void T4TApp::addConstraints(MyNode *node) {
 	for(i = 0; i < node->_constraints.size(); i++) {
 		c1 = node->_constraints[i];
 		if(c1->id >= 0) continue;
-		MyNode *other = dynamic_cast<MyNode*>(_scene->findNode(c1->other.c_str()));
+		MyNode *other = dynamic_cast<MyNode*>(_activeScene->findNode(c1->other.c_str()));
 		if(!other || !other->getCollisionObject()) continue;
 		for(j = 0; j < other->_constraints.size(); j++) {
 			c2 = other->_constraints[j];
 			if(c2->other.compare(node->getId()) == 0 && c2->type.compare(c1->type) == 0 && c2->id < 0) {
 				c1->id = _constraintCount;
 				c2->id = _constraintCount++;
-				addConstraint(node, other, c1->id, c1->type.c_str(), &c1->rotation, &c1->translation,
-					&c2->rotation, &c2->translation);
+				addConstraint(node, other, c1->id, c1->type.c_str(), c1->rotation, c1->translation,
+					c2->rotation, c2->translation);
 			}
 		}
 	}
@@ -922,7 +931,7 @@ void T4TApp::removeConstraints(MyNode *node) {
 	for(i = 0; i < node->_constraints.size(); i++) {
 		c1 = node->_constraints[i];
 		if(c1->id < 0) continue;
-		MyNode *other = dynamic_cast<MyNode*>(_scene->findNode(c1->other.c_str()));
+		MyNode *other = dynamic_cast<MyNode*>(_activeScene->findNode(c1->other.c_str()));
 		if(!other) continue;
 		for(j = 0; j < other->_constraints.size(); j++) {
 			c2 = other->_constraints[j];
@@ -951,14 +960,14 @@ void T4TApp::reloadConstraint(MyNode *node, MyNode::nodeConstraint *constraint) 
 		getPhysicsController()->removeConstraint(_constraints[id]);
 		_constraints.erase(id);
 	}
-	MyNode *other = dynamic_cast<MyNode*>(_scene->findNode(constraint->other.c_str()));
+	MyNode *other = dynamic_cast<MyNode*>(_activeScene->findNode(constraint->other.c_str()));
 	if(!other) return;
 	MyNode::nodeConstraint *otherConstraint;
 	for(short i = 0; i < other->_constraints.size(); i++) {
 		otherConstraint = other->_constraints[i];
 		if(otherConstraint->id == id) {
-			addConstraint(node, other, id, constraint->type.c_str(), &constraint->rotation, &constraint->translation,
-			  &otherConstraint->rotation, &otherConstraint->translation);
+			addConstraint(node, other, id, constraint->type.c_str(), constraint->rotation, constraint->translation,
+			  otherConstraint->rotation, otherConstraint->translation);
 			break;
 		}
 	}

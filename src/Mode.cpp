@@ -24,6 +24,8 @@ Mode::Mode(const char* id) {
 	if(_controls != NULL) {
 		_subModePanel = (Container*)_controls->getControl("subMode");
 	}
+	
+	app->addListener(_container, this);
 
 	_plane = app->_groundPlane;
 	_doSelect = true;
@@ -44,11 +46,11 @@ void Mode::setActive(bool active) {
 	setSelectedNode(NULL);
 	_container->setVisible(active);
 	if(active) {
-		app->addListener(_container, this);
+		//app->addListener(_container, this);
 		setSubMode(0);
 		app->setNavMode(-1);
 	} else {
-		app->removeListener(_container, this);
+		//app->removeListener(_container, this);
 	}
 }
 

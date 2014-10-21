@@ -10,10 +10,11 @@ ProjectComponent::ProjectComponent(const char* id) : Mode::Mode(id) {
 }
 
 void ProjectComponent::controlEvent(Control *control, EventType evt) {
+	Mode::controlEvent(control, evt);
 	const char *id = control->getId();
 	if(strncmp(id, "comp_", 5) == 0) {
 		Element *el = _elements[_currentElement];
-		MyNode *node = app->duplicateModelNode(id+5, el->_isStatic);
+		MyNode *node = app->duplicateModelNode(id+5);
 		std::stringstream ss;
 		ss << _nodeId << "_" << el->_name;
 		const std::string nodeID = ss.str();
@@ -22,7 +23,7 @@ void ProjectComponent::controlEvent(Control *control, EventType evt) {
 		_rootNode->addChild(node);
 		placeElement();
 		node->addCollisionObject();
-		node->getCollisionObject()->setEnabled(false);
+		node->getCollisionObject()->asRigidBody()->setGravity(0, 0, 0);
 		finishElement();
 		app->_componentMenu->setVisible(false);
 		_controls->setVisible(true);
@@ -30,8 +31,9 @@ void ProjectComponent::controlEvent(Control *control, EventType evt) {
 		_moveMode = 0;
 	} else if(strlen(id) == 7 && strncmp(id, "rotate", 6) == 0) {
 		_moveMode = 1;
-		_moveAxis = (short)(id[6] - 88);
-	} else if(strcmp(id, "finish") == 0) {
+		_moveAxis = (short)(id[6] - 88); //char 7 is 'X', 'Y', or 'Z'
+		app->setNavMode(-1);
+	} else if(strcmp(id, "finishElement") == 0) {
 		_currentElement++;
 		if(_currentElement >= _elements.size()) finishComponent();
 		else app->_componentMenu->setVisible(true);
@@ -43,7 +45,6 @@ bool ProjectComponent::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 	switch(evt)
 	{
 		case Touch::TOUCH_PRESS:
-			//if((this->*_elements[_currentElement]->_callback)(evt, x, y)) {}
 			if(app->_navMode < 0 && _moveMode >= 0 && _selectedNode != NULL) {
 				Vector3 normal = app->getCameraNode()->getForwardVector();
 				_plane.set(normal, -normal.dot(_selectedNode->getTranslationWorld()));
@@ -55,7 +56,7 @@ bool ProjectComponent::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 			}
 			break;
 		case Touch::TOUCH_MOVE:
-			if(app->_navMode < 0 && _moveMode >= 0 && _selectedNode != NULL) {
+			if(_touching && app->_navMode < 0 && _moveMode >= 0 && _selectedNode != NULL) {
 				short e;
 				for(e = 0; e <= _currentElement && _elements[e]->_node != _selectedNode; e++);
 				if(e > _currentElement) break;
@@ -91,6 +92,16 @@ MyNode* ProjectComponent::getNode(short n) {
 }
 
 void ProjectComponent::finishComponent() {
+	for(short i = 0; i < _elements.size(); i++) {
+		MyNode *node = getNode(i);
+		if(_elements[i]->_isStatic) { //we didn't make it static before now, to allow user to adjust position
+			node->removePhysics();
+			node->setStatic(true);
+			node->addPhysics();
+		} else { //add gravity to this node
+			node->getCollisionObject()->asRigidBody()->setGravity(app->getPhysicsController()->getGravity());
+		}
+	}
 	app->_scene->addNode(_rootNode);
 	setActive(false);
 }
