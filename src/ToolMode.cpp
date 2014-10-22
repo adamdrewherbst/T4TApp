@@ -80,7 +80,7 @@ void ToolMode::createBit(short type, ...) {
 				angle = (2*M_PI * i) / segments;
 				for(j = 0; j < 2; j++) {
 					vec.set(radius * cos(angle), radius * sin(angle), (2*j-1) * length);
-					tool->vertices.push_back(vec);
+					tool->addVertex(vec);
 					vertices[v++] = vec.x;
 					vertices[v++] = vec.y;
 					vertices[v++] = vec.z;
@@ -96,21 +96,30 @@ void ToolMode::createBit(short type, ...) {
 					}
 				}
 			}
-			std::vector<unsigned short> face;
+			std::vector<std::vector<unsigned short> > triangles(2);
+			for(i = 0; i < 2; i++) triangles[i].resize(3);
+			for(i = 0; i < 2; i++) for(j = 0; j < 3; j++) triangles[i][j] = j+i;
+			triangles[1][0] = 0;
+			tool->_triangles.resize(segments+2);
 			for(i = 0; i < segments; i++) {
 				j = (i+1)%segments;
-				face.resize(4);
-				face[0] = i*2 + 1;
-				face[1] = i*2;
-				face[2] = j*2;
-				face[3] = j*2 + 1;
-				tool->faces.push_back(face);
+				tool->addFace(4, i*2+1, i*2, j*2, j*2+1);
+				tool->_triangles[i] = triangles;
 			}
-			face.resize(segments);
+			std::vector<unsigned short> face(segments);
 			for(i = 0; i < segments; i++) face[i] = 2*(segments-1 - i);
-			tool->faces.push_back(face);
+			tool->addFace(face);
 			for(i = 0; i < segments; i++) face[i] = 2*i + 1;
-			tool->faces.push_back(face);
+			tool->addFace(face);
+			triangles.resize(segments-2);
+			for(i = 0; i < segments-2; i++) {
+				triangles[i].resize(3);
+				triangles[i][0] = 0;
+				triangles[i][1] = i+1;
+				triangles[i][2] = i+2;
+			}
+			tool->_triangles[segments] = triangles;
+			tool->_triangles[segments+1] = triangles;
 			//add a menu item for this bit
 			std::ostringstream os;
 			os << "drill_bit_" << segments << "_" << (int)(radius * 100 + 0.1);
@@ -125,26 +134,16 @@ void ToolMode::createBit(short type, ...) {
 		}
 	}
 	va_end(args);
-	//create the mesh from the vertex data
-	VertexFormat::Element elements[] = {
-		VertexFormat::Element(VertexFormat::POSITION, 3),
-		VertexFormat::Element(VertexFormat::COLOR, 3)
-	};
-	Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), v/6, false);
-	mesh->setPrimitiveType(Mesh::LINES);
-	mesh->setVertexData(&vertices[0], 0, v/6);
-	Model *model = Model::create(mesh);
-	model->setMaterial("res/common/grid.material");
-	mesh->release();
-	tool->model = model;
+	tool->model = app->createModel(vertices, true, "grid");
 }
 
 void ToolMode::setTool(short n) {
 	_currentTool = n;
 	Tool *tool = getTool();
 	_tool->setModel(tool->model);
-	_tool->_vertices = tool->vertices;
-	_tool->_faces = tool->faces;
+	_tool->_vertices = tool->_vertices;
+	_tool->_faces = tool->_faces;
+	_tool->_triangles = tool->_triangles;
 	_tool->update();
 }
 
@@ -164,6 +163,7 @@ bool ToolMode::setSelectedNode(MyNode *node, Vector3 point) {
 		_toolRot = 0;
 		placeTool();
 		_scene->addNode(_tool);
+		//app->showFace(_selectedNode, _selectedNode->_faces[3], true);
 	} else {
 		_scene->removeNode(_tool);
 		_plane = app->_groundPlane;
@@ -200,7 +200,8 @@ void ToolMode::placeTool() {
 	trans.translate(node);
 	trans.rotate(cam->getRotation());
 	trans.translate(_toolTrans.x, _toolTrans.y, 0);
-	trans.rotate(Vector3(0, 0, 1), _toolRot);
+	trans.rotate(Vector3::unitZ(), _toolRot);
+	trans.rotate(Vector3::unitY(), M_PI);
 	_tool->set(trans);
 	
 	//view plane is orthogonal to the viewing axis and passing through the target node
@@ -215,7 +216,7 @@ bool ToolMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int cont
 			break;
 		}
 		case Touch::TOUCH_MOVE: {
-			if(_touching && _moveMode >= 0) {
+			if(_touching && _moveMode >= 0 && app->_navMode < 0) {
 				Vector2 center;
 				switch(_moveMode) {
 					case 0: { //rotate
@@ -309,9 +310,14 @@ bool ToolMode::toolNode() {
 	segmentEdges.clear();
 	
 	Matrix tool = _tool->getWorldMatrix();
-	_axis.setOrigin(0, 0, -50.0f);
-	_axis.setDirection(0, 0, 1);
-	_axis.transform(tool);
+	Vector3 center = _tool->getTranslationWorld();
+	axis = Vector3::unitZ();
+	tool.transformVector(&axis);
+	right = -Vector3::unitX();
+	tool.transformVector(&right);
+	up = Vector3::unitY();
+	tool.transformVector(&up);
+	_axis.set(center - axis * 50, axis);
 
 	bool success = false;
 	switch(getTool()->type) {
@@ -319,7 +325,7 @@ bool ToolMode::toolNode() {
 			success = sawNode();
 			break;
 		case 1:
-			success = drillCGAL();
+			success = drillNode();
 			break;
 	}
 	if(!success) return false;
@@ -337,6 +343,7 @@ bool ToolMode::toolNode() {
 	_node->_hulls = _newNode->_hulls;
 	for(i = 0; i < _node->_hulls.size(); i++) {
 		MyNode::ConvexHull *hull = _node->_hulls[i];
+		hull->_node = _node;
 		for(j = 0; j < hull->nv(); j++) {
 			worldModel.transformPoint(&hull->_vertices[j]);
 		}
@@ -391,10 +398,6 @@ bool ToolMode::drillNode() {
 			planes[i].set(-v1, -f1);
 		}
 	}
-
-	Vector3 axis(_axis.getDirection()), right(-1, 0, 0), up(0, 1, 0);
-	toolWorld.transformVector(&right);
-	toolWorld.transformVector(&up);
 
 	//determine which vertices to discard because they are inside the drill cylinder
 	for(i = 0; i < _mesh->_vertices.size(); i++) {
@@ -520,8 +523,7 @@ bool ToolMode::drillNode() {
 				}
 			} while((mode != 0 || keep[p] != newFace[0]) && numInts <= _segments);
 			if(numInts > _segments) {
-				GP_WARN("Couldn't exit drill on face %d", i);
-				return false;
+				GP_ERROR("Couldn't exit drill on face %d", i);
 			}
 			_newNode->addFace(newFace);
 		} else { //no edge intersections => only question is whether entire drill bit passes through this face
@@ -604,8 +606,7 @@ bool ToolMode::drillNode() {
 						offset++;
 					} while(offset < n);
 					if(offset == n) {
-						GP_WARN("Can't get edge in face %d from drill point %d", i, p);
-						return false;
+						GP_ERROR("Can't get edge in face %d from drill point %d", i, p);
 					}
 					e[j] = q;
 				}
@@ -647,7 +648,7 @@ bool ToolMode::drillNode() {
 		}
 		if(numKeep == 0) continue;
 		//for each drill segment, if the hull intersects its angle range, build a new hull from the intersection
-		for(j = 0; j <= _segments; j++) {
+		for(j = 0; j < _segments; j++) {
 			_hullSlice = j;
 			newHull = new MyNode::ConvexHull(_newNode);
 			_newMesh = newHull;
@@ -754,24 +755,24 @@ bool ToolMode::drillKeep(unsigned short n) {
 	return testRadius >= radius;
 }
 
-void ToolMode::getEdgeInt(bool (ToolMode::*getInt)(unsigned short*, unsigned short*, float*)) {
-	short i, j, k, ne = _mesh->ne();
-	unsigned short e[2], line[2];
+void ToolMode::getEdgeInt(bool (ToolMode::*getInt)(unsigned short*, short*, float*)) {
+	short i, j, k, ne = _mesh->ne(), line[2];
+	unsigned short e[2];
 	float dist[2];
 	for(i = 0; i < ne; i++) {
 		for(j = 0; j < 2; j++) e[j] = _mesh->_edges[i][j];
 		if(!((this->*getInt)(e, line, dist))) continue;
-		for(j = 0; j < 2; j++) if(keep[e[j]] >= 0) {
+		for(j = 0; j < 2; j++) if(line[j] >= 0) {
 			k = _newMesh->_vertices.size();
 			_newMesh->_vertices.push_back(_mesh->_worldVertices[e[j]]
 			  + (_mesh->_worldVertices[e[(j+1)%2]] - _mesh->_worldVertices[e[j]]) * dist[j]);
 			edgeInt[e[j]][e[(j+1)%2]] = std::pair<unsigned short, unsigned short>(line[j], k);
 		}
-		for(j = 0; j < 2; j++) if(keep[e[j]] < 0) edgeInt[e[j]][e[(j+1)%2]] = edgeInt[e[(j+1)%2]][e[j]];
+		for(j = 0; j < 2; j++) if(line[j] < 0) edgeInt[e[j]][e[(j+1)%2]] = edgeInt[e[(j+1)%2]][e[j]];
 	}
 }
 
-bool ToolMode::getEdgeDrillInt(unsigned short *e, unsigned short *lineInd, float *distance) {
+bool ToolMode::getEdgeDrillInt(unsigned short *e, short *lineInd, float *distance) {
 	if(keep[e[0]] < 0 && keep[e[1]] < 0) return false;
 
 	Tool *tool = getTool();
@@ -783,6 +784,7 @@ bool ToolMode::getEdgeDrillInt(unsigned short *e, unsigned short *lineInd, float
 	for(i = 0; i < 2; i++) {
 		v[i] = toolVertices[e[i]];
 		v[i].z = 0;
+		lineInd[i] = -1;
 	}
 	v[2].set(v[1]-v[0]);
 	//validate the edge is really there
@@ -806,7 +808,7 @@ bool ToolMode::getEdgeDrillInt(unsigned short *e, unsigned short *lineInd, float
 		v1.set(v[0] + v[2] * (j == 0 ? s : t));
 		angle = atan2(v1.y, v1.x);
 		if(angle < 0) angle += 2*M_PI;
-		lineInd[j] = (unsigned short)(angle / dAngle);
+		lineInd[j] = (short)(angle / dAngle);
 	}
 	//if keeping both endpoints and they hit the same angle segment, the edge must not really touch the drill plane
 	if(keep[e[0]] >= 0 && keep[e[1]] >= 0 && lineInd[0] == lineInd[1]) return false;
@@ -817,11 +819,12 @@ bool ToolMode::getEdgeDrillInt(unsigned short *e, unsigned short *lineInd, float
 		v2.set(cos(angle), sin(angle), 0);
 		//(v0 + a*v2) * r = planeDistance => a = (planeDistance - v0*r) / v2*r
 		distance[j] = (planeDistance - v[0].dot(v2)) / v[2].dot(v2);
+		if(j == 1) distance[j] = 1 - distance[j];
 	}
 	return true;
 }
 
-bool ToolMode::getHullSliceInt(unsigned short *e, unsigned short *planeInd, float *dist) {
+bool ToolMode::getHullSliceInt(unsigned short *e, short *planeInd, float *dist) {
 	if(keep[e[0]] >= 0 && keep[e[1]] >= 0) return false;
 	
 	Tool *tool = getTool();	
@@ -834,10 +837,11 @@ bool ToolMode::getHullSliceInt(unsigned short *e, unsigned short *planeInd, floa
 		v[m].z = 0;
 		err[m] = 1000;
 		dist[m] = 1000;
+		planeInd[m] = -1;
 	}
 	v[2] = v[1] - v[0];
 	//check radial plane 1, drill plane, radial plane 2
-	bool radial, better, found;
+	bool radial, better;
 	short keeper;
 	for(m = 0; m < 3; m++) {
 		radial = m%2 == 0;
@@ -867,22 +871,22 @@ bool ToolMode::getHullSliceInt(unsigned short *e, unsigned short *planeInd, floa
 		if(error <= 0) error = 0;
 		else if(keeper < 0) continue;
 		for(n = 0; n < 2; n++) {
-			if(keep[e[n]] < 0) continue;
+			if(keeper == 1-n) continue;
 			f1 = n == 0 ? a : 1 - a;
 			if(keeper == n && (err[n] > 0 || dist[n] < 0 || dist[n] > 1)) {
 				float distErr = dist[n] < 0 || dist[n] > 1 ? fmin(fabs(dist[n] - 1), fabs(-dist[n])) : 0,
 				  newErr = a < 0 || a > 1 ? fmin(fabs(a - 1), fabs(-a)) : 0;
 				better = (distErr > err[n] && newErr < distErr) || (err[n] > distErr && error < err[n]);
-			} else better = f1 < dist[n];
+			} else better = f1 >= 0 && f1 <= 1 && f1 < dist[n];
 			if(better) {
 				dist[n] = f1;
 				planeInd[n] = m;
 				err[n] = error;
-				found = true;
 			}
 		}
 	}
-	return found;
+	if(keeper < 0) return planeInd[0] >= 0 && planeInd[1] >= 0 && planeInd[0] != planeInd[1];
+	else return planeInd[keeper] >= 0;
 }
 
 void ToolMode::addToolFaces() {
@@ -920,6 +924,9 @@ void ToolMode::addToolFaces() {
 		}
 	}
 	
+	//copy edge map for debugging
+	std::map<unsigned short, std::map<unsigned short, unsigned short> > oldEdges = segmentEdges;
+
 	//for each segment of the drill bit, use its known set of points and edges to determine all its faces
 	std::map<unsigned short, unsigned short>::iterator eit;
 	std::vector<unsigned short> newFace;
@@ -952,4 +959,9 @@ void ToolMode::addToolEdge(unsigned short v1, unsigned short v2, unsigned short 
 	segmentEdges[lineNum][v1] = v2;
 }
 
+void ToolMode::showFace(Meshy *mesh, std::vector<unsigned short> &face, bool world) {
+	_node->setWireframe(true);
+	app->_drawDebug = false;
+	app->showFace(mesh, face, world);
+}
 

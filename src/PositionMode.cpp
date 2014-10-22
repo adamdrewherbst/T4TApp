@@ -95,7 +95,7 @@ void PositionMode::controlEvent(Control *control, Control::Listener::EventType e
 	if(control && control == _valueSlider) {
 		if(_subMode == 0) {
 			_transDir.set(0, 0, 0);
-			MyNode::sv(&_transDir, _axis, 1);
+			MyNode::sv(_transDir, _axis, 1);
 		}
 		setPosition(_valueSlider->getValue(), evt == Control::Listener::RELEASE);
 	} else if(control == _axisButton) {
@@ -177,7 +177,7 @@ void PositionMode::setPosition(float value, bool finalize) {
 		case 0: { //translate
 			Vector3 delta(_transDir * value);
 			_selectedNode->setMyTranslation(_baseTranslation + delta);
-			_positionValue = MyNode::gv(&delta, _axis);
+			_positionValue = MyNode::gv(delta, _axis);
 			if(constraint != NULL) {
 				Matrix m(_parentNode->getWorldMatrix());
 				m.invert();
@@ -255,7 +255,7 @@ void PositionMode::setAxis(short axis) {
 			return;
 		}
 		_transDir.set(0, 0, 0);
-		MyNode::sv(&_transDir, axis, 1);
+		MyNode::sv(_transDir, axis, 1);
 	}
 	//_axisButton->setText(_axisNames[axis].c_str());
 	_axis = axis;

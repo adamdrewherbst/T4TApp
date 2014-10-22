@@ -64,14 +64,12 @@ public:
 class ToolMode : public Mode
 {
 public:
-	struct Tool {
+	struct Tool : public Meshy {
 		std::string id;
 		short type; //0 = saw, 1 = drill
 		float *fparam; //any parameters this tool type requires
 		int *iparam;
 		Model *model; //representation of the tool
-		std::vector<Vector3> vertices;
-		std::vector<std::vector<unsigned short> > faces;
 	};
 	std::vector<std::vector<Tool*> > _tools; //my toolbox - each inner vector holds all bits for a single tool type
 	short _currentTool;
@@ -110,14 +108,15 @@ public:
 	//for drilling
 	bool drillNode();
 	bool drillCGAL();
-	bool getEdgeDrillInt(unsigned short *e, unsigned short *lineInd, float *distance);
-	bool getHullSliceInt(unsigned short *e, unsigned short *lineInd, float *distance);
+	bool getEdgeDrillInt(unsigned short *e, short *lineInd, float *distance);
+	bool getHullSliceInt(unsigned short *e, short *planeInd, float *distance);
 	bool drillKeep(unsigned short n);
 	
 	//general purpose
 	Ray _axis; //geometry of the tool
 	std::vector<Ray> lines;
 	std::vector<Plane> planes;
+	Vector3 axis, right, up;
 	std::vector<Vector3> toolVertices; //coords of model vertices in tool frame
 	std::vector<short> keep; //-1 if discarding the vertex, otherwise its index in the new model's vertex list
 	//edgeInt[edge vertex 1][edge vertex 2] = (tool plane number, index of intersection point in new model's vertex list)
@@ -128,9 +127,12 @@ public:
 	std::map<unsigned short, std::map<unsigned short, unsigned short> > segmentEdges;
 	short _hullSlice; //which convex hull segment we are working on
 	
-	void getEdgeInt(bool (ToolMode::*getInt)(unsigned short*, unsigned short*, float*));
+	void getEdgeInt(bool (ToolMode::*getInt)(unsigned short*, short*, float*));
 	void addToolEdge(unsigned short v1, unsigned short v2, unsigned short lineNum);
 	void addToolFaces();
+	
+	//debugging
+	void showFace(Meshy *mesh, std::vector<unsigned short> &face, bool world);
 };
 
 class PositionMode : public Mode
@@ -188,10 +190,12 @@ public:
 class TouchMode : public Mode
 {
 public:
-	MyNode *_face;
+	MyNode *_face, *_vertex;
+	CheckBox *_hullCheckbox;
 	
 	TouchMode();
 	void setActive(bool active);
+	bool setSubMode(short mode);
 	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 	void controlEvent(Control *control, Control::Listener::EventType evt);
 };

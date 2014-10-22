@@ -152,7 +152,7 @@ set(GAME_SRC
 	src/Pulley.cpp
 	src/Mode.cpp
 	src/ToolMode.cpp
-	src/ToolCGAL.cpp
+	#src/ToolCGAL.cpp
 	src/NavigateMode.cpp
 	src/PositionMode.cpp
 	src/ConstraintMode.cpp

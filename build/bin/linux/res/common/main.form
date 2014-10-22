@@ -68,6 +68,12 @@ form mainMenu {
 				height = 100
 				path = res/png/toolbox.png
 			}
+			button touch {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = Touch
+			}
 			image test {
 				style = buttonStyle
 				autoWidth = true
@@ -339,6 +345,42 @@ form mainMenu {
 			autoWidth = true
 			autoHeight = true
 			layout = LAYOUT_ABSOLUTE
+
+			container controls {
+				style = basicContainer
+				position = 20, 10
+				size = 180, 250
+				layout = LAYOUT_VERTICAL
+				consumeInputEvents = true
+				zIndex = 5
+				
+				container subMode {
+					style = hiddenContainer
+					autoWidth = true
+					height = 100
+					layout = LAYOUT_VERTICAL
+					
+					button vertex {
+						style = buttonStyle
+						autoWidth = true
+						height = 40
+						text = Vertex
+					}
+					button face {
+						style = buttonStyle
+						autoWidth = true
+						height = 40
+						text = Face
+					}
+				}
+				checkbox hulls {
+					style = buttonStyle
+					autoWidth = true
+					height = 50
+					text = Hulls
+					value = false
+				}
+			}
 		}
 
 		container mode_lever {

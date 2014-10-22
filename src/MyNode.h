@@ -16,6 +16,9 @@ public:
 	std::vector<Vector3> _vertices, _worldVertices, _normals, _worldNormals;
 	std::vector<std::vector<unsigned short> > _faces, _edges;
 	std::map<unsigned short, std::map<unsigned short, unsigned short> > _edgeInd;
+	std::vector<std::vector<std::vector<unsigned short> > > _triangles; //triangulation of each polygon
+	
+	std::vector<std::string> _vInfo; //any info about the history of this vertex, for debugging
 	
 	Meshy();
 	short nv();
@@ -54,9 +57,7 @@ public:
 
 	std::string _type; //which item this is from the catalog
 	int _typeCount; //number of clones of this model currently in the simulation
-
-	//topology		
-	std::vector<std::vector<std::vector<unsigned short> > > _triangles; //triangulation of each polygon
+	bool _wireframe; //drawing option for debugging
 
 	//physics
 	std::string _objType; //mesh, box, sphere, capsule
@@ -107,6 +108,7 @@ public:
 	void triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 	void triangulateHelper(std::vector<unsigned short>& face, std::vector<unsigned short>& inds,
 	  std::vector<std::vector<unsigned short> >& triangles, Vector3 normal);
+	void setWireframe(bool wireframe);
 
 	//physics
 	void addHullFace(ConvexHull *hull, short f);
@@ -121,8 +123,8 @@ public:
 	nodeConstraint* getNodeConstraint(MyNode *other);
 	//general purpose
 	static Quaternion getVectorRotation(Vector3 v1, Vector3 v2);
-	static float gv(Vector3 *v, int dim);
-	static void sv(Vector3 *v, int dim, float val);
+	static float gv(Vector3 &v, int dim);
+	static void sv(Vector3 &v, int dim, float val);
 	static Vector3 unitV(short axis);
 	
 	static char* concat(int n, ...);

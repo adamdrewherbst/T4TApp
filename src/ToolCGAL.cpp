@@ -18,7 +18,7 @@ public:
     void operator()( HDS& hds) {
         // Postcondition: hds is a valid polyhedral surface.
         CGAL::Polyhedron_incremental_builder_3<HDS> B(hds, true);
-        short nv = _node->nv(), nf = _node->nf(), ne = _node->ne(), i, j, n;
+        short nv = _node->nv(), nf = _node->nf(), ne = _node->ne(), i, j, k, n;
         Vector3 v;
         B.begin_surface(nv, nf, 2*ne);
         typedef typename HDS::Vertex   Vertex;
@@ -29,15 +29,17 @@ public:
         	cout << "adding vertex " << v.x << "," << v.y << "," << v.z << endl;
         }
         for(i = 0; i < nf; i++) {
-        	n = _node->_faces[i].size();
-        	B.begin_facet();
-        	cout << "adding facet: ";
+        	n = _node->_triangles[i].size();
         	for(j = 0; j < n; j++) {
-        		B.add_vertex_to_facet(_node->_faces[i][j]);
-        		cout << _node->_faces[i][j] << "\t";
-        	}
-        	cout << endl;
-        	B.end_facet();
+		    	B.begin_facet();
+		    	cout << "adding facet: ";
+		    	for(k = 0; k < 3; k++) {
+		    		B.add_vertex_to_facet(_node->_faces[i][_node->_triangles[i][j][k]]);
+		    		cout << _node->_faces[i][_node->_triangles[i][j][k]] << "\t";
+		    	}
+		    	cout << endl;
+		    	B.end_facet();
+		    }
         }
         B.end_surface();
     }
@@ -53,7 +55,7 @@ typedef Polyhedron::Vertex_const_iterator  VCI;
 typedef Polyhedron::Facet_const_iterator   FCI;
 typedef Polyhedron::Halfedge_around_facet_const_circulator HFCC;
 typedef CGAL::Nef_polyhedron_3<Kernel>     Nef;
-typedef CGAL::Inverse_index<VCI> Index;
+typedef CGAL::Inverse_index<VCI>           Index;
 
 Nef nodeToNef(MyNode *node) {
     Polyhedron poly;
@@ -63,12 +65,13 @@ Nef nodeToNef(MyNode *node) {
 }
 
 bool ToolMode::drillCGAL() {
+	_tool->updateTransform();
 	//convert the node mesh to a Nef polyhedron
 	Polyhedron nodePoly, toolPoly;
 	Node2Poly<HalfedgeDS> nodeConv(_node), toolConv(_tool);
 	nodePoly.delegate(nodeConv);
 	toolPoly.delegate(toolConv);
-	Nef nodeNef(nodePoly);
+//	Nef nodeNef(nodePoly);
 	Nef toolNef(toolPoly);
 	//make another Nef polyhedron from the drillbit side planes
 /*	Tool *tool = getTool();
@@ -106,7 +109,7 @@ bool ToolMode::drillCGAL() {
 //	nodeNef -= toolNef;
 	//convert from Nef back to Polyhedron
 	Polyhedron newPoly;
-	nodeNef.convert_to_polyhedron(newPoly);
+	toolNef.convert_to_polyhedron(newPoly);
 	//extract the new mesh data from the result
 	for(VCI v = newPoly.vertices_begin(); v != newPoly.vertices_end(); v++) {
 		_newNode->addVertex((float)(v->point().x()), (float)(v->point().y()), (float)(v->point().z()));

@@ -68,7 +68,13 @@ public:
     Font *_font;
     //callbacks
     void (T4TApp::*_textCallback)(const char*), (T4TApp::*_confirmCallback)(bool);
-
+    
+    //debugging
+    Meshy *_debugMesh;
+    std::vector<unsigned short> _debugFace;
+    short _debugEdge, _debugVertex; //debugEdge is index within debugFace, debugVertex is index in debugMesh vertex list
+    bool _debugWorld; //using world space or model space coords?
+   	MyNode *_face, *_edge, *_vertex;
 
     T4TApp();
     T4TApp* getInstance();
@@ -77,7 +83,11 @@ public:
 	
 	MyNode* loadNode(const char* id);    
     MyNode* duplicateModelNode(const char* type, bool isStatic = false);
+    Model* createModel(std::vector<float> &vertices, bool wireframe = false, const char *material = "red");
     MyNode* createWireframe(std::vector<float>& vertices, const char *id=NULL);
+	void showFace(Meshy* mesh, std::vector<unsigned short> &face, bool world = false);
+	void showEdge(short e);
+	void showVertex(short v);
     bool printNode(Node *node);
     bool prepareNode(MyNode *node);
     void translateNode(MyNode *node, Vector3 trans);
@@ -142,7 +152,7 @@ public:
     void finalize();
     void update(float elapsedTime);
     void render(float elapsedTime);
-    bool drawScene(Node* node);
+    bool drawNode(Node* node);
     void placeNode(MyNode *node, float x, float y);
     void setMode(short mode);
     void setNavMode(short mode);

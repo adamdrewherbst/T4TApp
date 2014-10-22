@@ -46,11 +46,9 @@ void Mode::setActive(bool active) {
 	setSelectedNode(NULL);
 	_container->setVisible(active);
 	if(active) {
-		//app->addListener(_container, this);
 		setSubMode(0);
 		app->setNavMode(-1);
 	} else {
-		//app->removeListener(_container, this);
 	}
 }
 

@@ -73,6 +73,7 @@ void Meshy::updateTransform() {
 	Matrix world = _node->getWorldMatrix(), norm = _node->getInverseTransposeWorldMatrix();
 	unsigned short i, nv = _vertices.size(), nf = _faces.size();
 	_worldVertices.resize(nv);
+	_vInfo.resize(nv);
 	for(i = 0; i < nv; i++) world.transformPoint(_vertices[i], &_worldVertices[i]);
 	_worldNormals.resize(nf);
 	for(i = 0; i < nf; i++) norm.transformVector(_normals[i], &_worldNormals[i]);
@@ -133,6 +134,7 @@ void MyNode::init() {
     app = (T4TApp*) Game::getInstance();
     _staticObj = false;
     _constraintParent = NULL;
+    _wireframe = false;
 }
 
 MyNode* MyNode::cloneNode(Node *node) {
@@ -147,20 +149,20 @@ MyNode* MyNode::cloneNode(Node *node) {
 	return copy;
 }
 
-float MyNode::gv(Vector3 *v, int dim) {
+float MyNode::gv(Vector3 &v, int dim) {
 	switch(dim) {
-		case 0: return v->x;
-		case 1: return v->y;
-		case 2: return v->z;
+		case 0: return v.x;
+		case 1: return v.y;
+		case 2: return v.z;
 	}
 	return 0;
 }
 
-void MyNode::sv(Vector3 *v, int dim, float val) {
+void MyNode::sv(Vector3 &v, int dim, float val) {
 	switch(dim) {
-		case 0: v->x = val; break;
-		case 1: v->y = val; break;
-		case 2: v->z = val; break;
+		case 0: v.x = val; break;
+		case 1: v.y = val; break;
+		case 2: v.z = val; break;
 	}
 }
 
@@ -363,8 +365,7 @@ void MyNode::triangulateHelper(std::vector<unsigned short>& face,
 		}
 	}
 	if(v < 0) {
-		GP_WARN("Couldn't triangulate face");
-		return;
+		GP_ERROR("Couldn't triangulate face");
 	}
 	triangle[0] = inds[v-1];
 	triangle[1] = inds[v % n];
@@ -373,6 +374,10 @@ void MyNode::triangulateHelper(std::vector<unsigned short>& face,
 	face.erase(face.begin() + (v%n));
 	inds.erase(inds.begin() + (v%n));
 	if(n > 3) triangulateHelper(face, inds, triangles, normal);
+}
+
+void MyNode::setWireframe(bool wireframe) {
+	_wireframe = wireframe;
 }
 
 void MyNode::addHullFace(MyNode::ConvexHull *hull, short f) {
@@ -578,7 +583,7 @@ void MyNode::writeData(const char *file) {
 		os << scale.x << "\t" << scale.y << "\t" << scale.z << endl;
 		os << _vertices.size() << endl;
 		for(i = 0; i < _vertices.size(); i++) {
-			for(j = 0; j < 3; j++) os << gv(&_vertices[i],j) << "\t";
+			for(j = 0; j < 3; j++) os << gv(_vertices[i],j) << "\t";
 			os << endl;
 		}
 		line = os.str();
@@ -681,12 +686,12 @@ void MyNode::updateModel(bool doPhysics) {
 		for(i = 0; i < _faces.size(); i++) {
 			for(j = 0; j < _faces[i].size(); j++) {
 				for(k = 0; k < 3; k++) {
-					vertices[v++] = gv(&_vertices[_faces[i][j]],k);
+					vertices[v++] = gv(_vertices[_faces[i][j]],k);
 					radius = fmaxf(radius, _vertices[_faces[i][j]].length());
-					if(vertices[v-1] < gv(&min, k)) sv(&min, k, vertices[v-1]);
-					if(vertices[v-1] > gv(&max, k)) sv(&max, k, vertices[v-1]);
+					if(vertices[v-1] < gv(min, k)) sv(min, k, vertices[v-1]);
+					if(vertices[v-1] > gv(max, k)) sv(max, k, vertices[v-1]);
 				}
-				for(k = 0; k < 3; k++) vertices[v++] = gv(&_normals[i],k);
+				for(k = 0; k < 3; k++) vertices[v++] = gv(_normals[i],k);
 			}
 			for(j = 0; j < _triangles[i].size(); j++) {
 				for(k = 0; k < 3; k++) triangles[t++] = f + _triangles[i][j][k];

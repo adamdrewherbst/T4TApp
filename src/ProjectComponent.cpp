@@ -197,19 +197,19 @@ void ProjectComponent::Element::setLimits(short axis, float lower, float upper) 
 void ProjectComponent::Element::applyLimits(Vector3 &translation) {
 	short i;
 	for(i = 0; i < 3; i++) {
-		if(!_movable[i]) MyNode::sv(&translation, i, 0);
+		if(!_movable[i]) MyNode::sv(translation, i, 0);
 		else {
 			Vector3 ref = translation, delta = Vector3::zero();
 			if(_moveRef >= 0) {
 				ref = translation - comp->_elements[_moveRef]->_node->getTranslationWorld();
 				delta = translation - ref;
 			}
-			float val = MyNode::gv(&ref, i);
+			float val = MyNode::gv(ref, i);
 			if(_limits[i][0] > -MyNode::inf() && val < _limits[i][0]) {
-				MyNode::sv(&ref, i, _limits[i][0]);
+				MyNode::sv(ref, i, _limits[i][0]);
 			}
 			else if(_limits[i][1] < MyNode::inf() && val > _limits[i][1]) {
-				MyNode::sv(&ref, i, _limits[i][1]);
+				MyNode::sv(ref, i, _limits[i][1]);
 			}
 			translation = ref + delta;
 		}

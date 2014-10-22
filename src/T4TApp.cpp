@@ -125,13 +125,21 @@ void T4TApp::initialize()
 	_modes.push_back(new ConstraintMode());
 	_modes.push_back(new ToolMode());
 	_modes.push_back(new TestMode());
+	_modes.push_back(new TouchMode());
 
 	//simple machines
     _modes.push_back(new Lever());
     _modes.push_back(new Pulley());
     
     _theme->release();   // So we can release it once we're done creating forms with it.
-    
+
+	//nodes to illustrate mesh pieces when debugging    
+	_face = MyNode::create("face");
+	_edge = MyNode::create("edge");
+	_vertex = duplicateModelNode("sphere");
+	_vertex->setScale(0.15f);
+	_vertex->getModel()->setMaterial("res/common/models.material#red");
+
 	_activeMode = -1;
 	setMode(0);
 
@@ -168,8 +176,7 @@ void T4TApp::render(float elapsedTime)
 
     // Visit all the nodes in the scene for drawing
     if(_activeScene != NULL) {
-    	_activeScene->visit(this, &T4TApp::drawScene);
-	    //if(_activeScene != _vehicleProject->_scene) _vehicleProject->_scene->visit(this, &T4TApp::drawScene);
+    	_activeScene->visit(this, &T4TApp::drawNode);
     	if(_drawDebug) getPhysicsController()->drawDebug(_activeScene->getActiveCamera()->getViewProjectionMatrix());
     }
 
@@ -338,7 +345,7 @@ void T4TApp::initScene()
 	//create the grid on which to place objects
     MyNode* node = MyNode::create("grid");
     Model* gridModel = createGridModel();
-    gridModel->setMaterial("res/common/grid.material");
+    gridModel->setMaterial("res/common/models.material#grid");
     node->setModel(gridModel);
     gridModel->release();
     node->_objType = "box";
@@ -607,6 +614,7 @@ bool T4TApp::prepareNode(MyNode* node)
 		obj->asRigidBody()->addCollisionListener(this);
 	}
 }
+
 bool T4TApp::printNode(Node *node) {
 	Node *parent = node->getParent();
 	if(parent != NULL) {
@@ -615,15 +623,15 @@ bool T4TApp::printNode(Node *node) {
 	cout << node->getId() << ";" << node->getType() << endl;
 	return true;
 }
-bool T4TApp::drawScene(Node* node)
+
+bool T4TApp::drawNode(Node* node)
 {
-//	if(strcmp(node->getScene()->getId(), "models") == 0) return true;
-    // If the node visited contains a model, draw it
     Model* model = node->getModel(); 
-    if (model)
-    {
-        model->draw();
-        //cout << "drawing model " << node->getId() << endl;
+    if (model) {
+    	bool wireframe = false;
+    	MyNode *myNode = dynamic_cast<MyNode*>(node);
+    	if(myNode) wireframe = myNode->_wireframe;
+    	model->draw(wireframe);
     }
     return true;
 }
@@ -683,20 +691,25 @@ MyNode* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 	return node;
 }
 
-MyNode* T4TApp::createWireframe(std::vector<float>& vertices, const char *id) {
+Model* T4TApp::createModel(std::vector<float> &vertices, bool wireframe, const char *material) {
 	int numVertices = vertices.size()/6;
 	VertexFormat::Element elements[] = {
 		VertexFormat::Element(VertexFormat::POSITION, 3),
-		VertexFormat::Element(VertexFormat::COLOR, 3)
+		VertexFormat::Element(wireframe ? VertexFormat::COLOR : VertexFormat::NORMAL, 3)
 	};
 	Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), numVertices, false);
-	mesh->setPrimitiveType(Mesh::LINES);
+	mesh->setPrimitiveType(wireframe ? Mesh::LINES : Mesh::TRIANGLES);
 	mesh->setVertexData(&vertices[0], 0, numVertices);
 	Model *model = Model::create(mesh);
 	mesh->release();
-	model->setMaterial("res/common/grid.material");
+	model->setMaterial(MyNode::concat(2, "res/common/models.material#", material));
+	return model;
+}
+
+MyNode* T4TApp::createWireframe(std::vector<float>& vertices, const char *id) {
 	if(id == NULL) id = "wireframe1";
 	MyNode *node = MyNode::create(id);
+	Model *model = createModel(vertices, true, "grid");
 	node->setModel(model);
 	model->release();
 	return node;
@@ -716,8 +729,70 @@ void T4TApp::placeNode(MyNode *node, float x, float z)
 	node->setTranslation(_intersectPoint);
 }
 
+void T4TApp::showFace(Meshy *mesh, std::vector<unsigned short> &face, bool world) {
+	_debugMesh = mesh;
+	_debugFace = face;
+	_debugWorld = world;
+	short i, j, k, n = face.size(), size = 6 * 2 * n, v = size-6;
+	Vector3 vec, norm;
+	std::vector<float> vertices(size);
+	float color[3] = {1.0f, 0.0f, 1.0f};
+	for(i = 0; i < n; i++) {
+		norm = mesh->getNormal(face, true);
+		vec = mesh->_vertices[face[i]] + 0.05f * norm;
+		if(world) {
+			mesh->_node->getInverseTransposeWorldMatrix().transformVector(&norm);
+			mesh->_node->getWorldMatrix().transformPoint(&vec);
+		}
+		for(j = 0; j < 2; j++) {
+			for(k = 0; k < 3; k++) vertices[v++] = MyNode::gv(vec, k);
+			for(k = 0; k < 3; k++) vertices[v++] = color[k];
+			v %= size;
+		}
+	}
+	_face->setModel(createModel(vertices, true, "grid"));
+	_activeScene->addNode(_face);
+	MyNode *node = dynamic_cast<MyNode*>(mesh->_node);
+	if(node) node->setWireframe(true);
+	frame();
+	Platform::swapBuffers();
+}
+
+void T4TApp::showEdge(short e) {
+	short i, j, n = _debugFace.size(), v = 0;
+	if(_debugMesh == NULL || e >= n) return;
+	Vector3 vec;
+	std::vector<float> vertices(12);
+	float color[3] = {1.0f, 1.0f, 1.0f};
+	for(i = 0; i < 2; i++) {
+		vec = _debugMesh->_vertices[_debugFace[(e+i)%n]];
+		if(_debugWorld) _debugMesh->_node->getWorldMatrix().transformPoint(&vec);
+		for(j = 0; j < 3; j++) vertices[v++] = MyNode::gv(vec, j);
+		for(j = 0; j < 3; j++) vertices[v++] = color[j];
+	}
+	_edge->setModel(createModel(vertices, true, "grid"));
+	_activeScene->addNode(_edge);
+	frame();
+	Platform::swapBuffers();
+}
+
+void T4TApp::showVertex(short v) {
+	if(_debugMesh == NULL || v >= _debugMesh->nv()) return;
+	Vector3 vec = _debugMesh->_vertices[v];
+	if(_debugWorld) _debugMesh->_node->getWorldMatrix().transformPoint(&vec);
+	_vertex->setTranslation(vec);
+	_activeScene->addNode(_vertex);
+	frame();
+	Platform::swapBuffers();
+}
+
 void T4TApp::setActiveScene(Scene *scene)
 {
+	if(scene != _activeScene) {
+		if(_activeScene != NULL) {
+			_activeScene->removeNode(_face);
+		}
+	}
 	_activeScene = scene;
 }
 
@@ -764,15 +839,15 @@ void T4TApp::setCameraTarget(Vector3 target) {
 }
 
 void T4TApp::setCameraNode(MyNode *node) {
-	_cameraState->node = node;
-	_cameraMenu->getControl("translate")->setEnabled(node == NULL);
 	if(node != NULL) {
 		cameraPush();
+		_cameraState->node = node;
 		resetCamera();
 		if(_navMode == 1) setNavMode(0);
 	} else {
 		cameraPop();
 	}
+	_cameraMenu->getControl("translate")->setEnabled(node == NULL);
 }
 
 void T4TApp::resetCamera() {
