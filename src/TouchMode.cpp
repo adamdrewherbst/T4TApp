@@ -123,10 +123,12 @@ bool TouchMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int con
 		case Touch::TOUCH_MOVE: break;
 		case Touch::TOUCH_RELEASE: break;
 	}
+	return true;
 }
 
 void TouchMode::controlEvent(Control *control, Control::Listener::EventType evt)
 {
+	Mode::controlEvent(control, evt);
 }
 
 

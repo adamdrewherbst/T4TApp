@@ -45,6 +45,7 @@ bool ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned in
 			}
 			_currentNode++;
 			if(_currentNode == 2) { //we have both attachment points - add the constraint
+				app->setAction("constraint", _nodes[0], _nodes[1]);
 				_nodes[1]->rotateFaceToFace(_faces[1], _nodes[0], _faces[0]);
 				_nodes[1]->translate(_nodes[0]->_worldNormals[_faces[0]] * 0.02f); //back away a tad
 				for(i = 0; i < 2; i++) _nodes[i]->updateTransform();
@@ -56,6 +57,7 @@ bool ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned in
 				_nodes[1]->_constraintParent = _nodes[0];
 				_nodes[1]->_parentOffset = _nodes[0]->faceCenter(_faces[0], true) + _nodes[0]->getScaleNormal(_faces[0]) * 0.01f;
 				_nodes[1]->_parentAxis = _nodes[0]->getScaleNormal(_faces[0]);
+				app->commitAction();
 			}
 			break;
 		}
@@ -66,6 +68,7 @@ bool ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned in
 			break;
 		}
 	}
+	return true;
 }
 
 void ConstraintMode::controlEvent(Control *control, Control::Listener::EventType evt)

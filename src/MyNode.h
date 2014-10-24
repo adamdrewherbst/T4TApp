@@ -34,6 +34,7 @@ public:
 	void updateEdges();
 	void setNormals();
 	Vector3 getNormal(std::vector<unsigned short> &face, bool modelSpace = false);
+	virtual void copyMesh(Meshy *mesh);
 };
 
 class MyNode : public Node, public Meshy {
@@ -89,6 +90,7 @@ public:
 	Vector3 getScaleNormal(short f);
 	BoundingBox getWorldBox();
 	void set(const Matrix& trans);
+	void set(Node *other);
 	void myTranslate(const Vector3& delta);
 	void setMyTranslation(const Vector3& translation);
 	void myRotate(const Quaternion& delta);
@@ -109,6 +111,7 @@ public:
 	void triangulateHelper(std::vector<unsigned short>& face, std::vector<unsigned short>& inds,
 	  std::vector<std::vector<unsigned short> >& triangles, Vector3 normal);
 	void setWireframe(bool wireframe);
+	void copyMesh(Meshy *mesh);
 
 	//physics
 	void addHullFace(ConvexHull *hull, short f);
@@ -121,6 +124,8 @@ public:
 	void enablePhysics(bool enable = true, bool recur = true);
 	bool physicsEnabled();
 	nodeConstraint* getNodeConstraint(MyNode *other);
+	MyNode *getConstraintNode(nodeConstraint *constraint);
+
 	//general purpose
 	static Quaternion getVectorRotation(Vector3 v1, Vector3 v2);
 	static float gv(Vector3 &v, int dim);

@@ -372,7 +372,6 @@ bool PhysicsRigidBody::supportsConstraints()
 
 void PhysicsRigidBody::transformChanged(Transform* transform, long cookie)
 {
-	std::cout << "node " << ((Node*)transform)->getId() << " changed" << std::endl;
     if (getShapeType() == PhysicsCollisionShape::SHAPE_HEIGHTFIELD)
     {
         GP_ASSERT(_collisionShape && _collisionShape->_shapeData.heightfieldData);

@@ -113,7 +113,7 @@ bool Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactI
 			_touchNode = NULL;
 			if(isSelecting()) {
 				PhysicsController::HitResult hitResult;
-				if(!app->getPhysicsController()->rayTest(_ray, _camera->getFarPlane(), &hitResult)) break;
+				if(!app->getPhysicsController()->rayTest(_ray, _camera->getFarPlane(), &hitResult, app->_hitFilter)) break;
 				MyNode *node = dynamic_cast<MyNode*>(hitResult.object->getNode());
 				if(!node || node->getCollisionObject() == NULL || app->auxNode(node)) break;
 				_touchNode = node;
@@ -137,6 +137,7 @@ bool Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactI
 			_touching = false;
 			break;
 	}
+	return true;
 }
 
 void Mode::controlEvent(Control *control, EventType evt) {

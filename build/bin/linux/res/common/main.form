@@ -82,6 +82,27 @@ form mainMenu {
 			}
 		}
 	}
+
+	//no more room on the side menu!
+	container floatPanel {
+		style = basicContainer
+		position = 220, 600
+		size = 165, 90
+		layout = LAYOUT_FLOW
+		zIndex = 5
+		consumeInputEvents = true
+
+		image undo {
+			style = imageSquare
+			size = 70, 70
+			path = res/png/undo.png
+		}
+		image redo {
+			style = imageSquare
+			size = 70, 70
+			path = res/png/redo.png
+		}
+	}
 	
 	//the region of the screen where graphics are drawn and touches are handled
 	container stage {

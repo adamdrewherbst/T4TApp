@@ -20,6 +20,7 @@ void NavigateMode::setActive(bool active) {
 bool NavigateMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
 {
 	Mode::touchEvent(evt, x, y, contactIndex);
+	return true;
 }
 
 void NavigateMode::controlEvent(Control *control, Control::Listener::EventType evt)

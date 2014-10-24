@@ -119,6 +119,12 @@ Vector3 Meshy::getNormal(std::vector<unsigned short>& face, bool modelSpace) {
 	return normal.normalize();
 }
 
+void Meshy::copyMesh(Meshy *src) {
+	_vertices = src->_vertices;
+	_faces = src->_faces;
+	_triangles = src->_triangles;
+}
+
 
 MyNode::MyNode(const char *id) : Node::Node(id), Meshy::Meshy()
 {
@@ -378,6 +384,21 @@ void MyNode::triangulateHelper(std::vector<unsigned short>& face,
 
 void MyNode::setWireframe(bool wireframe) {
 	_wireframe = wireframe;
+}
+
+void MyNode::copyMesh(Meshy *mesh) {
+	MyNode *src = dynamic_cast<MyNode*>(mesh);
+	if(!src) return;
+	Meshy::copyMesh(mesh);
+	short nh = src->_hulls.size(), i;
+	_hulls.clear();
+	_hulls.resize(nh);
+	for(i = 0; i < nh; i++) {
+		ConvexHull *hull = src->_hulls[i], *newHull = new ConvexHull(this);
+		newHull->copyMesh(hull);
+		_hulls[i] = newHull;
+	}
+	_objType = src->_objType;
 }
 
 void MyNode::addHullFace(MyNode::ConvexHull *hull, short f) {
@@ -669,51 +690,65 @@ void MyNode::updateModel(bool doPhysics) {
 			parent->removeChild(this);
 		}
 		removePhysics();
-		update();
 
-		std::string materialFile = concat(2, "res/common/models.material#", _type.c_str());
 		//update the mesh to contain the new coordinates
-		float *vertices, radius = 0;
-		unsigned short *triangles, i, j, k;
+		float radius = 0, f1;
+		unsigned short i, j, k, m, n, nv = this->nv(), nf = this->nf();
 		int numVertices = 0, numTriangles = 0, v = 0, t = 0, f = 0;
 		Vector3 min(1000,1000,1000), max(-1000,-1000,-1000);
-		for(int i = 0; i < _faces.size(); i++) {
-			numVertices += _faces[i].size();
-			numTriangles += _triangles[i].size();
+
+		//first find our new bounding box and bounding sphere, and position our node at their center
+		// - otherwise Bullet applies gravity at node origin, not COM (why?) so produces torque
+		for(i = 0; i < nv; i++) {
+			for(j = 0; j < 3; j++) {
+				f1 = gv(_vertices[i], j);
+				if(f1 < gv(min, j)) sv(min, j, f1);
+				if(f1 > gv(max, j)) sv(max, j, f1);
+			}
 		}
-		vertices = new float[numVertices*6];
-		triangles = new unsigned short[numTriangles*3];
-		for(i = 0; i < _faces.size(); i++) {
-			for(j = 0; j < _faces[i].size(); j++) {
+		Vector3 center = min + (max - min)/2.0f, vec;
+		translate(center);
+		for(i = 0; i < nv; i++) {
+			_vertices[i] -= center;
+			f1 = _vertices[i].length();
+			if(f1 > radius) radius = f1;
+		}
+		update();
+		BoundingBox box(min - center, max - center);
+		BoundingSphere sphere(Vector3::zero(), radius);
+
+		//then create the new model
+		for(i = 0; i < nf; i++) numVertices += _triangles[i].size() * 3;
+		std::vector<float> vertices(numVertices * 6);
+		for(i = 0; i < nf; i++) {
+			n = _triangles[i].size();
+			for(j = 0; j < n; j++) {
 				for(k = 0; k < 3; k++) {
-					vertices[v++] = gv(_vertices[_faces[i][j]],k);
-					radius = fmaxf(radius, _vertices[_faces[i][j]].length());
-					if(vertices[v-1] < gv(min, k)) sv(min, k, vertices[v-1]);
-					if(vertices[v-1] > gv(max, k)) sv(max, k, vertices[v-1]);
+					for(m = 0; m < 3; m++) vertices[v++] = gv(_vertices[_faces[i][_triangles[i][j][k]]], m);
+					for(m = 0; m < 3; m++) vertices[v++] = gv(_normals[i], m);
 				}
-				for(k = 0; k < 3; k++) vertices[v++] = gv(_normals[i],k);
 			}
-			for(j = 0; j < _triangles[i].size(); j++) {
-				for(k = 0; k < 3; k++) triangles[t++] = f + _triangles[i][j][k];
-			}
-			f += _faces[i].size();
 		}
-		VertexFormat::Element elements[] =
-		{
-			VertexFormat::Element(VertexFormat::POSITION, 3),
-			VertexFormat::Element(VertexFormat::NORMAL, 3)
-		};
-		Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), numVertices, false);
-		mesh->setVertexData(&vertices[0], 0, numVertices);
-		MeshPart *part = mesh->addPart(Mesh::TRIANGLES, Mesh::INDEX16, numTriangles*3);
-		part->setIndexData(triangles, 0, numTriangles*3);
-		mesh->setBoundingBox(BoundingBox(min, max));
-		mesh->setBoundingSphere(BoundingSphere(Vector3::zero(), radius));
-		Model *model = Model::create(mesh);
-		mesh->release();
-		model->setMaterial(materialFile.c_str());
-		setModel(model);
-		model->release();
+		setModel(app->createModel(vertices, false, _type.c_str()));
+		Mesh *mesh = getModel()->getMesh();
+		mesh->setBoundingBox(box);
+		mesh->setBoundingSphere(sphere);
+		
+		//update convex hulls and constraints to reflect shift in node origin
+		short nh = _hulls.size(), nc = _constraints.size();
+		for(i = 0; i < nh; i++) {
+			nv = _hulls[i]->nv();
+			for(j = 0; j < nv; j++) _hulls[i]->_vertices[j] -= center;
+			_hulls[i]->updateTransform();
+		}
+		for(i = 0; i < nc; i++) {
+			nodeConstraint *constraint = _constraints[i];
+			constraint->translation -= center;
+			MyNode *other = getConstraintNode(constraint);
+			if(other && other->_constraintParent == this) {
+				other->_parentOffset -= center;
+			}
+		}
 		if(doPhysics) addPhysics(false);
 		if(parent != NULL) {
 			parent->addChild(this);
@@ -852,6 +887,10 @@ void MyNode::set(const Matrix& trans) {
 	setTranslation(translation);
 }
 
+void MyNode::set(Node *other) {
+	set(other->getWorldMatrix());
+}
+
 void MyNode::myTranslate(const Vector3& delta) {
 	for(MyNode *child = dynamic_cast<MyNode*>(getFirstChild()); child; child = dynamic_cast<MyNode*>(child->getNextSibling())) {
 		child->myTranslate(delta);
@@ -981,6 +1020,12 @@ MyNode::nodeConstraint* MyNode::getNodeConstraint(MyNode *other) {
 		if(_constraints[i]->other.compare(other->getId()) == 0) return _constraints[i];
 	}
 	return NULL;
+}
+
+MyNode* MyNode::getConstraintNode(MyNode::nodeConstraint *constraint) {
+	Node *node = app->_scene->findNode(constraint->other.c_str());
+	if(node == NULL) return NULL;
+	return dynamic_cast<MyNode*>(node);
 }
 
 MyNode::ConvexHull::ConvexHull(Node *node) {

@@ -7,27 +7,23 @@ TestMode::TestMode()
 bool TestMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
 {
 	Mode::touchEvent(evt, x, y, contactIndex);
+	if(app->_navMode >= 0) return true;
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
 			float distance = _ray.intersects(app->_groundPlane);
 			if(distance != Ray::INTERSECTS_NONE) {
 				Vector3 point(_ray.getOrigin() + _ray.getDirection() * distance);
-				MyNode *node = app->duplicateModelNode("sphere");
-				node->setScale(0.3f);
-				node->_mass = 3.0f;
-				node->addCollisionObject();
-				PhysicsRigidBody *body = node->getCollisionObject()->asRigidBody();
-				body->setEnabled(false);
-				node->setTranslation(point.x, 10.0f, point.z);
-				body->setEnabled(true);
-				_scene->addNode(node);
-				cout << "added ball at " << app->pv(node->getTranslationWorld()) << endl;
+				point.y = 10.0f;
+				MyNode *ball = app->dropBall(point);
+				app->setAction("test", ball);
+				app->commitAction();
 			}
 			break;
 		}
 		case Touch::TOUCH_MOVE: break;
 		case Touch::TOUCH_RELEASE: break;
 	}
+	return true;
 }
 
 void TestMode::controlEvent(Control *control, Control::Listener::EventType evt)

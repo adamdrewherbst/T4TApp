@@ -77,6 +77,11 @@ void T4TApp::initialize()
 	_confirmDialog->setVisible(false);
 	_overlay = (Container*)_mainMenu->getControl("overlay");
 	_overlay->setVisible(false);
+	
+	_undo = (Button*)_mainMenu->getControl("undo");
+	_redo = (Button*)_mainMenu->getControl("redo");
+	_undo->setEnabled(false);
+	_redo->setEnabled(false);
     
 	//identify all submenus so we can close any open ones when another is clicked
 	std::vector<Control*> controls = _mainMenu->getControls();
@@ -132,7 +137,13 @@ void T4TApp::initialize()
     _modes.push_back(new Pulley());
     
     _theme->release();   // So we can release it once we're done creating forms with it.
+    
+	//for queuing user actions for undo/redo
+    _action = NULL;
 
+    //exclude certain nodes (eg. ground, camera) from being selected by touches
+    _hitFilter = new HitFilter(this);
+    
 	//nodes to illustrate mesh pieces when debugging    
 	_face = MyNode::create("face");
 	_edge = MyNode::create("edge");
@@ -311,6 +322,14 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	else if(control == _drawDebugCheckbox) {
 		_drawDebug = _drawDebugCheckbox->isChecked();
 	}
+	
+	//undo/redo
+	else if(control == _undo) {
+		undoLastAction();
+	}
+	else if(control == _redo) {
+		redoLastAction();
+	}
 
 	//close a submenu when one of its items is clicked
 	Container *next = parent;
@@ -458,7 +477,7 @@ bool T4TApp::removeNode(Node *n) {
 
 bool T4TApp::auxNode(Node *node) {
 	const char *id = node->getId();
-	return strcmp(id, "grid") == 0 || strcmp(id, "axes") == 0;
+	return strcmp(id, "grid") == 0 || strcmp(id, "axes") == 0 || strcmp(id, "camera") == 0;
 }
 
 void T4TApp::releaseScene()
@@ -712,6 +731,17 @@ MyNode* T4TApp::createWireframe(std::vector<float>& vertices, const char *id) {
 	Model *model = createModel(vertices, true, "grid");
 	node->setModel(model);
 	model->release();
+	return node;
+}
+
+MyNode* T4TApp::dropBall(Vector3 point) {
+	MyNode *node = duplicateModelNode("sphere");
+	node->setScale(0.3f);
+	node->setTranslation(point);
+	node->_mass = 3.0f;
+	node->addCollisionObject();
+	_scene->addNode(node);
+	cout << "added ball at " << pv(node->getTranslationWorld()) << endl;
 	return node;
 }
 
@@ -1048,4 +1078,169 @@ void T4TApp::reloadConstraint(MyNode *node, MyNode::nodeConstraint *constraint) 
 	}
 }
 
+T4TApp::HitFilter::HitFilter(T4TApp *app_) : app(app_) {}
+
+bool T4TApp::HitFilter::filter(PhysicsCollisionObject *object) {
+	if(object == NULL) return true;
+	MyNode *node = dynamic_cast<MyNode*>(object->getNode());
+	if(!node || app->auxNode(node)) return true;
+}
+
+void T4TApp::setAction(const char *type, ...) {
+
+	va_list args;
+	va_start(args, type);
+
+	if(_action == NULL) _action = new Action();
+	Action *action = _action;
+	short n, i, j = action->refNodes.size();
+	if(strcmp(type, "constraint") == 0) n = 2;
+	else n = 1;
+	action->nodes.resize(n);
+	action->refNodes.resize(n);
+	for(i = 0; i < n; i++) {
+		action->nodes[i] = (MyNode*) va_arg(args, MyNode*);
+		if(i >= j) action->refNodes[i] = MyNode::create("ref");
+	}
+	MyNode *node = action->nodes[0], *ref = action->refNodes[0];
+
+	if(strcmp(type, "position") == 0) {
+		ref->set(node);
+	} else if(strcmp(type, "constraint") == 0) {
+		MyNode::nodeConstraint *constraint = new MyNode::nodeConstraint();
+		constraint->id = _constraintCount;
+		for(i = 0; i < 2; i++) {
+			node = action->nodes[i];
+			ref = action->refNodes[i];
+			ref->set(node);
+			ref->_constraints.push_back(constraint);
+		}
+	} else if(strcmp(type, "tool") == 0) {
+		ref->copyMesh(node);
+	} else if(strcmp(type, "test") == 0) {
+		ref->set(node);
+	}
+}
+
+void T4TApp::commitAction() {
+	if(_action == NULL) return;
+	_undone.clear(); //can't redo anything once something else is done
+	_history.push_back(_action);
+	_action = NULL;
+	_undo->setEnabled(true);
+	_redo->setEnabled(false);
+}
+
+void T4TApp::undoLastAction() {
+	if(_history.empty()) return;
+	Action *action = popBack(_history);
+	const char *type = action->type.c_str();
+	MyNode *node = action->nodes[0], *ref = action->refNodes[0];
+	bool allowRedo = true;
+
+	if(strcmp(type, "position") == 0) {
+		swapTransform(node, ref);
+	} else if(strcmp(type, "constraint") == 0) {
+		MyNode::nodeConstraint *constraint[2];
+		short i;
+		for(i = 0; i < 2; i++) constraint[i] = action->nodes[i]->_constraints.back();
+		if(constraint[0]->id < 0 || constraint[0]->id != constraint[1]->id) {
+			GP_WARN("ID mismatch undoing constraint: %d <> %d", constraint[0]->id, constraint[1]->id);
+			allowRedo = false;
+		} else {
+			int id = constraint[0]->id;
+			if(_constraints.find(id) == _constraints.end()) {
+				GP_WARN("No constraint with id %d", id);
+				allowRedo = false;
+			} else {
+				for(i = 0; i < 2; i++) {
+					node = action->nodes[i];
+					ref = action->refNodes[i];
+					ref->_constraints.push_back(popBack(node->_constraints));
+					_scene->addNode(node); //also removes it from its constraint parent
+					node->_constraintParent = NULL;
+					swapTransform(node, ref);
+				}
+				getPhysicsController()->removeConstraint(_constraints[id]);
+			}
+		}
+	} else if(strcmp(type, "tool") == 0) {
+		swapMesh(node, ref);
+		node->updateModel();
+	} else if(strcmp(type, "test") == 0) {
+		removeNode(node);
+		action->nodes[0] = NULL;
+	}
+	if(allowRedo) {
+		_undone.push_back(action);
+		_redo->setEnabled(true);
+	}
+	if(_history.empty()) _undo->setEnabled(false);
+}
+
+void T4TApp::redoLastAction() {
+	if(_undone.empty()) return;
+	Action *action = popBack(_undone);
+	const char *type = action->type.c_str();
+	MyNode *node = action->nodes[0], *ref = action->refNodes[0];
+
+	if(strcmp(type, "position") == 0) {
+		swapTransform(node, ref);
+	} else if(strcmp(type, "constraint") == 0) {
+		std::string type;
+		Quaternion rot[2];
+		Vector3 trans[2];
+		for(short i = 0; i < 2; i++) {
+			//put the node back in its constraint-friendly position
+			node = action->nodes[i];
+			ref = action->refNodes[i];
+			swapTransform(node, ref);
+			//retrieve each side of the constraint from the reference node
+			MyNode::nodeConstraint *constraint = popBack(ref->_constraints);
+			type = constraint->type;
+			rot[i] = constraint->rotation;
+			trans[i] = constraint->translation;
+			delete constraint;
+		}
+		addConstraint(action->nodes[0], action->nodes[1], -1, type.c_str(), rot[0], trans[0], rot[1], trans[1]);
+		action->nodes[0]->addChild(action->nodes[1]);
+		action->nodes[1]->_constraintParent = action->nodes[0];
+	} else if(strcmp(type, "tool") == 0) {
+		swapMesh(node, ref);
+		node->updateModel();
+	} else if(strcmp(type, "test") == 0) {
+		action->nodes[0] = dropBall(ref->getTranslationWorld());
+	}
+	_history.push_back(action);
+	_undo->setEnabled(true);
+	if(_undone.empty()) _redo->setEnabled(false);
+}
+
+void T4TApp::swapTransform(MyNode *n1, MyNode *n2) {
+	_tmpNode->set(n1);
+	n1->set(n2);
+	n2->set(_tmpNode);
+}
+
+void T4TApp::swapMesh(MyNode *n1, MyNode *n2) {
+	_tmpNode->copyMesh(n1);
+	n1->copyMesh(n2);
+	n2->copyMesh(_tmpNode);
+}
+
+
+/************* MISCELLANEOUS ****************/
+template <class T> T* T4TApp::popBack(std::vector<T*> vec) {
+	if(vec.empty()) return NULL;
+	T* t = vec.back();
+	vec.pop_back();
+	return t;
+}
+
+template <class T> void T4TApp::delBack(std::vector<T*> vec) {
+	if(vec.empty()) return NULL;
+	T* t = vec.back();
+	vec.pop_back();
+	delete t;
+}
 

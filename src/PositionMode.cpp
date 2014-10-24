@@ -48,6 +48,7 @@ bool PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int 
 			//disable all physics during the move - if a node is static, we must remove its physics and re-add it at the end
 			app->_intersectNodeGroup.clear();
 			app->_intersectNodeGroup.push_back(_selectedNode);
+			app->setAction("position", _selectedNode);
 			break;
 		}
 		case Touch::TOUCH_MOVE: case Touch::TOUCH_RELEASE: {
@@ -86,6 +87,7 @@ bool PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int 
 			break;
 		}
 	}
+	return true;
 }
 
 void PositionMode::controlEvent(Control *control, Control::Listener::EventType evt)
@@ -218,6 +220,7 @@ void PositionMode::setPosition(float value, bool finalize) {
 		_selectedNode->enablePhysics(true);
 		_selectedNode->updateTransform();
 		cout << "re-enabled physics on " << _selectedNode->getId() << endl;
+		app->commitAction();
 	}
 }
 

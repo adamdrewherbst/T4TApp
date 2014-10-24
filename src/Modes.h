@@ -104,6 +104,7 @@ public:
 	
 	//for sawing
 	bool sawNode();
+	bool getEdgeSawInt(unsigned short *e, short *lineInd, float *distance);
 	
 	//for drilling
 	bool drillNode();
@@ -121,6 +122,7 @@ public:
 	std::vector<short> keep; //-1 if discarding the vertex, otherwise its index in the new model's vertex list
 	//edgeInt[edge vertex 1][edge vertex 2] = (tool plane number, index of intersection point in new model's vertex list)
 	std::map<unsigned short, std::map<unsigned short, std::pair<unsigned short, unsigned short> > > edgeInt;
+	std::pair<unsigned short, unsigned short> _tempInt;
 	//toolInt[tool line #][model face #] = index of line-face intersection in new model's vertex list
 	std::map<unsigned short, std::map<unsigned short, unsigned short> > toolInt;
 	//new edges in tool planes
@@ -128,6 +130,7 @@ public:
 	short _hullSlice; //which convex hull segment we are working on
 	
 	void getEdgeInt(bool (ToolMode::*getInt)(unsigned short*, short*, float*));
+	bool checkEdgeInt(unsigned short v1, unsigned short v2);
 	void addToolEdge(unsigned short v1, unsigned short v2, unsigned short lineNum);
 	void addToolFaces();
 	

@@ -181,7 +181,6 @@ bool ToolMode::setSubMode(short mode) {
 }
 
 void ToolMode::setMoveMode(short mode) {
-	if(_selectedNode == NULL) return;
 	_moveMode = mode;
 	_doSelect = _moveMode < 0;
 }
@@ -239,6 +238,7 @@ bool ToolMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int cont
 		case Touch::TOUCH_RELEASE:
 			break;
 	}
+	return true;
 }
 
 void ToolMode::controlEvent(Control *control, Control::Listener::EventType evt) {
@@ -256,7 +256,7 @@ void ToolMode::controlEvent(Control *control, Control::Listener::EventType evt) 
 			if(_tools[_subMode][i]->id.compare(id) == 0) setTool(i);
 		}
 		_bitMenu->setVisible(false);
-	} else if(_moveMenu->getControl(id) == control) {
+	} else if(_moveMenu->getControl(id) == control && _selectedNode != NULL) {
 		if(strcmp(id, "rotate") == 0) {
 			setMoveMode(0);
 		} else if(strcmp(id, "translate") == 0) {
@@ -301,6 +301,7 @@ bool ToolMode::toolNode() {
 	_newNode->_edges.clear();
 	_newNode->_edgeInd.clear();
 	_newNode->_hulls.clear();
+	_newNode->_objType = "mesh";
 
 	short i, j, k;	
 	usageCount++;
@@ -330,34 +331,227 @@ bool ToolMode::toolNode() {
 	}
 	if(!success) return false;
 	
+	app->setAction("tool", _node);
+
 	//transform the new model and convex hull vertices back to model space and store in the original node
 	Matrix worldModel;
 	_node->getWorldMatrix().invert(&worldModel);
-	_node->_vertices = _newNode->_vertices;
+	_node->copyMesh(_newNode);
 	for(i = 0; i < _node->nv(); i++) {
 		worldModel.transformPoint(&_node->_vertices[i]);
 	}
-	_node->_faces = _newNode->_faces;
-	_node->_triangles = _newNode->_triangles;
-	_node->_objType = "mesh";
-	_node->_hulls = _newNode->_hulls;
 	for(i = 0; i < _node->_hulls.size(); i++) {
 		MyNode::ConvexHull *hull = _node->_hulls[i];
-		hull->_node = _node;
 		for(j = 0; j < hull->nv(); j++) {
 			worldModel.transformPoint(&hull->_vertices[j]);
 		}
 		hull->setNormals();
 	}
-
 	//put all the changes into the simulation
 	_node->updateModel();
+
+	app->commitAction();
 }
 
+bool ToolMode::checkEdgeInt(unsigned short v1, unsigned short v2) {
+	if(edgeInt.find(v1) == edgeInt.end() || edgeInt[v1].find(v2) == edgeInt[v1].end()) return false;
+	_tempInt = edgeInt[v1][v2];
+	return true;
+}
+
+void ToolMode::addToolEdge(unsigned short v1, unsigned short v2, unsigned short lineNum) {
+	_newMesh->addEdge(v1, v2);
+	segmentEdges[lineNum][v1] = v2;
+}
+
+void ToolMode::showFace(Meshy *mesh, std::vector<unsigned short> &face, bool world) {
+	_node->setWireframe(true);
+	app->_drawDebug = false;
+	app->showFace(mesh, face, world);
+}
+
+void ToolMode::getEdgeInt(bool (ToolMode::*getInt)(unsigned short*, short*, float*)) {
+	short i, j, k, ne = _mesh->ne(), line[2];
+	unsigned short e[2];
+	float dist[2];
+	for(i = 0; i < ne; i++) {
+		for(j = 0; j < 2; j++) e[j] = _mesh->_edges[i][j];
+		if(!((this->*getInt)(e, line, dist))) continue;
+		for(j = 0; j < 2; j++) if(line[j] >= 0) {
+			k = _newMesh->_vertices.size();
+			_newMesh->_vertices.push_back(_mesh->_worldVertices[e[j]]
+			  + (_mesh->_worldVertices[e[(j+1)%2]] - _mesh->_worldVertices[e[j]]) * dist[j]);
+			edgeInt[e[j]][e[(j+1)%2]] = std::pair<unsigned short, unsigned short>(line[j], k);
+		}
+		for(j = 0; j < 2; j++) if(line[j] < 0) edgeInt[e[j]][e[(j+1)%2]] = edgeInt[e[(j+1)%2]][e[j]];
+	}
+}
+
+void ToolMode::addToolFaces() {
+	Tool *tool = getTool();
+	short _segments, i, j, k, m, n, p, q, lineNum, numInt, e[2];
+	_segments = _subMode == 1 ? tool->iparam[0] : 1;
+	Vector3 v1, v2;
+	float edgeLen;
+	//for any tool line that has intersections, order them by distance along the line
+	std::vector<std::vector<std::pair<unsigned short, float> > > lineInt(_segments);
+	std::map<unsigned short, bool> enterInt;
+	std::vector<std::pair<unsigned short, float> >::iterator vit;
+	std::map<unsigned short, std::map<unsigned short, unsigned short> >::iterator it;
+	std::map<unsigned short, unsigned short>::iterator it1;
+	Vector3 axis = _axis.getDirection();
+	for(it = toolInt.begin(); it != toolInt.end(); it++) {
+		lineNum = it->first;
+		v1.set(lines[lineNum].getOrigin());
+		//sort the drill line intersections by distance along the ray
+		for(it1 = toolInt[lineNum].begin(); it1 != toolInt[lineNum].end(); it1++) {
+			n = it1->second;
+			v2.set(_newMesh->_vertices[n] - v1);
+			edgeLen = v2.length();
+			for(vit = lineInt[lineNum].begin();	vit != lineInt[lineNum].end() && vit->second < edgeLen; vit++);
+			lineInt[lineNum].insert(vit, std::pair<unsigned short, float>(n, edgeLen));
+			enterInt[n] = _mesh->_worldNormals[it1->first].dot(axis) < 0;
+		}
+		//now they are ordered, note the edges they form
+		numInt = lineInt[lineNum].size();
+		for(i = 0; i < numInt; i++) {
+			for(j = 0; j < 2; j++) e[j] = lineInt[lineNum][i+j].first;
+			if(i < numInt-1 && enterInt[e[0]] && !enterInt[e[1]]) {
+				addToolEdge(e[0], e[1], lineNum);
+				addToolEdge(e[1], e[0], (lineNum-1+_segments)%_segments);
+			}
+		}
+	}
+	
+	//copy edge map for debugging
+	std::map<unsigned short, std::map<unsigned short, unsigned short> > oldEdges = segmentEdges;
+
+	//for each segment of the drill bit, use its known set of points and edges to determine all its faces
+	std::map<unsigned short, unsigned short>::iterator eit;
+	std::vector<unsigned short> newFace;
+	for(i = 0; i < _segments; i++) {
+		//just keep building cycles until all edges are used
+		newFace.clear();
+		while(!segmentEdges[i].empty()) {
+			if(newFace.empty()) {
+				eit = segmentEdges[i].begin();
+				p = eit->first;
+				newFace.push_back(p);
+			} else {
+				p = newFace[newFace.size()-1];
+			}
+			if(segmentEdges[i].find(p) == segmentEdges[i].end()) {
+				GP_WARN("Couldn't continue tool face from point %d", p);
+				segmentEdges[i].erase(p);
+				newFace.clear();
+				continue;
+			}
+			q = segmentEdges[i][p];
+			segmentEdges[i].erase(p);
+			if(!newFace.empty() && q == newFace[0]) { //when cycle complete, triangulate and add the new face
+				_newMesh->addFace(newFace);
+				newFace.clear();
+			} else newFace.push_back(q);
+		}
+	}
+}
 
 /************ SAWING ************/
 
 bool ToolMode::sawNode() {
+	short i, j, k, m, n, p, q, r, nh = _node->_hulls.size();
+	float f1, f2, f3, f4;
+	
+	for(r = 0; r < 1 + nh; r++) {
+		if(r > 0) {
+			setMesh(_node->_hulls[r-1]);
+			MyNode::ConvexHull *hull = new MyNode::ConvexHull(_newNode);
+			_newNode->_hulls.push_back(hull);
+			_newMesh = hull;
+		}
+		short nv = _mesh->nv(), nf = _mesh->nf();
+
+		for(i = 0; i < nv; i++) {
+			if(toolVertices[i].x < 0) {
+				keep[i] = _newMesh->_vertices.size();
+				_newMesh->_vertices.push_back(_mesh->_worldVertices[i]);
+			} else keep[i] = -1;
+		}
+
+		edgeInt.clear();	
+		getEdgeInt(&ToolMode::getEdgeSawInt);
+	
+		std::vector<unsigned short> face, keeping, newFace;
+		std::list<std::pair<float, unsigned short> > intList;
+		std::list<std::pair<float, unsigned short> >::iterator lit;
+		std::map<unsigned short, unsigned short> intPair;
+		for(i = 0; i < nf; i++) {
+			face = _mesh->_faces[i];
+			n = face.size();
+			//sort the edge intersections by distance
+			Vector3 first, dir = Vector3::zero(), v1;
+			short intCount = 0;
+			keeping.clear();
+			intList.clear();
+			for(j = 0; j < n; j++) {
+				p = face[j];
+				q = face[(j+1)%n];
+				if(keep[p] >= 0) keeping.push_back(j);
+				if(checkEdgeInt(p, q)) {
+					intCount++;
+					v1 = _newMesh->_vertices[_tempInt.second];
+					if(intCount == 1) first = v1;
+					else if(intCount == 2) {
+						dir = v1 - first;
+						dir.normalize();
+					}
+					float distance = (v1 - first).dot(dir);
+					intList.push_back(std::pair<float, unsigned short>(distance, j));
+				}
+			}
+			intList.sort();
+			intPair.clear();
+			for(lit = intList.begin(); lit != intList.end(); lit++) {
+				p = (lit++)->second;
+				q = lit->second;
+				intPair[p] = q;
+				intPair[q] = p;
+			}
+		
+			while(!keeping.empty()) {
+				newFace.clear();
+				j = keeping.back();
+				do {
+					p = face[j];
+					q = face[(j+1)%n];
+					if(keep[p] >= 0) {
+						keeping.erase(std::find(keeping.begin(), keeping.end(), j));
+						newFace.push_back(keep[p]);
+					}
+					if(checkEdgeInt(p, q)) {
+						newFace.push_back(_tempInt.second);
+						j = intPair[j];
+						m = edgeInt[face[j]][face[(j+1)%n]].second;
+						newFace.push_back(m);
+						addToolEdge(m, _tempInt.second, 0);
+					}
+					j = (j+1)%n;
+				} while(keep[face[j]] != newFace[0]);
+				if(newFace.size() > 0) _newMesh->addFace(newFace);
+			}
+		}
+		addToolFaces();
+	}
+	return true;
+}
+
+bool ToolMode::getEdgeSawInt(unsigned short *e, short *lineInd, float *dist) {
+	if((keep[e[0]] < 0) == (keep[e[1]] < 0)) return false;
+	short keeper = keep[e[0]] < 0 ? 1 : 0, other = 1-keeper;
+	float delta = toolVertices[e[keeper]].x - toolVertices[e[other]].x;
+	dist[keeper] = delta == 0 ? 0 : toolVertices[e[keeper]].x / delta;
+	lineInd[keeper] = 0;
+	lineInd[other] = -1;
 	return true;
 }
 
@@ -755,23 +949,6 @@ bool ToolMode::drillKeep(unsigned short n) {
 	return testRadius >= radius;
 }
 
-void ToolMode::getEdgeInt(bool (ToolMode::*getInt)(unsigned short*, short*, float*)) {
-	short i, j, k, ne = _mesh->ne(), line[2];
-	unsigned short e[2];
-	float dist[2];
-	for(i = 0; i < ne; i++) {
-		for(j = 0; j < 2; j++) e[j] = _mesh->_edges[i][j];
-		if(!((this->*getInt)(e, line, dist))) continue;
-		for(j = 0; j < 2; j++) if(line[j] >= 0) {
-			k = _newMesh->_vertices.size();
-			_newMesh->_vertices.push_back(_mesh->_worldVertices[e[j]]
-			  + (_mesh->_worldVertices[e[(j+1)%2]] - _mesh->_worldVertices[e[j]]) * dist[j]);
-			edgeInt[e[j]][e[(j+1)%2]] = std::pair<unsigned short, unsigned short>(line[j], k);
-		}
-		for(j = 0; j < 2; j++) if(line[j] < 0) edgeInt[e[j]][e[(j+1)%2]] = edgeInt[e[(j+1)%2]][e[j]];
-	}
-}
-
 bool ToolMode::getEdgeDrillInt(unsigned short *e, short *lineInd, float *distance) {
 	if(keep[e[0]] < 0 && keep[e[1]] < 0) return false;
 
@@ -887,81 +1064,5 @@ bool ToolMode::getHullSliceInt(unsigned short *e, short *planeInd, float *dist) 
 	}
 	if(keeper < 0) return planeInd[0] >= 0 && planeInd[1] >= 0 && planeInd[0] != planeInd[1];
 	else return planeInd[keeper] >= 0;
-}
-
-void ToolMode::addToolFaces() {
-	Tool *tool = getTool();
-	short _segments = tool->iparam[0], i, j, k, m, n, p, q, lineNum, numInt, e[2];
-	Vector3 v1, v2;
-	float edgeLen;
-	//for any tool line that has intersections, order them by distance along the line
-	std::vector<std::vector<std::pair<unsigned short, float> > > lineInt(_segments);
-	std::map<unsigned short, bool> enterInt;
-	std::vector<std::pair<unsigned short, float> >::iterator vit;
-	std::map<unsigned short, std::map<unsigned short, unsigned short> >::iterator it;
-	std::map<unsigned short, unsigned short>::iterator it1;
-	Vector3 axis = _axis.getDirection();
-	for(it = toolInt.begin(); it != toolInt.end(); it++) {
-		lineNum = it->first;
-		v1.set(lines[lineNum].getOrigin());
-		//sort the drill line intersections by distance along the ray
-		for(it1 = toolInt[lineNum].begin(); it1 != toolInt[lineNum].end(); it1++) {
-			n = it1->second;
-			v2.set(_newMesh->_vertices[n] - v1);
-			edgeLen = v2.length();
-			for(vit = lineInt[lineNum].begin();	vit != lineInt[lineNum].end() && vit->second < edgeLen; vit++);
-			lineInt[lineNum].insert(vit, std::pair<unsigned short, float>(n, edgeLen));
-			enterInt[n] = _mesh->_worldNormals[it1->first].dot(axis) < 0;
-		}
-		//now they are ordered, note the edges they form
-		numInt = lineInt[lineNum].size();
-		for(i = 0; i < numInt; i++) {
-			for(j = 0; j < 2; j++) e[j] = lineInt[lineNum][i+j].first;
-			if(i < numInt-1 && enterInt[e[0]] && !enterInt[e[1]]) {
-				addToolEdge(e[0], e[1], lineNum);
-				addToolEdge(e[1], e[0], (lineNum-1+_segments)%_segments);
-			}
-		}
-	}
-	
-	//copy edge map for debugging
-	std::map<unsigned short, std::map<unsigned short, unsigned short> > oldEdges = segmentEdges;
-
-	//for each segment of the drill bit, use its known set of points and edges to determine all its faces
-	std::map<unsigned short, unsigned short>::iterator eit;
-	std::vector<unsigned short> newFace;
-	for(i = 0; i < _segments; i++) {
-		//just keep building cycles until all edges are used
-		newFace.clear();
-		while(!segmentEdges[i].empty()) {
-			if(newFace.empty()) {
-				eit = segmentEdges[i].begin();
-				p = eit->first;
-				newFace.push_back(p);
-			} else {
-				p = newFace[newFace.size()-1];
-			}
-			if(segmentEdges[i].find(p) == segmentEdges[i].end()) {
-				GP_ERROR("Couldn't continue tool face from point %d", p);
-			}
-			q = segmentEdges[i][p];
-			segmentEdges[i].erase(p);
-			if(!newFace.empty() && q == newFace[0]) { //when cycle complete, triangulate and add the new face
-				_newMesh->addFace(newFace);
-				newFace.clear();
-			} else newFace.push_back(q);
-		}
-	}
-}
-
-void ToolMode::addToolEdge(unsigned short v1, unsigned short v2, unsigned short lineNum) {
-	_newMesh->addEdge(v1, v2);
-	segmentEdges[lineNum][v1] = v2;
-}
-
-void ToolMode::showFace(Meshy *mesh, std::vector<unsigned short> &face, bool world) {
-	_node->setWireframe(true);
-	app->_drawDebug = false;
-	app->showFace(mesh, face, world);
 }
 

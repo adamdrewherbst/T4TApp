@@ -52,6 +52,15 @@ public:
     };
     cameraState *_cameraState;
     std::vector<cameraState*> _cameraHistory;
+    
+    struct Action {
+    	std::string type;
+    	//the node(s) that were acted upon and a reference for each one, holding any info needed to revert the action
+    	std::vector<MyNode*> nodes, refNodes;
+    };
+    Action *_action; //the current, uncommitted action
+    std::vector<Action*> _history, _undone; //queue of committed actions and those undone since the last commit
+    MyNode *_tmpNode;
 
     //user interface
     Form *_mainMenu;
@@ -59,7 +68,7 @@ public:
       *_textDialog, *_confirmDialog, *_overlay, *_cameraMenu;
     Label *_textPrompt, *_confirmMessage;
     TextBox *_textName;
-    Button *_textSubmit, *_textCancel, *_confirmYes, *_confirmNo;
+    Button *_textSubmit, *_textCancel, *_confirmYes, *_confirmNo, *_undo, *_redo;
     std::vector<Container*> _submenus; //submenus
     CheckBox *_drawDebugCheckbox;
     std::vector<std::string> _modeNames, _machineNames;
@@ -85,6 +94,7 @@ public:
     MyNode* duplicateModelNode(const char* type, bool isStatic = false);
     Model* createModel(std::vector<float> &vertices, bool wireframe = false, const char *material = "red");
     MyNode* createWireframe(std::vector<float>& vertices, const char *id=NULL);
+	MyNode* dropBall(Vector3 point);
 	void showFace(Meshy* mesh, std::vector<unsigned short> &face, bool world = false);
 	void showEdge(short e);
 	void showVertex(short v);
@@ -129,6 +139,13 @@ public:
     void cameraPush();
     void cameraPop();
     cameraState* copyCameraState(cameraState *state, cameraState *dst = NULL);
+    
+    void setAction(const char *type, ...); //set the current action parameters but don't commit
+    void commitAction();
+    void undoLastAction();
+    void redoLastAction();
+    void swapTransform(MyNode *n1, MyNode *n2);
+    void swapMesh(MyNode *n1, MyNode *n2);
 
     void addConstraints(MyNode *node);
     void removeConstraints(MyNode *node);
@@ -175,7 +192,21 @@ public:
     void doConfirm(const char *message, void (T4TApp::*callback)(bool));
     void showDialog(Container *dialog, bool show = true);
     void confirmDelete(bool yes);
+    
+    //miscellaneous
+    template <class T> T* popBack(std::vector<T*> vec);
+    template <class T> void delBack(std::vector<T*> vec);
+
+	class HitFilter : public PhysicsController::HitFilter {
+		public:
+		T4TApp *app;
+		HitFilter(T4TApp *app_);
+		bool filter(PhysicsCollisionObject *object);
+		//bool hit(const HitResult &hit);
+	};
+	HitFilter *_hitFilter;
 };
+
 
 #include "Modes.h"
 
