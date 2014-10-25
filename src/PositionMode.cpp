@@ -41,8 +41,7 @@ bool PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int 
 				_dragOffset.set(basePix.x - _x, basePix.y - _y);
 				cout << "translate: " << app->pv(_selectPoint) << " [" << _x << "," << _y << "] => " << app->pv(_basePoint) << " [" << app->pv2(basePix) << "]" << endl;
 			} else if(_subMode == 1) { //rotate
-			} else if(_subMode == 2) { //scale
-			} else if(_subMode == 3) { //ground face - determine which face was selected
+			} else if(_subMode == 2) { //ground face - determine which face was selected
 				_groundFace = _selectedNode->pt2Face(_selectPoint);
 			}
 			//disable all physics during the move - if a node is static, we must remove its physics and re-add it at the end
@@ -71,17 +70,12 @@ bool PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int 
 				while(angle < 0) angle += 2 * M_PI;
 				while(angle > 2 * M_PI) angle -= 2 * M_PI;
 				setPosition(angle, finalize);
-			} else if(_subMode == 2) { //scale
-				float exp = (_x - _dragOffset.x) / 500.0f;
-				if(exp < -1.0f) exp = -1.0f;
-				if(exp > 1.0f) exp = 1.0f;
-				float scale = pow(10.0f, exp);
-				setPosition(scale, finalize);
-			} else if(_subMode == 3) { //pick ground face
+			} else if(_subMode == 2) { //pick ground face
 				if(finalize && _groundFace >= 0 && _parentNode == NULL) {
 					_selectedNode->rotateFaceToPlane(_groundFace, app->_groundPlane);
 					_selectedNode->enablePhysics(true);
 					_groundFace = -1;
+					app->commitAction();
 				}
 			}
 			break;

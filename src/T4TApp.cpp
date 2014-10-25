@@ -140,6 +140,8 @@ void T4TApp::initialize()
     
 	//for queuing user actions for undo/redo
     _action = NULL;
+    _tmpNode = MyNode::create("tmpNode");
+    _tmpCount = 0;
 
     //exclude certain nodes (eg. ground, camera) from being selected by touches
     _hitFilter = new HitFilter(this);
@@ -310,11 +312,9 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 		}
 	}
 	else if(_componentMenu->getControl(id) == control && strncmp(id, "comp_", 5) == 0) {
-		MyNode *node = duplicateModelNode(id+5);
-		node->addPhysics();
-		node->enablePhysics();
-		_scene->addNode(node);
-		placeNode(node, 0.0f, 0.0f);
+		MyNode *node = addModelNode(id+5);
+		setAction("addNode", node);
+		commitAction();
 	}
 	else if(strcmp(id, "debugButton") == 0) {
 		debugTrigger();
@@ -466,13 +466,14 @@ void T4TApp::clearScene() {
 	}
 }
 
-bool T4TApp::removeNode(Node *n) {
-	MyNode *node = dynamic_cast<MyNode*>(n);
-	if(node && !node->getParent() && !auxNode(node)) {
+void T4TApp::removeNode(MyNode *node, bool erase) {
+	if(erase) {
 		node->removePhysics();
-		_scene->removeNode(node);
+	} else {
+		node->addRef();
+		node->enablePhysics(false);
 	}
-	return true;
+	_scene->removeNode(node);
 }
 
 bool T4TApp::auxNode(Node *node) {
@@ -620,8 +621,9 @@ void T4TApp::confirmDelete(bool yes) {
 	if(_activeMode < 0) return;
 	MyNode *node = _modes[_activeMode]->_selectedNode;
 	if(node != NULL) {
-		node->removePhysics();
-		_scene->removeNode(node);
+		setAction("deleteNode", node);
+		removeNode(node, false);
+		commitAction();
 	}
 }
 
@@ -647,10 +649,13 @@ bool T4TApp::drawNode(Node* node)
 {
     Model* model = node->getModel(); 
     if (model) {
-    	bool wireframe = false;
+		bool wireframe = false, thick = false;
     	MyNode *myNode = dynamic_cast<MyNode*>(node);
     	if(myNode) wireframe = myNode->_wireframe;
+    	thick = node == _face || node == _edge;
+    	if(thick) glLineWidth(5.0f);
     	model->draw(wireframe);
+    	if(thick) glLineWidth(1.0f);
     }
     return true;
 }
@@ -707,6 +712,15 @@ MyNode* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 	node->setTranslation(Vector3(0.0f, (box.max.y - box.min.y)/2.0f, 0.0f));
 	node->updateTransform();
 	node->setStatic(isStatic);
+	return node;
+}
+
+MyNode* T4TApp::addModelNode(const char *type) {
+	MyNode *node = duplicateModelNode(type);
+	node->addPhysics();
+	node->enablePhysics();
+	_scene->addNode(node);
+	placeNode(node, 0.0f, 0.0f);
 	return node;
 }
 
@@ -812,6 +826,12 @@ void T4TApp::showVertex(short v) {
 	if(_debugWorld) _debugMesh->_node->getWorldMatrix().transformPoint(&vec);
 	_vertex->setTranslation(vec);
 	_activeScene->addNode(_vertex);
+	frame();
+	Platform::swapBuffers();
+}
+
+void T4TApp::showEye(float radius, float theta, float phi) {
+	setCameraEye(radius, theta, phi);
 	frame();
 	Platform::swapBuffers();
 }
@@ -1093,6 +1113,7 @@ void T4TApp::setAction(const char *type, ...) {
 
 	if(_action == NULL) _action = new Action();
 	Action *action = _action;
+	action->type = type;
 	short n, i, j = action->refNodes.size();
 	if(strcmp(type, "constraint") == 0) n = 2;
 	else n = 1;
@@ -1104,7 +1125,9 @@ void T4TApp::setAction(const char *type, ...) {
 	}
 	MyNode *node = action->nodes[0], *ref = action->refNodes[0];
 
-	if(strcmp(type, "position") == 0) {
+	if(strcmp(type, "addNode") == 0) {
+	} else if(strcmp(type, "deleteNode") == 0) {
+	} else if(strcmp(type, "position") == 0) {
 		ref->set(node);
 	} else if(strcmp(type, "constraint") == 0) {
 		MyNode::nodeConstraint *constraint = new MyNode::nodeConstraint();
@@ -1120,11 +1143,12 @@ void T4TApp::setAction(const char *type, ...) {
 	} else if(strcmp(type, "test") == 0) {
 		ref->set(node);
 	}
+	return;
 }
 
 void T4TApp::commitAction() {
 	if(_action == NULL) return;
-	_undone.clear(); //can't redo anything once something else is done
+	delAll(_undone); //can't redo anything once something else is done
 	_history.push_back(_action);
 	_action = NULL;
 	_undo->setEnabled(true);
@@ -1138,7 +1162,13 @@ void T4TApp::undoLastAction() {
 	MyNode *node = action->nodes[0], *ref = action->refNodes[0];
 	bool allowRedo = true;
 
-	if(strcmp(type, "position") == 0) {
+	if(strcmp(type, "addNode") == 0) {
+		removeNode(node, false);
+	} else if(strcmp(type, "deleteNode") == 0) {
+		_scene->addNode(node);
+		node->enablePhysics();
+		node->release();
+	} else if(strcmp(type, "position") == 0) {
 		swapTransform(node, ref);
 	} else if(strcmp(type, "constraint") == 0) {
 		MyNode::nodeConstraint *constraint[2];
@@ -1169,7 +1199,6 @@ void T4TApp::undoLastAction() {
 		node->updateModel();
 	} else if(strcmp(type, "test") == 0) {
 		removeNode(node);
-		action->nodes[0] = NULL;
 	}
 	if(allowRedo) {
 		_undone.push_back(action);
@@ -1184,7 +1213,13 @@ void T4TApp::redoLastAction() {
 	const char *type = action->type.c_str();
 	MyNode *node = action->nodes[0], *ref = action->refNodes[0];
 
-	if(strcmp(type, "position") == 0) {
+	if(strcmp(type, "addNode") == 0) {
+		_scene->addNode(node);
+		node->enablePhysics();
+		node->release();
+	} else if(strcmp(type, "deleteNode") == 0) {
+		removeNode(node, false);
+	} else if(strcmp(type, "position") == 0) {
 		swapTransform(node, ref);
 	} else if(strcmp(type, "constraint") == 0) {
 		std::string type;
@@ -1230,17 +1265,25 @@ void T4TApp::swapMesh(MyNode *n1, MyNode *n2) {
 
 
 /************* MISCELLANEOUS ****************/
-template <class T> T* T4TApp::popBack(std::vector<T*> vec) {
+template <class T> T* T4TApp::popBack(std::vector<T*> &vec) {
 	if(vec.empty()) return NULL;
 	T* t = vec.back();
 	vec.pop_back();
 	return t;
 }
 
-template <class T> void T4TApp::delBack(std::vector<T*> vec) {
+template <class T> void T4TApp::delBack(std::vector<T*> &vec) {
 	if(vec.empty()) return NULL;
 	T* t = vec.back();
 	vec.pop_back();
 	delete t;
+}
+
+template <class T> void T4TApp::delAll(std::vector<T*> &vec) {
+	for(typename std::vector<T*>::iterator it = vec.begin(); it != vec.end(); it++) {
+		T* t = *it;
+		delete t;
+	}
+	vec.clear();
 }
 

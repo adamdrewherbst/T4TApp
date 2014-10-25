@@ -203,6 +203,28 @@ public:
 	void controlEvent(Control *control, Control::Listener::EventType evt);
 };
 
+class StringMode : public Mode
+{
+public:
+	class NodeData {
+		StringMode *_mode;
+		MyNode *_node;
+		std::vector<unsigned short> _faces;
+		std::vector<MyNode*> _outlines;
+		
+		NodeData(MyNode *node, StringMode *mode);
+		void addFace(unsigned short face);
+		void getOutlines();
+	};
+	std::vector<NodeData*> _nodes;
+	Plane _stringPlane;
+	
+	StringMode();
+	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+	void controlEvent(Control *control, Control::Listener::EventType evt);
+	void makeString();
+};
+
 class ProjectComponent : public Mode
 {
 public:

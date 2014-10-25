@@ -153,6 +153,7 @@ ToolMode::Tool* ToolMode::getTool() {
 
 void ToolMode::setActive(bool active) {
 	Mode::setActive(active);
+	_bitMenu->setVisible(false);
 }
 
 bool ToolMode::setSelectedNode(MyNode *node, Vector3 point) {
@@ -300,6 +301,7 @@ bool ToolMode::toolNode() {
 	_newNode->_triangles.clear();
 	_newNode->_edges.clear();
 	_newNode->_edgeInd.clear();
+	for(std::vector<MyNode::ConvexHull*>::iterator it= _newNode->_hulls.begin(); it != _newNode->_hulls.end(); it++) delete *it;
 	_newNode->_hulls.clear();
 	_newNode->_objType = "mesh";
 

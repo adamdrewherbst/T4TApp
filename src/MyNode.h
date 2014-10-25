@@ -29,10 +29,10 @@ public:
 	virtual void addFace(std::vector<unsigned short> &face, bool reverse = false);
 	void addFace(short n, ...);
 	void addEdge(unsigned short e1, unsigned short e2);
-	virtual void update();
+	void update();
 	virtual void updateTransform();
-	void updateEdges();
-	void setNormals();
+	virtual void updateEdges();
+	virtual void setNormals();
 	Vector3 getNormal(std::vector<unsigned short> &face, bool modelSpace = false);
 	virtual void copyMesh(Meshy *mesh);
 };
@@ -79,6 +79,8 @@ public:
 	void loadData(const char *filename = NULL, bool doPhysics = true);
 	void writeData(const char *filename = NULL);
 	void updateTransform();
+	void updateEdges();
+	void setNormals();
 	void updateModel(bool doPhysics = true);
 	void calculateHulls();
 

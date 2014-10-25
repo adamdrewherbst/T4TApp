@@ -52,7 +52,7 @@ public:
     };
     cameraState *_cameraState;
     std::vector<cameraState*> _cameraHistory;
-    
+    //undo/redo
     struct Action {
     	std::string type;
     	//the node(s) that were acted upon and a reference for each one, holding any info needed to revert the action
@@ -60,7 +60,8 @@ public:
     };
     Action *_action; //the current, uncommitted action
     std::vector<Action*> _history, _undone; //queue of committed actions and those undone since the last commit
-    MyNode *_tmpNode;
+    MyNode *_tmpNode; //for swapping info between nodes
+    int _tmpCount; //number of nodes whose info has been temporarily saved to disk
 
     //user interface
     Form *_mainMenu;
@@ -90,14 +91,16 @@ public:
 	void generateModels();
 	void generateModel(const char *type, ...);
 	
-	MyNode* loadNode(const char* id);    
+	MyNode* loadNode(const char* id);
     MyNode* duplicateModelNode(const char* type, bool isStatic = false);
+    MyNode* addModelNode(const char *type);
     Model* createModel(std::vector<float> &vertices, bool wireframe = false, const char *material = "red");
     MyNode* createWireframe(std::vector<float>& vertices, const char *id=NULL);
 	MyNode* dropBall(Vector3 point);
 	void showFace(Meshy* mesh, std::vector<unsigned short> &face, bool world = false);
 	void showEdge(short e);
 	void showVertex(short v);
+	void showEye(float radius, float theta, float phi);
     bool printNode(Node *node);
     bool prepareNode(MyNode *node);
     void translateNode(MyNode *node, Vector3 trans);
@@ -116,7 +119,7 @@ public:
 	void loadScene(const char *scene = NULL);
 	std::string getSceneDir();
 	void clearScene();
-	bool removeNode(Node *node);
+	void removeNode(MyNode *node, bool erase = true);
 	bool auxNode(Node *node);
 	void saveScene(const char *scene = NULL);
 	bool saveNode(Node *n);
@@ -194,8 +197,9 @@ public:
     void confirmDelete(bool yes);
     
     //miscellaneous
-    template <class T> T* popBack(std::vector<T*> vec);
-    template <class T> void delBack(std::vector<T*> vec);
+    template <class T> T* popBack(std::vector<T*> &vec);
+    template <class T> void delBack(std::vector<T*> &vec);
+    template <class T> void delAll(std::vector<T*> &vec);
 
 	class HitFilter : public PhysicsController::HitFilter {
 		public:

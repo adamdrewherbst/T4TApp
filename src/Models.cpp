@@ -96,6 +96,12 @@ void T4TApp::generateModel(const char *type, ...) {
 		for(i = 0; i < segments/2; i++) {
 			hull = new MyNode::ConvexHull(node);
 			for(j = 0; j < 8; j++) hull->addVertex(node->_vertices[i*4 + j]);
+			hull->addFace(4, 0, 4, 5, 1);
+			hull->addFace(4, 2, 3, 7, 6);
+			hull->addFace(4, 4, 0, 2, 6);
+			hull->addFace(4, 1, 5, 7, 3);
+			hull->addFace(4, 0, 1, 3, 2);
+			hull->addFace(4, 4, 6, 7, 5);
 			node->_hulls.push_back(hull);
 		}
 	}

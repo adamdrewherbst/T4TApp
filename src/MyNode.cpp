@@ -528,8 +528,6 @@ void MyNode::loadData(const char *file, bool doPhysics)
 				}
 				hull->_faces[j] = face;
 			}
-			hull->updateEdges();
-			hull->setNormals();
 		}
 		str = stream->readLine(line, 2048);
 		short nc = atoi(str);
@@ -676,9 +674,17 @@ void MyNode::writeData(const char *file) {
 
 void MyNode::updateTransform() {
 	Meshy::updateTransform();
-	for(short i = 0; i < _hulls.size(); i++) {
-		_hulls[i]->updateTransform();
-	}
+	for(short i = 0; i < _hulls.size(); i++) _hulls[i]->updateTransform();
+}
+
+void MyNode::updateEdges() {
+	Meshy::updateEdges();
+	for(short i = 0; i < _hulls.size(); i++) _hulls[i]->updateEdges();
+}
+
+void MyNode::setNormals() {
+	Meshy::setNormals();
+	for(short i = 0; i < _hulls.size(); i++) _hulls[i]->setNormals();
 }
 
 void MyNode::updateModel(bool doPhysics) {
@@ -724,7 +730,8 @@ void MyNode::updateModel(bool doPhysics) {
 			n = _triangles[i].size();
 			for(j = 0; j < n; j++) {
 				for(k = 0; k < 3; k++) {
-					for(m = 0; m < 3; m++) vertices[v++] = gv(_vertices[_faces[i][_triangles[i][j][k]]], m);
+					vec = _vertices[_faces[i][_triangles[i][j][k]]];
+					for(m = 0; m < 3; m++) vertices[v++] = gv(vec, m);
 					for(m = 0; m < 3; m++) vertices[v++] = gv(_normals[i], m);
 				}
 			}
@@ -879,12 +886,18 @@ char* MyNode::concat(int n, ...)
 /*********** TRANSFORM ***********/
 
 void MyNode::set(const Matrix& trans) {
+	PhysicsCollisionObject *obj = getCollisionObject();
+	bool doPhysics = obj != NULL && obj->isEnabled();
+	if(doPhysics) enablePhysics(false);
+
 	Vector3 translation, scale;
 	Quaternion rotation;
 	trans.decompose(&scale, &rotation, &translation);
 	setScale(scale);
 	setRotation(rotation);
 	setTranslation(translation);
+	
+	if(doPhysics) enablePhysics(true);
 }
 
 void MyNode::set(Node *other) {
