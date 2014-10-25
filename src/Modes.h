@@ -207,21 +207,32 @@ class StringMode : public Mode
 {
 public:
 	class NodeData {
+		public:
 		StringMode *_mode;
 		MyNode *_node;
-		std::vector<unsigned short> _faces;
-		std::vector<MyNode*> _outlines;
+		Vector3 _point;
+		std::vector<Vector3> _planeVertices;
+		Vector3 _planeCenter; //node's center in string plane coords
+		std::vector<Vector2> _outline, _hull;
 		
 		NodeData(MyNode *node, StringMode *mode);
-		void addFace(unsigned short face);
-		void getOutlines();
+		void updateVertices();
+		bool getOutline();
+		bool getHull();
 	};
 	std::vector<NodeData*> _nodes;
 	Plane _stringPlane;
+	Vector3 _axis, _up, _normal, _origin;
+	MyNode *_path, *_string;
 	
 	StringMode();
+	void setActive(bool active);
 	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 	void controlEvent(Control *control, Control::Listener::EventType evt);
+	void addNode(MyNode *node, Vector3 point);
+	bool getPlane();
+	bool getPath();
+	void clearPath();
 	void makeString();
 };
 

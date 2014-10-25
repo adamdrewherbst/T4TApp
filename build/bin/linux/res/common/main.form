@@ -42,7 +42,7 @@ form mainMenu {
 			autoWidth = true
 			height = 530
 			layout = LAYOUT_VERTICAL
-			scroll = SCROLL_NONE
+			scroll = SCROLL_VERTICAL
 		
 			image navigate {
 				style = buttonStyle
@@ -79,6 +79,12 @@ form mainMenu {
 				autoWidth = true
 				height = 100
 				path = res/png/balldrop.png
+			}
+			image string {
+				style = buttonStyle
+				autoWidth = true
+				height = 100
+				path = res/png/string.png
 			}
 		}
 	}
@@ -351,6 +357,42 @@ form mainMenu {
 				zIndex = 10
 				consumeInputEvents = true
 				layout = LAYOUT_FLOW
+			}
+		}
+
+		container mode_string {
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+			
+			container controls {
+				style = basicContainer
+				position = 20, 10
+				size = 180, 200
+				layout = LAYOUT_VERTICAL
+				consumeInputEvents = true
+				zIndex = 5
+				
+				container actions {
+					style = hiddenContainer
+					autoWidth = true
+					height = 170
+					layout = LAYOUT_VERTICAL
+					
+					button makeString {
+						style = buttonStyle
+						autoWidth = true
+						height = 50
+						text = Make String
+					}
+					button cancel {
+						style = buttonStyle
+						autoWidth = true
+						height = 50
+						text = Cancel
+					}
+				}
 			}
 		}
 

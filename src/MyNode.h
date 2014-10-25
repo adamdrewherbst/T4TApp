@@ -35,6 +35,7 @@ public:
 	virtual void setNormals();
 	Vector3 getNormal(std::vector<unsigned short> &face, bool modelSpace = false);
 	virtual void copyMesh(Meshy *mesh);
+	virtual void clearMesh();
 };
 
 class MyNode : public Node, public Meshy {
@@ -58,7 +59,10 @@ public:
 
 	std::string _type; //which item this is from the catalog
 	int _typeCount; //number of clones of this model currently in the simulation
-	bool _wireframe; //drawing option for debugging
+	bool _wireframe, //drawing option for debugging
+		_chain, _loop; //whether node is treated as vertex chain or triangle mesh
+	float _lineWidth; //OpenGL line width if wireframe
+	Vector3 _color;
 
 	//physics
 	std::string _objType; //mesh, box, sphere, capsule
@@ -114,6 +118,7 @@ public:
 	  std::vector<std::vector<unsigned short> >& triangles, Vector3 normal);
 	void setWireframe(bool wireframe);
 	void copyMesh(Meshy *mesh);
+	void clearMesh();
 
 	//physics
 	void addHullFace(ConvexHull *hull, short f);

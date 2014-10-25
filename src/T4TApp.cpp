@@ -128,6 +128,7 @@ void T4TApp::initialize()
 	_modes.push_back(new NavigateMode());
 	_modes.push_back(new PositionMode());
 	_modes.push_back(new ConstraintMode());
+	_modes.push_back(new StringMode());
 	_modes.push_back(new ToolMode());
 	_modes.push_back(new TestMode());
 	_modes.push_back(new TouchMode());
@@ -148,7 +149,9 @@ void T4TApp::initialize()
     
 	//nodes to illustrate mesh pieces when debugging    
 	_face = MyNode::create("face");
+	_face->_lineWidth = 5.0f;
 	_edge = MyNode::create("edge");
+	_edge->_lineWidth = 5.0f;
 	_vertex = duplicateModelNode("sphere");
 	_vertex->setScale(0.15f);
 	_vertex->getModel()->setMaterial("res/common/models.material#red");
@@ -649,13 +652,16 @@ bool T4TApp::drawNode(Node* node)
 {
     Model* model = node->getModel(); 
     if (model) {
-		bool wireframe = false, thick = false;
+		bool wireframe = false;
+		float lineWidth = 1.0f;
     	MyNode *myNode = dynamic_cast<MyNode*>(node);
-    	if(myNode) wireframe = myNode->_wireframe;
-    	thick = node == _face || node == _edge;
-    	if(thick) glLineWidth(5.0f);
+    	if(myNode) {
+    		wireframe = myNode->_wireframe || myNode->_chain;
+    		lineWidth = myNode->_lineWidth;
+    	}
+    	if(wireframe) glLineWidth(lineWidth);
     	model->draw(wireframe);
-    	if(thick) glLineWidth(1.0f);
+    	if(wireframe) glLineWidth(1.0f);
     }
     return true;
 }

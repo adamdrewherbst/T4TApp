@@ -156,6 +156,7 @@ set(GAME_SRC
 	src/NavigateMode.cpp
 	src/PositionMode.cpp
 	src/ConstraintMode.cpp
+	src/StringMode.cpp
 	src/TestMode.cpp
 	src/TouchMode.cpp
 )

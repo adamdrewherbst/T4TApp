@@ -125,6 +125,15 @@ void Meshy::copyMesh(Meshy *src) {
 	_triangles = src->_triangles;
 }
 
+void Meshy::clearMesh() {
+	_vertices.clear();
+	_faces.clear();
+	_edges.clear();
+	_edgeInd.clear();
+	_triangles.clear();
+	_vInfo.clear();
+}
+
 
 MyNode::MyNode(const char *id) : Node::Node(id), Meshy::Meshy()
 {
@@ -140,7 +149,11 @@ void MyNode::init() {
     app = (T4TApp*) Game::getInstance();
     _staticObj = false;
     _constraintParent = NULL;
+    _chain = false;
+    _loop = false;
     _wireframe = false;
+    _lineWidth = 1.0f;
+    _objType = "none";
 }
 
 MyNode* MyNode::cloneNode(Node *node) {
@@ -399,6 +412,12 @@ void MyNode::copyMesh(Meshy *mesh) {
 		_hulls[i] = newHull;
 	}
 	_objType = src->_objType;
+}
+
+void MyNode::clearMesh() {
+	Meshy::clearMesh();
+	for(std::vector<ConvexHull*>::iterator it = _hulls.begin(); it != _hulls.end(); it++) delete *it;
+	_hulls.clear();
 }
 
 void MyNode::addHullFace(MyNode::ConvexHull *hull, short f) {
@@ -699,8 +718,7 @@ void MyNode::updateModel(bool doPhysics) {
 
 		//update the mesh to contain the new coordinates
 		float radius = 0, f1;
-		unsigned short i, j, k, m, n, nv = this->nv(), nf = this->nf();
-		int numVertices = 0, numTriangles = 0, v = 0, t = 0, f = 0;
+		unsigned short i, j, k, m, n, v = 0, nv = this->nv(), nf = this->nf();
 		Vector3 min(1000,1000,1000), max(-1000,-1000,-1000);
 
 		//first find our new bounding box and bounding sphere, and position our node at their center
@@ -724,19 +742,32 @@ void MyNode::updateModel(bool doPhysics) {
 		BoundingSphere sphere(Vector3::zero(), radius);
 
 		//then create the new model
-		for(i = 0; i < nf; i++) numVertices += _triangles[i].size() * 3;
-		std::vector<float> vertices(numVertices * 6);
-		for(i = 0; i < nf; i++) {
-			n = _triangles[i].size();
-			for(j = 0; j < n; j++) {
-				for(k = 0; k < 3; k++) {
-					vec = _vertices[_faces[i][_triangles[i][j][k]]];
-					for(m = 0; m < 3; m++) vertices[v++] = gv(vec, m);
-					for(m = 0; m < 3; m++) vertices[v++] = gv(_normals[i], m);
+		std::vector<float> vertices;
+		if(_chain) {
+			n = _loop ? nv : nv-1;
+			vertices.resize(2 * n * 6);
+			for(i = 0; i < n; i++) {
+				for(j = 0; j < 2; j++) {
+					for(k = 0; k < 3; k++) vertices[v++] = gv(_vertices[(i+j)%nv], k);
+					for(k = 0; k < 3; k++) vertices[v++] = gv(_color, k);
+				}
+			}
+		} else {
+			n = 0;
+			for(i = 0; i < nf; i++) n += _triangles[i].size() * 3;
+			vertices.resize(n * 6);
+			for(i = 0; i < nf; i++) {
+				n = _triangles[i].size();
+				for(j = 0; j < n; j++) {
+					for(k = 0; k < 3; k++) {
+						vec = _vertices[_faces[i][_triangles[i][j][k]]];
+						for(m = 0; m < 3; m++) vertices[v++] = gv(vec, m);
+						for(m = 0; m < 3; m++) vertices[v++] = gv(_normals[i], m);
+					}
 				}
 			}
 		}
-		setModel(app->createModel(vertices, false, _type.c_str()));
+		setModel(app->createModel(vertices, _chain, _type.c_str()));
 		Mesh *mesh = getModel()->getMesh();
 		mesh->setBoundingBox(box);
 		mesh->setBoundingSphere(sphere);
@@ -971,6 +1002,7 @@ void MyNode::addCollisionObject() {
 }
 
 void MyNode::addPhysics(bool recur) {
+	if(_objType.compare("none") == 0) return;
 	if(getCollisionObject() == NULL) {
 		addCollisionObject();
 		app->addConstraints(this);
