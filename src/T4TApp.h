@@ -89,7 +89,7 @@ public:
     T4TApp();
     T4TApp* getInstance();
 	void generateModels();
-	void generateModel(const char *type, ...);
+	void generateModel(const char *id, const char *type, ...);
 	
 	MyNode* loadNode(const char* id);
     MyNode* duplicateModelNode(const char* type, bool isStatic = false);
@@ -159,6 +159,7 @@ public:
 	void keyEvent(Keyboard::KeyEvent evt, int key);
     void touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
     void controlEvent(Control* control, Control::Listener::EventType evt);
+    void inactivateControls(Container *container = NULL);
     void collisionEvent(PhysicsCollisionObject::CollisionListener::EventType type,
     	const PhysicsCollisionObject::CollisionPair& pair, const Vector3& pointA, const Vector3& pointB);
 	void debugTrigger();

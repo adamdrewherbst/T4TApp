@@ -87,6 +87,7 @@ public:
 	void setNormals();
 	void updateModel(bool doPhysics = true);
 	void calculateHulls();
+	void setColor(float r, float g, float b);
 
 	//transform
 	Matrix getRotTrans();

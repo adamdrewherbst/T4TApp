@@ -199,7 +199,7 @@ void PositionMode::setPosition(float value, bool finalize) {
 	Vector3 trans(_selectedNode->getTranslationWorld());
 	//when translating, snap object to grid if desired
 	if(_subMode == 0 && _gridCheckbox->isChecked()) {
-		float spacing = _gridSlider->getValue();
+		float spacing = 1; //_gridSlider->getValue();
 		trans.x = round(trans.x / spacing) * spacing;
 		trans.z = round(trans.z / spacing) * spacing;
 	}

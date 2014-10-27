@@ -27,7 +27,7 @@ T4TApp* T4TApp::getInstance() {
 
 void T4TApp::initialize()
 {
-	//generateModels();
+	generateModels();
 	
     // Load font
     _font = Font::create("res/common/arial18.gpb");
@@ -260,6 +260,8 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	  || control == _textSubmit) {
 		if(_textCallback != NULL) (this->*_textCallback)(_textName->getText());
 		showDialog(_textDialog, false);
+		//when the enter key is released, if there is an active button in the focused container, it will fire
+		inactivateControls();
 	}
 	else if(control == _textCancel) {
 		_textCallback = NULL;
@@ -338,6 +340,8 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	Container *next = parent;
 	while(next != NULL && strncmp(next->getId(), "submenu_", 8) == 0) {
 		next->setVisible(false);
+		Control *handle = _mainMenu->getControl(MyNode::concat(2, "parent_", next->getId()));
+		if(handle != NULL) handle->setState(Control::NORMAL);
 		next = next->getParent();
 	}
 }
@@ -345,6 +349,16 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 void T4TApp::keyEvent(Keyboard::KeyEvent evt, int key) {}
 void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {}
 bool T4TApp::mouseEvent(Mouse::MouseEvent evt, int x, int y, int wheelDelta) {}
+
+void T4TApp::inactivateControls(Container *container) {
+	if(container == NULL) container = _mainMenu;
+	std::vector<Control*> controls = container->getControls();
+	for(std::vector<Control*>::iterator it = controls.begin(); it != controls.end(); it++) {
+		Control *control = *it;
+		if(control->getState() == Control::ACTIVE) control->setState(Control::NORMAL);
+		if(control->isContainer()) inactivateControls((Container*)control);
+	}
+}
 
 void T4TApp::initScene()
 {
@@ -712,19 +726,18 @@ MyNode* T4TApp::duplicateModelNode(const char* type, bool isStatic)
 	if(!modelNode) return NULL;
 	MyNode *node = MyNode::cloneNode(modelNode);
 	BoundingBox box = node->getModel()->getMesh()->getBoundingBox();
-	node->loadData(concat(3, "res/common/", type, ".node"));
-	const char count[2] = {(char)(++modelNode->_typeCount + 48), '\0'};
-	node->setId(concat(2, modelNode->getId(), count));
+	std::ostringstream os;
+	os << modelNode->getId() << ++modelNode->_typeCount;
+	node->setId(os.str().c_str());
 	node->setTranslation(Vector3(0.0f, (box.max.y - box.min.y)/2.0f, 0.0f));
-	node->updateTransform();
 	node->setStatic(isStatic);
+	node->update();
 	return node;
 }
 
 MyNode* T4TApp::addModelNode(const char *type) {
 	MyNode *node = duplicateModelNode(type);
 	node->addPhysics();
-	node->enablePhysics();
 	_scene->addNode(node);
 	placeNode(node, 0.0f, 0.0f);
 	return node;
@@ -1189,15 +1202,17 @@ void T4TApp::undoLastAction() {
 				GP_WARN("No constraint with id %d", id);
 				allowRedo = false;
 			} else {
+				getPhysicsController()->removeConstraint(_constraints[id]);
 				for(i = 0; i < 2; i++) {
 					node = action->nodes[i];
 					ref = action->refNodes[i];
 					ref->_constraints.push_back(popBack(node->_constraints));
-					_scene->addNode(node); //also removes it from its constraint parent
-					node->_constraintParent = NULL;
-					swapTransform(node, ref);
+					if(i == 1) {
+						_scene->addNode(node); //also removes it from its constraint parent
+						node->_constraintParent = NULL;
+						swapTransform(node, ref);
+					}
 				}
-				getPhysicsController()->removeConstraint(_constraints[id]);
 			}
 		}
 	} else if(strcmp(type, "tool") == 0) {

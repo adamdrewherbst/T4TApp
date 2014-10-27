@@ -386,6 +386,12 @@ form mainMenu {
 						height = 50
 						text = Make String
 					}
+					button enableString {
+						style = buttonStyle
+						autoWidth = true
+						height = 50
+						text = Enable String
+					}
 					button cancel {
 						style = buttonStyle
 						autoWidth = true
@@ -569,6 +575,7 @@ form mainMenu {
 		width = 200
 		height = 300
 		layout = LAYOUT_VERTICAL
+		consumeInputEvents = true
 		zIndex = 20
 		
 		button new {
@@ -610,6 +617,7 @@ form mainMenu {
 		width = 200
 		height = 300
 		layout = LAYOUT_VERTICAL
+		consumeInputEvents = true
 		zIndex = 20
 		
 		button lever {
@@ -654,6 +662,7 @@ form mainMenu {
 		textBox textName {
 			style = basic
 			size = 150, 50
+			consumeInputEvents = true
 		}
 		button textSubmit {
 			style = buttonStyle

@@ -1,17 +1,18 @@
 #include "T4TApp.h"
 
 void T4TApp::generateModels() {
-	generateModel("box", 6.0f, 2.0f, 4.0f);
-	generateModel("sphere", 1.0f, 10);
-	generateModel("cylinder", 1.0f, 4.0f, 20);
-	generateModel("halfpipe", 1.0f, 12.0f, 0.2f, 20);
-	generateModel("gear_basic", 0.6f, 0.9f, 1.2f, 5);
+	generateModel("box", "box", 6.0f, 2.0f, 4.0f);
+	generateModel("sphere", "sphere", 1.0f, 10);
+	generateModel("cylinder", "cylinder", 1.0f, 4.0f, 20);
+	generateModel("halfpipe", "halfpipe", 1.0f, 12.0f, 0.2f, 20);
+	generateModel("gear_basic", "gear", 0.6f, 0.9f, 1.2f, 5);
+	generateModel("stringLink", "cylinder", 0.1f, 1.0f, 5);
 }
 
-void T4TApp::generateModel(const char *type, ...) {
+void T4TApp::generateModel(const char *id, const char *type, ...) {
 	va_list arguments;
 	va_start(arguments, type);
-	MyNode *node = MyNode::create(type);
+	MyNode *node = MyNode::create(id);
 	node->_type = type;
 	node->_objType = "mesh";
 	node->_mass = 10.0f;
@@ -126,7 +127,7 @@ void T4TApp::generateModel(const char *type, ...) {
 		node->addFace(4, 1, 3, 7, 5);
 		node->setOneHull();
 	}
-	else if(strcmp(type, "gear_basic") == 0) {
+	else if(strcmp(type, "gear") == 0) {
 		float innerRadius = (float)va_arg(arguments, double);
 		float outerRadius = (float)va_arg(arguments, double);
 		float width = (float)va_arg(arguments, double);

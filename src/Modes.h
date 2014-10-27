@@ -223,7 +223,12 @@ public:
 	std::vector<NodeData*> _nodes;
 	Plane _stringPlane;
 	Vector3 _axis, _up, _normal, _origin;
-	MyNode *_path, *_string;
+	std::vector<Vector2> _path;
+	MyNode *_linkTemplate, *_stringTemplate; //static templates to copy each time
+	MyNode *_pathNode, *_stringNode; //visual rep of path, and actual string
+	std::vector<MyNode*> _links;
+	float _linkLength, _linkWidth;
+	bool _enabled;
 	
 	StringMode();
 	void setActive(bool active);
@@ -234,6 +239,9 @@ public:
 	bool getPath();
 	void clearPath();
 	void makeString();
+	void enableString(bool enable);
+	Vector3 plane2World(Vector2 &v);
+	Vector3 plane2Vec(Vector2 &v);
 };
 
 class ProjectComponent : public Mode

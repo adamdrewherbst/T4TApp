@@ -153,12 +153,24 @@ void MyNode::init() {
     _loop = false;
     _wireframe = false;
     _lineWidth = 1.0f;
+    _color.set(-1.0f, -1.0f, -1.0f); //indicates no color specified
     _objType = "none";
 }
 
 MyNode* MyNode::cloneNode(Node *node) {
 	Node *clone = node->clone();
 	MyNode *copy = new MyNode(clone->getId());
+	MyNode *myNode = dynamic_cast<MyNode*>(node);
+	if(myNode) {
+		copy->copyMesh(myNode);
+		copy->_type = myNode->_type;
+		copy->_mass = myNode->_mass;
+		copy->_chain = myNode->_chain;
+		copy->_loop = myNode->_loop;
+		copy->_wireframe = myNode->_wireframe;
+		copy->_lineWidth = myNode->_lineWidth;
+		copy->_color = myNode->_color;
+	}
 	copy->setModel(clone->getModel());
 	copy->setCamera(clone->getCamera());
 	copy->setScale(clone->getScale());
@@ -771,6 +783,7 @@ void MyNode::updateModel(bool doPhysics) {
 		Mesh *mesh = getModel()->getMesh();
 		mesh->setBoundingBox(box);
 		mesh->setBoundingSphere(sphere);
+		if(_color.x >= 0) setColor(_color.x, _color.y, _color.z); //updates the model's color
 		
 		//update convex hulls and constraints to reflect shift in node origin
 		short nh = _hulls.size(), nc = _constraints.size();
@@ -796,6 +809,29 @@ void MyNode::updateModel(bool doPhysics) {
 	/*for(MyNode *child = dynamic_cast<MyNode*>(getFirstChild()); child; child = dynamic_cast<MyNode*>(child->getNextSibling())) {
 		child->updateModel(doPhysics);
 	}//*/
+}
+
+void MyNode::setColor(float r, float g, float b) {
+	_color.set(r, g, b);
+	Model *model = getModel();
+	if(model) {
+		Material *mat = model->getMaterial();
+		if(mat) {
+			Technique *tech = mat->getTechniqueByIndex(0);
+			if(tech) {
+				Pass *pass = tech->getPassByIndex(0);
+				if(pass) {
+					Effect *effect = pass->getEffect();
+					if(effect) {
+						Uniform *amb = effect->getUniform("u_ambientColor");
+						if(amb) {
+							pass->getParameter("u_ambientColor")->setValue(_color);
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 bool MyNode::isStatic() {
