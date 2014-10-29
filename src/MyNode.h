@@ -26,8 +26,13 @@ public:
 	short ne();
 	void addVertex(const Vector3 &v);
 	void addVertex(float x, float y, float z);
+	void setVInfo(unsigned short v, const char *info);
+	void printVertex(unsigned short v);
 	virtual void addFace(std::vector<unsigned short> &face, bool reverse = false);
 	void addFace(short n, ...);
+	void addFace(std::vector<unsigned short> &face, std::vector<std::vector<unsigned short> > &triangles);
+	void printFace(std::vector<unsigned short> &face);
+	void printFace(unsigned short n);
 	void addEdge(unsigned short e1, unsigned short e2);
 	void update();
 	virtual void updateTransform();
@@ -112,8 +117,9 @@ public:
 	void rotateFaceToFace(unsigned short f, MyNode *other, unsigned short g);
 
 	//topology
-	void addFace(std::vector<unsigned short>& face, bool reverse = false);
+	void addFace(std::vector<unsigned short> &face, bool reverse = false);
 	void addFace(short n, ...);
+	void addFace(std::vector<unsigned short> &face, std::vector<std::vector<unsigned short> > &triangles);
 	void triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 	void triangulateHelper(std::vector<unsigned short>& face, std::vector<unsigned short>& inds,
 	  std::vector<std::vector<unsigned short> >& triangles, Vector3 normal);

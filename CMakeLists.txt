@@ -120,6 +120,7 @@ append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "HACD" "HACD")
 append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "CGAL" "CGAL-4.5")
 append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "CGAL_Core" "CGAL-4.5")
 set(GAMEPLAY_LIBRARIES ${GAMEPLAY_LIBRARIES} "/usr/lib64/libboost_thread-mt.so.1.53.0")
+set(GAMEPLAY_LIBRARIES ${GAMEPLAY_LIBRARIES} "/usr/lib64/libGLU.so.1")
 
 IF (TARGET_OS STREQUAL "LINUX")
 	append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "GL" "")

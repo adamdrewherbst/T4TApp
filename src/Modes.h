@@ -27,6 +27,7 @@ public:
 	short _subMode;
 	Container *_container, *_controls, *_subModePanel;
 	bool _active, _touching, _doSelect;
+	std::ostringstream os;
 
 	int _x, _y; //mouse position wrt upper left of entire window, not just my button		
 	MyNode *_selectedNode, *_touchNode;
@@ -64,6 +65,8 @@ public:
 class ToolMode : public Mode
 {
 public:
+	static ToolMode *_instance;
+	
 	struct Tool : public Meshy {
 		std::string id;
 		short type; //0 = saw, 1 = drill
@@ -133,6 +136,17 @@ public:
 	bool checkEdgeInt(unsigned short v1, unsigned short v2);
 	void addToolEdge(unsigned short v1, unsigned short v2, unsigned short lineNum);
 	void addToolFaces();
+
+	//triangulation of faces with holes
+	static GLUtesselator *_tess; //for triangulating polygons
+	static GLenum _tessType;
+	//vertices is what tesselation returns to us, buffer is the list of vertices we are using for tesselation
+	static std::vector<unsigned short> _tessVertices, _tessBuffer;
+	static void tessBegin(GLenum type);
+	static void tessEnd();
+	static void tessVertex(unsigned short *vertex);
+	static void tessCombine(GLdouble coords[3], GLdouble *vertex_data[4], GLfloat weight[4], unsigned short *dataOut);
+	static void tessError(GLenum errno);
 	
 	//debugging
 	void showFace(Meshy *mesh, std::vector<unsigned short> &face, bool world);

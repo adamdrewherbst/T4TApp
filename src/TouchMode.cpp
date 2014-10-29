@@ -62,7 +62,7 @@ bool TouchMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int con
 					_vertex->setTranslation(p);
 					_scene->addNode(_vertex);
 					if(hull) cout << "hull " << touchMesh << " ";
-					cout << "vertex " << touchVertex << " " << app->pv(p) << ": " << mesh->_vInfo[touchVertex] << endl;
+					mesh->printVertex(touchVertex);
 					break;
 				} case 1: { //face
 					short nf = node->nf(), touchFace = -1;
@@ -104,18 +104,8 @@ bool TouchMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int con
 							vertices[v++] = normal.z;
 						}
 					}
-					VertexFormat::Element elements[] = {
-						VertexFormat::Element(VertexFormat::POSITION, 3),
-						VertexFormat::Element(VertexFormat::NORMAL, 3)
-					};
-					Mesh* mesh = Mesh::createMesh(VertexFormat(elements, 2), v/6, false);
-					mesh->setPrimitiveType(Mesh::TRIANGLES);
-					mesh->setVertexData(&vertices[0], 0, v/6);
-					Model *model = Model::create(mesh);
-					mesh->release();
-					model->setMaterial("res/common/models.material#red");
-					_face->setModel(model);
-					model->release();
+					app->createModel(vertices, false, "red", _face);
+					node->printFace(touchFace);
 					break;
 				}
 			}

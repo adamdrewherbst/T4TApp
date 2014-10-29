@@ -743,7 +743,7 @@ MyNode* T4TApp::addModelNode(const char *type) {
 	return node;
 }
 
-Model* T4TApp::createModel(std::vector<float> &vertices, bool wireframe, const char *material) {
+Model* T4TApp::createModel(std::vector<float> &vertices, bool wireframe, const char *material, Node *node) {
 	int numVertices = vertices.size()/6;
 	VertexFormat::Element elements[] = {
 		VertexFormat::Element(VertexFormat::POSITION, 3),
@@ -755,15 +755,17 @@ Model* T4TApp::createModel(std::vector<float> &vertices, bool wireframe, const c
 	Model *model = Model::create(mesh);
 	mesh->release();
 	model->setMaterial(MyNode::concat(2, "res/common/models.material#", material));
+	if(node) {
+		node->setModel(model);
+		model->release();
+	}
 	return model;
 }
 
 MyNode* T4TApp::createWireframe(std::vector<float>& vertices, const char *id) {
 	if(id == NULL) id = "wireframe1";
 	MyNode *node = MyNode::create(id);
-	Model *model = createModel(vertices, true, "grid");
-	node->setModel(model);
-	model->release();
+	createModel(vertices, true, "grid", node);
 	return node;
 }
 
@@ -813,7 +815,7 @@ void T4TApp::showFace(Meshy *mesh, std::vector<unsigned short> &face, bool world
 			v %= size;
 		}
 	}
-	_face->setModel(createModel(vertices, true, "grid"));
+	createModel(vertices, true, "grid", _face);
 	_activeScene->addNode(_face);
 	MyNode *node = dynamic_cast<MyNode*>(mesh->_node);
 	if(node) node->setWireframe(true);
@@ -833,7 +835,7 @@ void T4TApp::showEdge(short e) {
 		for(j = 0; j < 3; j++) vertices[v++] = MyNode::gv(vec, j);
 		for(j = 0; j < 3; j++) vertices[v++] = color[j];
 	}
-	_edge->setModel(createModel(vertices, true, "grid"));
+	createModel(vertices, true, "grid", _edge);
 	_activeScene->addNode(_edge);
 	frame();
 	Platform::swapBuffers();

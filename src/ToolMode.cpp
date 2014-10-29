@@ -1,10 +1,26 @@
 #include "T4TApp.h"
 
+ToolMode *ToolMode::_instance;
+//triangulation of faces with holes
+GLUtesselator *ToolMode::_tess; //for triangulating polygons
+GLenum ToolMode::_tessType;
+//vertices is what tesselation returns to us, buffer is the list of vertices we are using for tesselation
+std::vector<unsigned short> ToolMode::_tessVertices, ToolMode::_tessBuffer;
+
 ToolMode::ToolMode() 
   : Mode::Mode("tool") {
 
+	_instance = this;
+
 	_tool = MyNode::create("tool_tool");
 	_newNode = MyNode::create("newNode_tool");
+	
+	_tess = gluNewTess();
+	gluTessCallback(_tess, GLU_TESS_BEGIN, (GLvoid (*) ()) &tessBegin);
+	gluTessCallback(_tess, GLU_TESS_END, (GLvoid (*) ()) &tessEnd);
+	gluTessCallback(_tess, GLU_TESS_VERTEX, (GLvoid (*) ()) &tessVertex);
+	gluTessCallback(_tess, GLU_TESS_COMBINE, (GLvoid (*) ()) &tessCombine);
+	gluTessCallback(_tess, GLU_TESS_ERROR, (GLvoid (*) ()) &tessError);
 	
 	_moveMenu = (Container*)_controls->getControl("moveMenu");
 	setMoveMode(-1);
@@ -121,7 +137,7 @@ void ToolMode::createBit(short type, ...) {
 			tool->_triangles[segments] = triangles;
 			tool->_triangles[segments+1] = triangles;
 			//add a menu item for this bit
-			std::ostringstream os;
+			os.str("");
 			os << "drill_bit_" << segments << "_" << (int)(radius * 100 + 0.1);
 			tool->id = os.str();
 			std::string file = "res/png/" + tool->id + ".png";
@@ -294,6 +310,7 @@ bool ToolMode::toolNode() {
 	setMesh(_node);
 	_newMesh = _newNode;
 	_newNode->set(_node->getWorldMatrix()); //align the transforms
+	_hullSlice = -1;
 
 	//reset the data on the altered node
 	_newNode->_vertices.clear();
@@ -370,6 +387,7 @@ void ToolMode::showFace(Meshy *mesh, std::vector<unsigned short> &face, bool wor
 	_node->setWireframe(true);
 	app->_drawDebug = false;
 	app->showFace(mesh, face, world);
+	mesh->printFace(face);
 }
 
 void ToolMode::getEdgeInt(bool (ToolMode::*getInt)(unsigned short*, short*, float*)) {
@@ -383,6 +401,9 @@ void ToolMode::getEdgeInt(bool (ToolMode::*getInt)(unsigned short*, short*, floa
 			k = _newMesh->_vertices.size();
 			_newMesh->_vertices.push_back(_mesh->_worldVertices[e[j]]
 			  + (_mesh->_worldVertices[e[(j+1)%2]] - _mesh->_worldVertices[e[j]]) * dist[j]);
+			os.str("");
+			os << "edge " << e[j] << "-" << e[(j+1)%2] << " => line " << line[j];
+			_newMesh->setVInfo(k, os.str().c_str());
 			edgeInt[e[j]][e[(j+1)%2]] = std::pair<unsigned short, unsigned short>(line[j], k);
 		}
 		for(j = 0; j < 2; j++) if(line[j] < 0) edgeInt[e[j]][e[(j+1)%2]] = edgeInt[e[(j+1)%2]][e[j]];
@@ -392,16 +413,16 @@ void ToolMode::getEdgeInt(bool (ToolMode::*getInt)(unsigned short*, short*, floa
 void ToolMode::addToolFaces() {
 	Tool *tool = getTool();
 	short _segments, i, j, k, m, n, p, q, lineNum, numInt, e[2];
-	_segments = _subMode == 1 ? tool->iparam[0] : 1;
+	float edgeLen, dAngle, angle;
+	_segments = _subMode == 1 ? _hullSlice >= 0 ? 3 : tool->iparam[0] : 1;
+	if(_subMode == 1) dAngle = 2*M_PI / tool->iparam[0];
 	Vector3 v1, v2;
-	float edgeLen;
 	//for any tool line that has intersections, order them by distance along the line
 	std::vector<std::vector<std::pair<unsigned short, float> > > lineInt(_segments);
 	std::map<unsigned short, bool> enterInt;
 	std::vector<std::pair<unsigned short, float> >::iterator vit;
 	std::map<unsigned short, std::map<unsigned short, unsigned short> >::iterator it;
 	std::map<unsigned short, unsigned short>::iterator it1;
-	Vector3 axis = _axis.getDirection();
 	for(it = toolInt.begin(); it != toolInt.end(); it++) {
 		lineNum = it->first;
 		v1.set(lines[lineNum].getOrigin());
@@ -418,7 +439,8 @@ void ToolMode::addToolFaces() {
 		numInt = lineInt[lineNum].size();
 		for(i = 0; i < numInt; i++) {
 			for(j = 0; j < 2; j++) e[j] = lineInt[lineNum][i+j].first;
-			if(i < numInt-1 && enterInt[e[0]] && !enterInt[e[1]]) {
+			//due to round off error, can't afford to be too zealous - so just treat each adjacent pair as an edge
+			if(i % 2 == 0) { //i < numInt-1 && enterInt[e[0]] && !enterInt[e[1]]) {
 				addToolEdge(e[0], e[1], lineNum);
 				addToolEdge(e[1], e[0], (lineNum-1+_segments)%_segments);
 			}
@@ -428,10 +450,38 @@ void ToolMode::addToolFaces() {
 	//copy edge map for debugging
 	std::map<unsigned short, std::map<unsigned short, unsigned short> > oldEdges = segmentEdges;
 
-	//for each segment of the drill bit, use its known set of points and edges to determine all its faces
+	//for each segment of the tool, use its known set of points and edges to determine all its faces
 	std::map<unsigned short, unsigned short>::iterator eit;
-	std::vector<unsigned short> newFace;
+	std::map<unsigned short, Vector2> planeVertices;
+	std::vector<std::vector<unsigned short> > facesCCW, facesCW;
+	std::vector<std::vector<unsigned short> >::iterator fit, fit1;
+	std::map<unsigned short, std::vector<unsigned short> > holes;
+	std::vector<unsigned short> newFace, cycle;
+	Vector3 normal, tangent, vec;
+	int numVertices;
+	bool clockwise;
+	_tessBuffer.clear();
 	for(i = 0; i < _segments; i++) {
+		if(_subMode == 1 && _hullSlice >= 0 && i%2 == 0) {
+			angle = (_hullSlice + i/2) * dAngle;
+			normal.set((i-1) * sin(angle), (1-i) * cos(angle), 0);
+		} else normal = planes[i].getNormal();
+		Vector3::cross(axis, normal, &tangent);
+		tangent.normalize();
+		holes.clear();
+		facesCCW.clear();
+		facesCW.clear();
+		numVertices = 0;
+		//we will need the 2D plane coordinates of all vertices that are part of edges on this plane
+		planeVertices.clear();
+		for(eit = segmentEdges[i].begin(); eit != segmentEdges[i].end(); eit++) {
+			for(j = 0; j < 2; j++) {
+				m = j == 0 ? eit->first : eit->second;
+				if(planeVertices.find(m) != planeVertices.end()) continue;
+				vec = _newMesh->_vertices[m];
+				planeVertices[m].set(vec.dot(axis), vec.dot(tangent));
+			}
+		}
 		//just keep building cycles until all edges are used
 		newFace.clear();
 		while(!segmentEdges[i].empty()) {
@@ -450,12 +500,137 @@ void ToolMode::addToolFaces() {
 			}
 			q = segmentEdges[i][p];
 			segmentEdges[i].erase(p);
-			if(!newFace.empty() && q == newFace[0]) { //when cycle complete, triangulate and add the new face
-				_newMesh->addFace(newFace);
+			if(!newFace.empty() && q == newFace[0]) { //when cycle complete, store the cycle with its orientation
+				clockwise = _newMesh->getNormal(newFace, true).dot(normal) > 0;
+				if(clockwise) facesCW.push_back(newFace);
+				else facesCCW.push_back(newFace);
+				numVertices += newFace.size();
 				newFace.clear();
 			} else newFace.push_back(q);
 		}
+		//CCW cycles are the outer boundaries of the faces, CW cycles are holes inside them
+		//start by finding which CCW each CW best fits inside
+		Vector2 v1, v2, v3, norm;
+		for(p = 0; p < facesCW.size(); p++) {
+			cycle = facesCW[p];
+			m = cycle.size();
+			float min = 2;
+			short best = -1;
+			for(q = 0; q < facesCCW.size(); q++) {
+				newFace = facesCCW[q];
+				n = newFace.size();
+				float avg = 0;
+				for(j = 0; j < m; j++) {
+					norm.set(0, 0);
+					for(k = 0; k < 2; k++) {
+						v1 = planeVertices[cycle[(j+k)%m]] - planeVertices[cycle[(j+k-1+m)%m]];
+						v1.set(-v1.y, v1.x);
+						norm += v1.normalize();
+					}
+					norm.normalize();
+					short inter = 0;
+					for(k = 0; k < n; k++) {
+						v2 = planeVertices[newFace[k]];
+						v3 = planeVertices[newFace[(k+1)%n]] - v2;
+						float det = norm.x * v3.y - norm.y * v3.x;
+						if(det == 0) continue;
+						v2 -= planeVertices[cycle[j]];
+						float dist = (-norm.y * v2.x + norm.x * v2.y) / det;
+						if(dist > 0 && dist < 1) inter++;
+					}
+					avg += inter % 2;
+				}
+				avg /= m;
+				if(avg < min) {
+					min = avg;
+					best = q;
+				}
+			}
+			holes[best].push_back(p);
+		}
+		//use gluTesselator to triangulate the polygons
+		GLdouble coords[3];
+		_tessBuffer.resize(numVertices);
+		for(j = 0; j < facesCCW.size(); j++) {
+			if(holes[j].empty()) {
+				_newMesh->addFace(facesCCW[j]);
+			} else {
+				cout << "Tesselating" << endl;
+				_newMesh->printFace(facesCCW[j]);
+				_tessVertices.clear();
+				short bufferInd = 0;
+				gluTessBeginPolygon(_tess, NULL);
+				for(k = 0; k < 1 + holes[j].size(); k++) {
+					cycle = k == 0 ? facesCCW[j] : facesCW[holes[j][k-1]];
+					cout << "Hole:" << endl;
+					_newMesh->printFace(cycle);
+					gluTessBeginContour(_tess);
+					for(m = 0; m < cycle.size(); m++) {
+						vec = _newMesh->_vertices[cycle[m]];
+						for(n = 0; n < 3; n++) coords[n] = MyNode::gv(vec, n);
+						_tessBuffer[bufferInd] = cycle[m];
+						unsigned short *data = &_tessBuffer[bufferInd++];
+						cout << "adding vertex " << cycle[m] << " => " << data << endl;
+						gluTessVertex(_tess, coords, data);
+					}
+					gluTessEndContour(_tess);
+				}
+				gluTessEndPolygon(_tess);
+			}
+		}
 	}
+}
+
+void ToolMode::tessBegin(GLenum type) {
+	_tessType = type;
+}
+
+void ToolMode::tessEnd() {
+	short i, j, n = _tessVertices.size();
+	std::vector<unsigned short> triangle(3), face;
+	std::vector<std::vector<unsigned short> > triangles;
+	switch(_tessType) {
+		case GL_TRIANGLE_FAN:
+			face = _tessVertices;
+			for(i = 0; i < n-2; i++) {
+				triangle[0] = 0;
+				for(j = 1; j <= 2; j++) triangle[j] = i + j;
+				triangles.push_back(triangle);
+			}
+			_instance->_newMesh->addFace(face, triangles);
+			break;
+		case GL_TRIANGLE_STRIP:
+			for(i = 0; i < n-2; i++) {
+				for(j = 0; j < 3; j++) triangle[i] = _tessVertices[i + (i%2 == 0 ? j : 2-j)];
+				_instance->_newMesh->addFace(triangle);
+			}
+			break;
+		case GL_TRIANGLES:
+			for(i = 0; i < n; i++) {
+				for(j = 0; j < 3; j++) triangle[i] = _tessVertices[i*3 + j];
+				_instance->_newMesh->addFace(triangle);
+			}
+			break;
+		case GL_LINE_LOOP:
+			break;
+	}
+	_tessVertices.clear();
+}
+
+void ToolMode::tessVertex(unsigned short *vertex) {
+	//unsigned short *ind = (unsigned short*)vertex;
+	_tessVertices.push_back(*vertex);
+	cout << "got vertex " << *vertex << " from " << vertex << endl;
+}
+
+void ToolMode::tessCombine(GLdouble coords[3], GLdouble *vertex_data[4], GLfloat weight[4], unsigned short *dataOut) {
+	short n = _instance->_newMesh->_vertices.size();
+	_instance->_newMesh->addVertex((float)coords[0], (float)coords[1], (float)coords[2]);
+	*dataOut = n;
+}
+
+void ToolMode::tessError(GLenum errno) {
+	cout << "Tesselation error " << errno << endl;
 }
 
 /************ SAWING ************/
@@ -463,6 +638,10 @@ void ToolMode::addToolFaces() {
 bool ToolMode::sawNode() {
 	short i, j, k, m, n, p, q, r, nh = _node->_hulls.size();
 	float f1, f2, f3, f4;
+	
+	planes.resize(1);
+	planes[0].set(Vector3::unitX(), 0);
+	planes[0].transform(_tool->getWorldMatrix());
 	
 	for(r = 0; r < 1 + nh; r++) {
 		if(r > 0) {
@@ -708,6 +887,9 @@ bool ToolMode::drillNode() {
 						m = _newMesh->_vertices.size();
 						distance = lines[k].intersects(facePlane);
 						_newMesh->_vertices.push_back(lines[k].getOrigin() + distance * lines[k].getDirection());
+						os.str("");
+						os << "line " << k << " => face " << i;
+						_newMesh->setVInfo(m, os.str().c_str());
 						newFace.push_back(m);
 						toolInt[k][i] = m;
 						addToolEdge(m, lastInter, lineNum);
@@ -755,8 +937,12 @@ bool ToolMode::drillNode() {
 				//first get all the drill line intersections on this face
 				for(j = 0; j < _segments; j++) {
 					distance = lines[j].intersects(facePlane);
-					toolInt[j][i] = _newMesh->_vertices.size();;
+					m = _newMesh->_vertices.size();
+					toolInt[j][i] = m;
 					_newMesh->_vertices.push_back(lines[j].getOrigin() + lines[j].getDirection() * distance);
+					os.str("");
+					os << "line " << j << " => face " << i;
+					_newMesh->setVInfo(m, os.str().c_str());
 				}
 				//add edges on the drill segments making sure to get the right orientation
 				for(j = 0; j < _segments; j++)

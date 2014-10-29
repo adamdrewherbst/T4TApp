@@ -29,6 +29,22 @@ void Meshy::addVertex(float x, float y, float z) {
 	_vertices.push_back(Vector3(x, y, z));
 }
 
+void Meshy::setVInfo(unsigned short v, const char *info) {
+	if(_vInfo.size() <= v) _vInfo.resize(v+1);
+	_vInfo[v] = info;
+}
+
+void Meshy::printVertex(unsigned short n) {
+	bool doWorld = _worldVertices.size() > n;
+	Vector3 v = _vertices[n];
+	cout << "VERTEX " << n << " <" << v.x << "," << v.y << "," << v.z << ">";
+	if(doWorld) {
+		v = _worldVertices[n];
+		cout << v.x << "," << v.y << "," << v.z << ">";
+	}
+	cout << ": " << _vInfo[n] << endl;
+}
+
 void Meshy::addEdge(unsigned short e1, unsigned short e2) {
 	if(_edgeInd.find(e1) != _edgeInd.end() && _edgeInd[e1].find(e2) != _edgeInd[e1].end()) return;
 	std::vector<unsigned short> edge(2);
@@ -61,6 +77,25 @@ void Meshy::addFace(short n, ...) {
 		face.push_back((unsigned short)va_arg(arguments, int));
 	}
 	addFace(face);
+}
+
+void Meshy::addFace(std::vector<unsigned short> &face, std::vector<std::vector<unsigned short> > &triangles) {
+	_faces.push_back(face);
+	_triangles.push_back(triangles);
+}
+
+void Meshy::printFace(std::vector<unsigned short> &face) {
+	short i, n = face.size();
+	Vector3 v;
+	bool doWorld = _worldVertices.size() == _vertices.size();
+	for(i = 0; i < n; i++) {
+		v = doWorld ? _worldVertices[face[i]] : _vertices[face[i]];
+		cout << face[i] << " <" << v.x << "," << v.y << "," << v.z << ">: " << _vInfo[face[i]] << endl;
+	}
+}
+
+void Meshy::printFace(unsigned short n) {
+	printFace(_faces[n]);
 }
 
 void Meshy::update() {
@@ -396,7 +431,8 @@ void MyNode::triangulateHelper(std::vector<unsigned short>& face,
 		}
 	}
 	if(v < 0) {
-		GP_ERROR("Couldn't triangulate face");
+		GP_WARN("Couldn't triangulate face");
+		return;
 	}
 	triangle[0] = inds[v-1];
 	triangle[1] = inds[v % n];
@@ -779,7 +815,7 @@ void MyNode::updateModel(bool doPhysics) {
 				}
 			}
 		}
-		setModel(app->createModel(vertices, _chain, _type.c_str()));
+		app->createModel(vertices, _chain, _type.c_str(), this);
 		Mesh *mesh = getModel()->getMesh();
 		mesh->setBoundingBox(box);
 		mesh->setBoundingSphere(sphere);

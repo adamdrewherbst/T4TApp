@@ -155,7 +155,6 @@ void T4TApp::generateModel(const char *id, const char *type, ...) {
 		//faces
 		for(i = 0; i < 2; i++) {
 			face.clear();
-			triangles.clear();
 			for(j = 0; j < teeth; j++) {
 				face.push_back(8 * j + 4*i);
 				face.push_back(8 * j + 1 + 4*i);
