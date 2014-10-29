@@ -149,8 +149,10 @@ void T4TApp::initialize()
     
 	//nodes to illustrate mesh pieces when debugging    
 	_face = MyNode::create("face");
+	_face->_wireframe = true;
 	_face->_lineWidth = 5.0f;
 	_edge = MyNode::create("edge");
+	_edge->_wireframe = true;
 	_edge->_lineWidth = 5.0f;
 	_vertex = duplicateModelNode("sphere");
 	_vertex->setScale(0.15f);

@@ -78,6 +78,7 @@ public:
 	short _currentTool;
 	//to display the tool to the user
 	MyNode *_tool;
+	Matrix _toolWorld;
 	//tool translation in xy-plane and rotation about z-axis in its local frame
 	Vector2 _toolTrans;
 	float _toolRot;
@@ -145,7 +146,7 @@ public:
 	static void tessBegin(GLenum type);
 	static void tessEnd();
 	static void tessVertex(unsigned short *vertex);
-	static void tessCombine(GLdouble coords[3], GLdouble *vertex_data[4], GLfloat weight[4], unsigned short *dataOut);
+	static void tessCombine(GLdouble coords[3], unsigned short *vertex[4], GLfloat weight[4], unsigned short *dataOut);
 	static void tessError(GLenum errno);
 	
 	//debugging

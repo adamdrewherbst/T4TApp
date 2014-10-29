@@ -42,7 +42,7 @@ void Meshy::printVertex(unsigned short n) {
 		v = _worldVertices[n];
 		cout << v.x << "," << v.y << "," << v.z << ">";
 	}
-	cout << ": " << _vInfo[n] << endl;
+	if(_vInfo.size() > n) cout << ": " << _vInfo[n] << endl;
 }
 
 void Meshy::addEdge(unsigned short e1, unsigned short e2) {
@@ -85,12 +85,14 @@ void Meshy::addFace(std::vector<unsigned short> &face, std::vector<std::vector<u
 }
 
 void Meshy::printFace(std::vector<unsigned short> &face) {
-	short i, n = face.size();
+	short i, n = face.size(), nInfo = _vInfo.size();
 	Vector3 v;
 	bool doWorld = _worldVertices.size() == _vertices.size();
 	for(i = 0; i < n; i++) {
 		v = doWorld ? _worldVertices[face[i]] : _vertices[face[i]];
-		cout << face[i] << " <" << v.x << "," << v.y << "," << v.z << ">: " << _vInfo[face[i]] << endl;
+		cout << face[i] << " <" << v.x << "," << v.y << "," << v.z << ">";
+		if(nInfo > face[i]) cout << ": " << _vInfo[face[i]];
+		cout << endl;
 	}
 }
 
