@@ -131,12 +131,19 @@ public:
 	std::map<unsigned short, std::map<unsigned short, unsigned short> > toolInt;
 	//new edges in tool planes
 	std::map<unsigned short, std::map<unsigned short, unsigned short> > segmentEdges;
+	short _lastInter; //for building edges on the tool surface
 	short _hullSlice; //which convex hull segment we are working on
 	
 	void getEdgeInt(bool (ToolMode::*getInt)(unsigned short*, short*, float*));
 	bool checkEdgeInt(unsigned short v1, unsigned short v2);
 	void addToolEdge(unsigned short v1, unsigned short v2, unsigned short lineNum);
+	void getNewFaces(float (ToolMode::*getEdgeIntDistance)(unsigned short line1, Vector3 &v1, unsigned short line2, Vector3 &v2));
+	short addToolInt(Vector3 &v, unsigned short line, unsigned short face, short segment);
 	void addToolFaces();
+	
+	//used in face construction
+	bool parallel;
+	short dir, offset;
 
 	//triangulation of faces with holes
 	static GLUtesselator *_tess; //for triangulating polygons
