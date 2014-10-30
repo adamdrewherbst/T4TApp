@@ -141,21 +141,6 @@ public:
 	short addToolInt(Vector3 &v, unsigned short line, unsigned short face, short segment);
 	void addToolFaces();
 	
-	//used in face construction
-	bool parallel;
-	short dir, offset;
-
-	//triangulation of faces with holes
-	static GLUtesselator *_tess; //for triangulating polygons
-	static GLenum _tessType;
-	//vertices is what tesselation returns to us, buffer is the list of vertices we are using for tesselation
-	static std::vector<unsigned short> _tessVertices, _tessBuffer;
-	static void tessBegin(GLenum type);
-	static void tessEnd();
-	static void tessVertex(unsigned short *vertex);
-	static void tessCombine(GLdouble coords[3], unsigned short *vertex[4], GLfloat weight[4], unsigned short *dataOut);
-	static void tessError(GLenum errno);
-	
 	//debugging
 	void showFace(Meshy *mesh, std::vector<unsigned short> &face, bool world);
 };

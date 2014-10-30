@@ -6,6 +6,162 @@
 #include "hacdGraph.h"
 #include "hacdHACD.h"
 
+//triangulation of faces with holes
+GLUtesselator *Face::_tess; //for triangulating polygons
+Face *Face::_tessFace;
+GLenum Face::_tessType;
+//vertices is what tesselation returns to us, buffer is the list of vertices we are using for tesselation
+std::vector<unsigned short> Face::_tessVertices, Face::_tessBuffer;
+
+
+Face::Face(Meshy *mesh) : _mesh(mesh) {}
+
+unsigned short Face::size() { return _boundary.size(); }
+
+unsigned short Face::nh() { return _holes.size(); }
+
+unsigned short Face::nt() { return _triangles.size(); }
+
+unsigned short Face::holeSize(unsigned short h) { return _holes[h].size(); }
+
+unsigned short Face::hole(unsigned short h, unsigned short ind) { return _holes[h][ind]; }
+
+unsigned short Face::triangle(unsigned short t, unsigned short ind) { return _triangles[t][ind]; }
+
+void Face::resize(unsigned short size) {
+	_boundary.resize(size);
+}
+
+void Face::clear() {
+	_boundary.clear();
+	_holes.clear();
+	_triangles.clear();
+}
+
+unsigned short Face::operator[](unsigned short index) {
+	return _boundary[index];
+}
+
+bool Face::hasHoles() {
+	return !_holes.empty();
+}
+
+void Face::setTransform() {
+	Vector3 normal = _mesh->getNormal(_boundary, true);
+	_plane.set(normal, -normal.dot(_mesh->_vertices[_boundary[0]]));
+}
+
+void Face::updateTransform() {
+	_mesh->_normalMatrix.transformVector(_normal, &_worldNormal);
+}
+
+void Face::updateEdges() {
+	short i, j, n, nh = _holes.size();
+	std::vector<unsigned short> cycle;
+	n = _boundary.size();
+	for(i = 0; i < n; i++) _mesh->addEdge(_boundary[i], _boundary[(i+1)%n], true);
+	for(i = 0; i < nh; i++) {
+		n = _holes[i].size();
+		for(j = 0; j < n; j++) _mesh->addEdge(_holes[i][j], _holes[i][(j+1)%n], true);
+	}
+	for(i = 0; i < nt; i++) {
+		for(j = 0; j < 3; j++) _mesh->addEdge(_triangles[i][j], _triangles[i][(j+1)%n], false);
+	}
+}
+
+Vector3 Face::getNormal(bool modelSpace) {
+	return modelSpace ? _plane.getNormal() : _worldPlane.getNormal();
+}
+
+float Face::getDistance(bool modelSpace) {
+	return modelSpace ? _plane.getDistance() : _worldPlane.getDistance();
+}
+
+void Face::triangulate() {
+	_tessFace = this;
+	_triangles.clear();
+	_tessVertices.clear();
+	_tessBuffer.resize(_all.size());
+
+	short bufferInd = 0, i, j, k, nh = _holes.size(), n;
+	std::vector<unsigned short> cycle;
+	GLdouble coords[3];
+
+	gluTessBeginPolygon(_tess, NULL);
+	for(i = 0; i < 1 + nh; i++) {
+		cycle = i == 0 ? _boundary : _holes[i-1];
+		gluTessBeginContour(_tess);
+		n = cycle.size();
+		for(j = 0; j < n; j++) {
+			vec = _mesh->_vertices[cycle[j]];
+			for(k = 0; k < 3; k++) coords[k] = MyNode::gv(vec, k);
+			_tessBuffer[bufferInd] = cycle[j];
+			unsigned short *data = &_tessBuffer[bufferInd++];
+			gluTessVertex(_tess, coords, data);
+		}
+		gluTessEndContour(_tess);
+	}
+	gluTessEndPolygon(_tess);
+}
+
+void Face::initTess() {
+	_tess = gluNewTess();
+	gluTessCallback(_tess, GLU_TESS_BEGIN, (GLvoid (*) ()) &tessBegin);
+	gluTessCallback(_tess, GLU_TESS_END, (GLvoid (*) ()) &tessEnd);
+	gluTessCallback(_tess, GLU_TESS_VERTEX, (GLvoid (*) ()) &tessVertex);
+	gluTessCallback(_tess, GLU_TESS_COMBINE, (GLvoid (*) ()) &tessCombine);
+	gluTessCallback(_tess, GLU_TESS_ERROR, (GLvoid (*) ()) &tessError);
+}
+
+void Face::tessBegin(GLenum type) {
+	_tessType = type;
+}
+
+void Face::tessEnd() {
+	short i, j, n = _tessVertices.size();
+	std::vector<unsigned short> triangle(3);
+	switch(_tessType) {
+		case GL_TRIANGLE_FAN:
+			for(i = 0; i < n-2; i++) {
+				triangle[0] = _tessVertices[0];
+				for(j = 1; j <= 2; j++) triangle[j] = _tessVertices[i + j];
+				_tessFace->_triangles.push_back(triangle);
+			}
+			break;
+		case GL_TRIANGLE_STRIP:
+			for(i = 0; i < n-2; i++) {
+				for(j = 0; j < 3; j++) triangle[i] = _tessVertices[i + (i%2 == 0 ? j : 2-j)];
+				_tessFace->_triangles.push_back(triangle);
+			}
+			break;
+		case GL_TRIANGLES:
+			for(i = 0; i < n; i++) {
+				for(j = 0; j < 3; j++) triangle[i] = _tessVertices[i*3 + j];
+				_tessFace->_triangles.push_back(triangle);
+			}
+			break;
+		case GL_LINE_LOOP:
+			break;
+	}
+	_tessVertices.clear();
+}
+
+void Face::tessVertex(unsigned short *vertex) {
+	_tessVertices.push_back(*vertex);
+}
+
+void Face::tessCombine(GLdouble coords[3], unsigned short *vertex[4], GLfloat weight[4], unsigned short *dataOut) {
+	short n = _instance->_newMesh->_vertices.size();
+	_tessFace->_mesh->addVertex((float)coords[0], (float)coords[1], (float)coords[2]);
+	*dataOut = n;
+	cout << "tess combining " << *vertex[0] << "," << *vertex[1] << "," << *vertex[2] << "," << *vertex[3] << " => " << n << endl;
+}
+
+void Face::tessError(GLenum errno) {
+	cout << "Tesselation error " << errno << endl;
+}
+
+
 Meshy::Meshy() {
 }
 
@@ -45,28 +201,37 @@ void Meshy::printVertex(unsigned short n) {
 	if(_vInfo.size() > n) cout << ": " << _vInfo[n] << endl;
 }
 
-void Meshy::addEdge(unsigned short e1, unsigned short e2) {
+void Meshy::addEdge(unsigned short e1, unsigned short e2, bool faceBoundary) {
 	if(_edgeInd.find(e1) != _edgeInd.end() && _edgeInd[e1].find(e2) != _edgeInd[e1].end()) return;
-	std::vector<unsigned short> edge(2);
-	edge[0] = e1;
-	edge[1] = e2;
-	_edgeInd[e1][e2] = _edges.size();
-	_edgeInd[e2][e1] = _edges.size();
-	_edges.push_back(edge);
+	short index = -1;
+	if(faceBoundary) {
+		index = _edges.size();
+		std::vector<unsigned short> edge(2);
+		edge[0] = e1;
+		edge[1] = e2;
+		_edges.push_back(edge);
+	}
+	_edgeInd[e1][e2] = index;
+	_edgeInd[e2][e1] = index;
+}
+
+void Meshy::addFace(Face &face) {
+	_faces.push_back(face);
 }
 
 void Meshy::addFace(std::vector<unsigned short> &face, bool reverse) {
+	unsigned short i, n = face.size(), temp;
 	if(reverse) {
-		unsigned short i, n = face.size(), temp;
 		for(i = 0; i < n/2; i++) {
 			temp = face[i];
 			face[i] = face[n-1 - i];
 			face[n-1 - i] = temp;
 		}
 	}
-	_faces.push_back(face);
-	short i, n = face.size();
-	for(i = 0; i < n; i++) addEdge(face[i], face[(i+1)%n]);
+	Face f(this);
+	f._boundary = face;
+	if(_node == this) f.triangulate(); //I am a Node, so I store faces with triangles
+	addFace(f);
 }
 
 void Meshy::addFace(short n, ...) {
@@ -80,8 +245,10 @@ void Meshy::addFace(short n, ...) {
 }
 
 void Meshy::addFace(std::vector<unsigned short> &face, std::vector<std::vector<unsigned short> > &triangles) {
-	_faces.push_back(face);
-	_triangles.push_back(triangles);
+	Face f(this);
+	f._boundary = face;
+	f._triangles = triangles;
+	addFace(f);
 }
 
 void Meshy::printFace(std::vector<unsigned short> &face) {
@@ -97,7 +264,7 @@ void Meshy::printFace(std::vector<unsigned short> &face) {
 }
 
 void Meshy::printFace(unsigned short n) {
-	printFace(_faces[n]);
+	printFace(_faces[n]._boundary);
 }
 
 void Meshy::update() {
@@ -107,33 +274,25 @@ void Meshy::update() {
 }
 
 void Meshy::updateTransform() {
-	Matrix world = _node->getWorldMatrix(), norm = _node->getInverseTransposeWorldMatrix();
+	_worldMatrix = _node->getWorldMatrix();
+	_normalMatrix = _node->getInverseTransposeWorldMatrix();
 	unsigned short i, nv = _vertices.size(), nf = _faces.size();
 	_worldVertices.resize(nv);
 	_vInfo.resize(nv);
 	for(i = 0; i < nv; i++) world.transformPoint(_vertices[i], &_worldVertices[i]);
-	_worldNormals.resize(nf);
-	for(i = 0; i < nf; i++) norm.transformVector(_normals[i], &_worldNormals[i]);
+	for(i = 0; i < nf; i++) _faces[i]->updateTransform();
 }
 
 void Meshy::updateEdges() {
-	unsigned short i, j, n;
-	_edges.clear();
-	_edgeInd.clear();
-	for(i = 0; i < _faces.size(); i++) {
-		n = _faces[i].size();
-		for(j = 0; j < n; j++) {
-			addEdge(_faces[i][j], _faces[i][(j+1)%n]);
-		}
-	}
+	_edges.clear(); //pairs of vertices
+	_edgeInd.clear(); //vertex neighbor list
+	unsigned short i, nf = _faces.size();
+	for(i = 0; i < nf; i++) _faces[i].updateEdges();
 }
 
 void Meshy::setNormals() {
 	unsigned short i, nf = _faces.size();
-	_normals.resize(nf);
-	for(i = 0; i < nf; i++) {
-		_normals[i] = getNormal(_faces[i], true);
-	}
+	for(i = 0; i < nf; i++) _faces[i].setNormal();
 }
 
 //calculate the properly oriented face normal by Newell's method
@@ -301,17 +460,16 @@ short MyNode::pt2Face(Vector3 point, Vector3 viewer) {
 	float minDistance = 9999.0f;
 	Vector3 view(viewer - point);
 	for(i = 0; i < _faces.size(); i++) {
-		face = _faces[i];
-		for(j = 0; j < _triangles[i].size(); j++) {
-			triangle = _triangles[i][j];
-			v1.set(_worldVertices[face[triangle[1]]] - _worldVertices[face[triangle[0]]]);
-			v2.set(_worldVertices[face[triangle[2]]] - _worldVertices[face[triangle[0]]]);
-			v3.set(_worldNormals[i]);
+		n = _faces[i].nt();
+		for(j = 0; j < n; j++) {
+			triangle = _faces[i]._triangles[j];
+			v1.set(_worldVertices[triangle[1]] - _worldVertices[triangle[0]]);
+			v2.set(_worldVertices[triangle[2]] - _worldVertices[triangle[0]]);
+			v3.set(_faces[i]._worldNormal);
 			//face must be facing toward the viewer, otherwise they couldn't have clicked it
-			if(!viewer.isZero() && _worldNormals[i].dot(view) < 0) continue;
-			p.set(point - _worldVertices[face[triangle[0]]]);
+			if(!viewer.isZero() && v3.dot(view) < 0) continue;
+			p.set(point - _worldVertices[triangle[0]]);
 			m.set(v1.x, v2.x, v3.x, 0, v1.y, v2.y, v3.y, 0, v1.z, v2.z, v3.z, 0, 0, 0, 0, 1);
-			//m.set(v1.x, v1.y, v1.z, 0, v2.x, v2.y, v2.z, 0, v3.x, v3.y, v3.z, 0, 0, 0, 0, 1);
 			m.invert();
 			m.transformVector(p, &coords);
 			if(coords.x >= 0 && coords.y >= 0 && coords.x + coords.y <= 1 && fabs(coords.z) < minDistance) {
@@ -367,23 +525,6 @@ void MyNode::rotateFaceToFace(unsigned short f, MyNode *other, unsigned short g)
 	Vector3 center1(0, 0, 0), center2(0, 0, 0);
 	translate(other->faceCenter(g) - faceCenter(f));
 	updateTransform();
-}
-
-void MyNode::addFace(std::vector<unsigned short>& face, bool reverse) {
-	Meshy::addFace(face, reverse);
-	std::vector<std::vector<unsigned short> > triangles;
-	triangulate(face, triangles);
-	_triangles.push_back(triangles);
-}
-
-void MyNode::addFace(short n, ...) {
-	va_list arguments;
-	va_start(arguments, n);
-	std::vector<unsigned short> face;
-	for(short i = 0; i < n; i++) {
-		face.push_back((unsigned short)va_arg(arguments, int));
-	}
-	addFace(face);
 }
 
 void MyNode::triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles) {
@@ -534,34 +675,46 @@ void MyNode::loadData(const char *file, bool doPhysics)
 			in >> x >> y >> z;
 			_vertices.push_back(Vector3(x, y, z));
 		}
-		str = stream->readLine(line, 2048);
-		short nf = atoi(str), faceSize, numTriangles, numNeighbors;
-		std::vector<unsigned short> triangle(3), face;
-		_triangles.resize(nf);
 		//faces, along with their constituent triangles
+		str = stream->readLine(line, 2048);
+		short nf = atoi(str), faceSize, numHoles, holeSize, numTriangles;
+		Face face;
+		_faces.resize(nf);
 		for(i = 0; i < nf; i++) {
 			str = stream->readLine(line, 2048);
-			faceSize = atoi(str);
-			face.clear();
+			in.str(str);
+			in >> faceSize;
+			face._boundary.resize(faceSize);
+			in >> numHoles;
+			face._holes.resize(numHoles);
+			in >> numTriangles;
+			face._triangles.resize(numTriangles);
 			str = stream->readLine(line, 2048);
 			in.str(str);
 			for(j = 0; j < faceSize; j++) {
 				in >> n;
-				face.push_back(n);
+				face._boundary[j] = n;
 			}
-			_faces.push_back(face);
-			//triangles
-			str = stream->readLine(line, 2048);
-			numTriangles = atoi(str);
+			for(j = 0; j < numHoles; j++) {
+				str = stream->readLine(line, 2048);
+				holeSize = atoi(str);
+				face._holes[j].resize(holeSize);
+				str = stream->readLine(line, 2048);
+				in.str(str);
+				for(k = 0; k < holeSize; k++) {
+					in >> n;
+					face._holes[j][k] = n;
+				}
+			}
 			for(j = 0; j < numTriangles; j++) {
 				str = stream->readLine(line, 2048);
 				in.str(str);
 				for(k = 0; k < 3; k++) {
 					in >> n;
-					triangle[k] = n;
+					face._triangles[j][k] = n;
 				}
-				_triangles[i].push_back(triangle);
 			}
+			_faces[i] = face;
 		}
 		//physics
 		str = stream->readLine(line, 2048);
@@ -590,12 +743,12 @@ void MyNode::loadData(const char *file, bool doPhysics)
 				faceSize = atoi(str);
 				str = stream->readLine(line, 2048);
 				in.str(str);
-				face.clear();
+				face.resize(faceSize);
 				for(k = 0; k < faceSize; k++) {
 					in >> n;
-					face.push_back(n);
+					face[k] = n;
 				}
-				hull->_faces[j] = face;
+				hull->_faces[j]._boundary = face;
 			}
 		}
 		str = stream->readLine(line, 2048);
@@ -680,11 +833,17 @@ void MyNode::writeData(const char *file) {
 		os.str("");
 		os << _faces.size() << endl;
 		for(i = 0; i < _faces.size(); i++) {
-			os << _faces[i].size() << endl;
-			for(j = 0; j < _faces[i].size(); j++) os << _faces[i][j] << "\t";
-			os << endl << _triangles[i].size() << endl;
-			for(j = 0; j < _triangles[i].size(); j++) {
-				for(k = 0; k < 3; k++) os << _triangles[i][j][k] << "\t";
+			short n = _faces[i].size(), nh = _faces[i].nh(), nt = _faces[i].nt();
+			os << n << "\t" << nh << "\t" << nt << endl;
+			for(j = 0; j < n; j++) os << _faces[i][j] << "\t";
+			os << endl;
+			for(j = 0; j < nh; j++) {
+				n = _faces[i].holeSize(j);
+				for(k = 0; k < n; k++) os << _faces[i].hole(j, k) << "\t";
+				os << endl;
+			}
+			for(j = 0; j < nt; j++) {
+				for(k = 0; k < 3; k++) os << _faces[i].triangle(j, k) << "\t";
 				os << endl;
 			}
 		}

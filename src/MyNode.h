@@ -8,15 +8,57 @@
 using namespace gameplay;
 
 class T4TApp;
+class MyNode;
+
+//polygon on mesh surface - may have holes inside
+class Face {
+	public:
+	Meshy *_mesh;
+	std::vector<unsigned short> _boundary, _allVertices;
+	std::vector<std::vector<unsigned short> > _triangles, _holes;
+	Plane _plane, _worldPlane;
+	
+	Face(Meshy *mesh);
+	unsigned short size();
+	unsigned short nh();
+	unsigned short nt();
+	unsigned short holeSize(unsigned short h);
+	unsigned short hole(unsigned short h, unsigned short ind);
+	unsigned short triangle(unsigned short t, unsigned short ind);
+	void resize(unsigned short size);
+	void clear();
+	unsigned short operator[](unsigned short index);
+	bool hasHoles();
+	void setTransform();
+	void updateTransform();
+	Vector3 getNormal(bool modelSpace = false);
+	float getDistance(bool modelSpace = false);
+
+	//triangulation of faces via GLU Tesselator
+	void triangulate();
+	
+	static GLUtesselator *_tess;
+	static Face *_tessFace;
+	static GLenum _tessType;
+	//vertices is what tesselator returns to us, buffer is the list of vertices we have fed to tesselator
+	static std::vector<unsigned short> _tessVertices, _tessBuffer;
+	static void initTess();
+	static void tessBegin(GLenum type);
+	static void tessEnd();
+	static void tessVertex(unsigned short *vertex);
+	static void tessCombine(GLdouble coords[3], unsigned short *vertex[4], GLfloat weight[4], unsigned short *dataOut);
+	static void tessError(GLenum errno);	
+};
 
 //generic wrapper for keeping track of mesh's data - node or convex hull
 class Meshy {
 public:
 	Node *_node;
-	std::vector<Vector3> _vertices, _worldVertices, _normals, _worldNormals;
-	std::vector<std::vector<unsigned short> > _faces, _edges;
-	std::map<unsigned short, std::map<unsigned short, unsigned short> > _edgeInd;
-	std::vector<std::vector<std::vector<unsigned short> > > _triangles; //triangulation of each polygon
+	Matrix _worldMatrix, _normalMatrix;
+	std::vector<Vector3> _vertices, _worldVertices;
+	std::vector<Face> _faces;
+	std::vector<std::vector<unsigned short> > _edges;
+	std::map<unsigned short, std::map<unsigned short, short> > _edgeInd;
 	
 	std::vector<std::string> _vInfo; //any info about the history of this vertex, for debugging
 	
@@ -28,7 +70,7 @@ public:
 	void addVertex(float x, float y, float z);
 	void setVInfo(unsigned short v, const char *info);
 	void printVertex(unsigned short v);
-	virtual void addFace(std::vector<unsigned short> &face, bool reverse = false);
+	void addFace(std::vector<unsigned short> &face, bool reverse = false);
 	void addFace(short n, ...);
 	void addFace(std::vector<unsigned short> &face, std::vector<std::vector<unsigned short> > &triangles);
 	void printFace(std::vector<unsigned short> &face);
@@ -117,9 +159,6 @@ public:
 	void rotateFaceToFace(unsigned short f, MyNode *other, unsigned short g);
 
 	//topology
-	void addFace(std::vector<unsigned short> &face, bool reverse = false);
-	void addFace(short n, ...);
-	void addFace(std::vector<unsigned short> &face, std::vector<std::vector<unsigned short> > &triangles);
 	void triangulate(std::vector<unsigned short>& face, std::vector<std::vector<unsigned short> >& triangles);
 	void triangulateHelper(std::vector<unsigned short>& face, std::vector<unsigned short>& inds,
 	  std::vector<std::vector<unsigned short> >& triangles, Vector3 normal);

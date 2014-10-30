@@ -27,6 +27,8 @@ T4TApp* T4TApp::getInstance() {
 
 void T4TApp::initialize()
 {
+	Face::initTess();
+	
 	generateModels();
 	
     // Load font
