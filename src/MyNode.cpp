@@ -16,11 +16,25 @@ std::vector<unsigned short> Face::_tessVertices, Face::_tessBuffer;
 
 Face::Face(Meshy *mesh) : _mesh(mesh) {}
 
-unsigned short Face::size() { return _boundary.size(); }
+unsigned short Face::size() { return _border.size(); }
+
+unsigned short Face::nv() { return _next.size(); }
 
 unsigned short Face::nh() { return _holes.size(); }
 
 unsigned short Face::nt() { return _triangles.size(); }
+
+unsigned short Face::operator[](unsigned short index) { return _border[index]; }
+
+unsigned short Face::front() { return _border.front(); }
+
+unsigned short Face::back() { return _border.back(); }
+
+Face::boundary_iterator Face::vbegin() { return _next.begin(); }
+
+Face::boundary_iterator Face::vend() { return _next.end(); }
+
+bool Face::hasHoles() { return !_holes.empty(); }
 
 unsigned short Face::holeSize(unsigned short h) { return _holes[h].size(); }
 
@@ -28,44 +42,63 @@ unsigned short Face::hole(unsigned short h, unsigned short ind) { return _holes[
 
 unsigned short Face::triangle(unsigned short t, unsigned short ind) { return _triangles[t][ind]; }
 
-void Face::resize(unsigned short size) {
-	_boundary.resize(size);
-}
-
 void Face::clear() {
-	_boundary.clear();
-	_holes.clear();
+	_border.clear();
 	_triangles.clear();
+	_holes.clear();
+	_next.clear();
 }
 
-unsigned short Face::operator[](unsigned short index) {
-	return _boundary[index];
+void Face::push_back(unsigned short vertex) {
+	_border.push_back(vertex);
 }
 
-bool Face::hasHoles() {
-	return !_holes.empty();
+void Face::set(std::vector<unsigned short> &border) {
+	clear();
+	_border = border;
+}
+
+void Face::resize(unsigned short size) {
+	clear();
+	_border.resize(size);
+}
+
+void Face::addEdge(unsigned short e1, unsigned short e2, bool boundary) {
+	if(boundary) _next[e1] = e2;
+	_mesh->addEdge(e1, e2, boundary ? _index : -1);
+}
+
+void Face::addHole(std::vector<unsigned short> &hole) {
+	_holes.push_back(hole);
 }
 
 void Face::setTransform() {
-	Vector3 normal = _mesh->getNormal(_boundary, true);
-	_plane.set(normal, -normal.dot(_mesh->_vertices[_boundary[0]]));
+	Vector3 normal = _mesh->getNormal(_border, true);
+	_plane.set(normal, -normal.dot(_mesh->_vertices[_border[0]]));
 }
 
 void Face::updateTransform() {
-	_mesh->_normalMatrix.transformVector(_normal, &_worldNormal);
+	_worldPlane = _plane;
+	_worldPlane.transform(_mesh->_worldMatrix);
 }
 
 void Face::updateEdges() {
 	short i, j, n, nh = _holes.size();
 	std::vector<unsigned short> cycle;
-	n = _boundary.size();
-	for(i = 0; i < n; i++) _mesh->addEdge(_boundary[i], _boundary[(i+1)%n], true);
+	n = _border.size();
+	for(i = 0; i < n; i++) {
+		//mark the CCW direction of the boundary edge with my face index
+		addEdge(_border[i], _border[(i+1)%n], true);
+	}
 	for(i = 0; i < nh; i++) {
 		n = _holes[i].size();
-		for(j = 0; j < n; j++) _mesh->addEdge(_holes[i][j], _holes[i][(j+1)%n], true);
+		for(j = 0; j < n; j++) { //same for hole boundaries
+			addEdge(_holes[i][j], _holes[i][(j+1)%n], true);
+		}
 	}
 	for(i = 0; i < nt; i++) {
-		for(j = 0; j < 3; j++) _mesh->addEdge(_triangles[i][j], _triangles[i][(j+1)%n], false);
+		//don't mark inner triangle edges with my face index, to distinguish them
+		for(j = 0; j < 3; j++) _mesh->addEdge(_triangles[i][j], _triangles[i][(j+1)%n]);
 	}
 }
 
@@ -89,7 +122,7 @@ void Face::triangulate() {
 
 	gluTessBeginPolygon(_tess, NULL);
 	for(i = 0; i < 1 + nh; i++) {
-		cycle = i == 0 ? _boundary : _holes[i-1];
+		cycle = i == 0 ? _border : _holes[i-1];
 		gluTessBeginContour(_tess);
 		n = cycle.size();
 		for(j = 0; j < n; j++) {
@@ -201,21 +234,13 @@ void Meshy::printVertex(unsigned short n) {
 	if(_vInfo.size() > n) cout << ": " << _vInfo[n] << endl;
 }
 
-void Meshy::addEdge(unsigned short e1, unsigned short e2, bool faceBoundary) {
-	if(_edgeInd.find(e1) != _edgeInd.end() && _edgeInd[e1].find(e2) != _edgeInd[e1].end()) return;
-	short index = -1;
-	if(faceBoundary) {
-		index = _edges.size();
-		std::vector<unsigned short> edge(2);
-		edge[0] = e1;
-		edge[1] = e2;
-		_edges.push_back(edge);
-	}
-	_edgeInd[e1][e2] = index;
-	_edgeInd[e2][e1] = index;
+void Meshy::addEdge(unsigned short e1, unsigned short e2, short faceInd) {
+	if(faceInd == -1 && _edgeInd.find(e1) != _edgeInd.end() && _edgeInd[e1].find(e2) != _edgeInd[e1].end()) return;
+	_edgeInd[e1][e2] = faceInd;
 }
 
 void Meshy::addFace(Face &face) {
+	face._index = _faces.size();
 	_faces.push_back(face);
 }
 
@@ -229,7 +254,7 @@ void Meshy::addFace(std::vector<unsigned short> &face, bool reverse) {
 		}
 	}
 	Face f(this);
-	f._boundary = face;
+	f._border = face;
 	if(_node == this) f.triangulate(); //I am a Node, so I store faces with triangles
 	addFace(f);
 }
@@ -246,7 +271,7 @@ void Meshy::addFace(short n, ...) {
 
 void Meshy::addFace(std::vector<unsigned short> &face, std::vector<std::vector<unsigned short> > &triangles) {
 	Face f(this);
-	f._boundary = face;
+	f._border = face;
 	f._triangles = triangles;
 	addFace(f);
 }
@@ -264,7 +289,7 @@ void Meshy::printFace(std::vector<unsigned short> &face) {
 }
 
 void Meshy::printFace(unsigned short n) {
-	printFace(_faces[n]._boundary);
+	printFace(_faces[n]._border);
 }
 
 void Meshy::update() {
@@ -292,7 +317,7 @@ void Meshy::updateEdges() {
 
 void Meshy::setNormals() {
 	unsigned short i, nf = _faces.size();
-	for(i = 0; i < nf; i++) _faces[i].setNormal();
+	for(i = 0; i < nf; i++) _faces[i].setTransform();
 }
 
 //calculate the properly oriented face normal by Newell's method
@@ -684,7 +709,7 @@ void MyNode::loadData(const char *file, bool doPhysics)
 			str = stream->readLine(line, 2048);
 			in.str(str);
 			in >> faceSize;
-			face._boundary.resize(faceSize);
+			face._border.resize(faceSize);
 			in >> numHoles;
 			face._holes.resize(numHoles);
 			in >> numTriangles;
@@ -693,7 +718,7 @@ void MyNode::loadData(const char *file, bool doPhysics)
 			in.str(str);
 			for(j = 0; j < faceSize; j++) {
 				in >> n;
-				face._boundary[j] = n;
+				face._border[j] = n;
 			}
 			for(j = 0; j < numHoles; j++) {
 				str = stream->readLine(line, 2048);
@@ -748,7 +773,7 @@ void MyNode::loadData(const char *file, bool doPhysics)
 					in >> n;
 					face[k] = n;
 				}
-				hull->_faces[j]._boundary = face;
+				hull->_faces[j]._border = face;
 			}
 		}
 		str = stream->readLine(line, 2048);

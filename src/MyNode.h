@@ -14,21 +14,34 @@ class MyNode;
 class Face {
 	public:
 	Meshy *_mesh;
-	std::vector<unsigned short> _boundary, _allVertices;
+	std::vector<unsigned short> _border; //outer boundary
 	std::vector<std::vector<unsigned short> > _triangles, _holes;
+	std::map<unsigned short, unsigned short> _next; //directed edge's opposite endpoint from each vertex
 	Plane _plane, _worldPlane;
+	
+	typedef boundary_iterator std::map<unsigned short, unsigned short>::iterator;
 	
 	Face(Meshy *mesh);
 	unsigned short size();
+	unsigned short nv();
 	unsigned short nh();
 	unsigned short nt();
+	boundary_iterator vbegin();
+	boundary_iterator vend();
 	unsigned short holeSize(unsigned short h);
 	unsigned short hole(unsigned short h, unsigned short ind);
 	unsigned short triangle(unsigned short t, unsigned short ind);
-	void resize(unsigned short size);
-	void clear();
-	unsigned short operator[](unsigned short index);
 	bool hasHoles();
+	void clear();
+	void push_back(unsigned short vertex, short hole = -1);
+	void set(std::vector<unsigned short> &boundary);
+	void resize(unsigned short size);
+	void addHole(std::vector<unsigned short> &hole);
+	unsigned short operator[](unsigned short index);
+	unsigned short front();
+	unsigned short back();
+	void addEdge(unsigned short e1, unsigned short e2, bool boundary = false);
+	void updateEdges();
 	void setTransform();
 	void updateTransform();
 	Vector3 getNormal(bool modelSpace = false);
@@ -75,7 +88,7 @@ public:
 	void addFace(std::vector<unsigned short> &face, std::vector<std::vector<unsigned short> > &triangles);
 	void printFace(std::vector<unsigned short> &face);
 	void printFace(unsigned short n);
-	void addEdge(unsigned short e1, unsigned short e2);
+	void addEdge(unsigned short e1, unsigned short e2, short faceInd = -1);
 	void update();
 	virtual void updateTransform();
 	virtual void updateEdges();

@@ -133,6 +133,8 @@ public:
 	std::map<unsigned short, std::map<unsigned short, unsigned short> > segmentEdges;
 	short _lastInter; //for building edges on the tool surface
 	short _hullSlice; //which convex hull segment we are working on
+	Face _newFace;
+	std::map<unsigned short, unsigned short> _next; //new edges for the face currently being tooled
 	
 	void getEdgeInt(bool (ToolMode::*getInt)(unsigned short*, short*, float*));
 	bool checkEdgeInt(unsigned short v1, unsigned short v2);

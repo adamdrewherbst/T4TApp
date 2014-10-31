@@ -332,7 +332,7 @@ bool StringMode::NodeData::getOutline() {
 	short f = _node->pt2Face(_point);
 	if(f < 0) return false;
 	//find a vertex on the face that is on the same side of the plane as the clicked point
-	std::vector<unsigned short> face = _node->_faces[f];
+	Face face = _node->_faces[f];
 	Plane plane = _mode->_stringPlane;
 	float distance = plane.getDistance();
 	Vector3 normal = plane.getNormal(), v1 = _point + normal * distance, v2, v3;
