@@ -65,29 +65,9 @@ bool TouchMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int con
 					mesh->printVertex(touchVertex);
 					break;
 				} case 1: { //face
-					short nf = node->nf(), touchFace = -1;
-					Face face;
-					std::vector<unsigned short> triangle;
-					for(i = 0; i < nf && touchFace < 0; i++) {
-						face = node->_faces[i];
-						for(j = 0; j < face.nt(); j++) {
-							triangle = face._triangles[j];
-							v1 = node->_worldVertices[triangle[1]] - node->_worldVertices[triangle[0]];
-							v2 = node->_worldVertices[triangle[2]] - node->_worldVertices[triangle[0]];
-							v3 = face.getNormal();
-							p.set(point - node->_worldVertices[triangle[0]]);
-							m.set(v1.x, v2.x, v3.x, 0, v1.y, v2.y, v3.y, 0, v1.z, v2.z, v3.z, 0, 0, 0, 0, 1);
-							m.invert();
-							m.transformVector(p, &coords);
-							if(coords.x >= 0 && coords.y >= 0 && coords.x + coords.y <= 1 && fabs(coords.z) < 0.005f) {
-								cout << "touching face " << i << endl;
-								touchFace = i;
-								break;
-							}
-						}
-					}
+					touchFace = node->pt2Face(point, app->getCameraNode()->getTranslationWorld());
 					if(touchFace < 0) break;
-					face = node->_faces[touchFace];
+					Face face = node->_faces[touchFace];
 					std::vector<float> vertices(6 * face.nt() * 3);
 					unsigned short v = 0;
 					float color[3] = {1.0f, 0.0f, 1.0f};

@@ -8,19 +8,22 @@
 using namespace gameplay;
 
 class T4TApp;
+class Meshy;
 class MyNode;
 
 //polygon on mesh surface - may have holes inside
 class Face {
 	public:
 	Meshy *_mesh;
+	unsigned short _index; //my index in mesh's face list
 	std::vector<unsigned short> _border; //outer boundary
 	std::vector<std::vector<unsigned short> > _triangles, _holes;
 	std::map<unsigned short, unsigned short> _next; //directed edge's opposite endpoint from each vertex
 	Plane _plane, _worldPlane;
 	
-	typedef boundary_iterator std::map<unsigned short, unsigned short>::iterator;
-	
+	typedef std::map<unsigned short, unsigned short>::iterator boundary_iterator;
+
+	Face();	
 	Face(Meshy *mesh);
 	unsigned short size();
 	unsigned short nv();
@@ -33,17 +36,18 @@ class Face {
 	unsigned short triangle(unsigned short t, unsigned short ind);
 	bool hasHoles();
 	void clear();
-	void push_back(unsigned short vertex, short hole = -1);
+	void push_back(unsigned short vertex);
 	void set(std::vector<unsigned short> &boundary);
 	void resize(unsigned short size);
 	void addHole(std::vector<unsigned short> &hole);
-	unsigned short operator[](unsigned short index);
+	unsigned short& operator[](unsigned short index);
 	unsigned short front();
 	unsigned short back();
 	void addEdge(unsigned short e1, unsigned short e2, bool boundary = false);
 	void updateEdges();
 	void setTransform();
 	void updateTransform();
+	Plane getPlane(bool modelSpace = false);
 	Vector3 getNormal(bool modelSpace = false);
 	float getDistance(bool modelSpace = false);
 
@@ -83,6 +87,7 @@ public:
 	void addVertex(float x, float y, float z);
 	void setVInfo(unsigned short v, const char *info);
 	void printVertex(unsigned short v);
+	void addFace(Face &face);
 	void addFace(std::vector<unsigned short> &face, bool reverse = false);
 	void addFace(short n, ...);
 	void addFace(std::vector<unsigned short> &face, std::vector<std::vector<unsigned short> > &triangles);

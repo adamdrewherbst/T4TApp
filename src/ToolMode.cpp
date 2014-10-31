@@ -108,7 +108,7 @@ void ToolMode::createBit(short type, ...) {
 			for(i = 0; i < segments; i++) {
 				j = (i+1)%segments;
 				tool->addFace(4, i*2+1, i*2, j*2, j*2+1);
-				tool->_triangles[i] = triangles;
+				tool->_faces.back()._triangles = triangles;
 			}
 			std::vector<unsigned short> face(segments);
 			for(i = 0; i < segments; i++) face[i] = 2*(segments-1 - i);
@@ -122,8 +122,8 @@ void ToolMode::createBit(short type, ...) {
 				triangles[i][1] = i+1;
 				triangles[i][2] = i+2;
 			}
-			tool->_triangles[segments] = triangles;
-			tool->_triangles[segments+1] = triangles;
+			tool->_faces[segments]._triangles = triangles;
+			tool->_faces[segments+1]._triangles = triangles;
 			//add a menu item for this bit
 			os.str("");
 			os << "drill_bit_" << segments << "_" << (int)(radius * 100 + 0.1);
@@ -147,7 +147,6 @@ void ToolMode::setTool(short n) {
 	_tool->setModel(tool->model);
 	_tool->_vertices = tool->_vertices;
 	_tool->_faces = tool->_faces;
-	_tool->_triangles = tool->_triangles;
 	_tool->update();
 }
 
@@ -281,18 +280,27 @@ void ToolMode::controlEvent(Control *control, Control::Listener::EventType evt) 
 
 void ToolMode::setMesh(Meshy *mesh) {
 	_mesh = mesh;
-	short nv = _mesh->_vertices.size(), i, j, k;
+	short nv = _mesh->nv(), nf = _mesh->nf(), i, j, k;
 	keep.resize(nv);
 	toolVertices.resize(nv);
-	Matrix tool = _tool->getWorldMatrix();
-	tool.invert();
+	toolPlanes.resize(nf);
+	
 	for(i = 0; i < nv; i++) {
-		tool.transformPoint(_mesh->_worldVertices[i], &toolVertices[i]);
+		_toolInv.transformPoint(_mesh->_worldVertices[i], &toolVertices[i]);
+	}
+	for(i = 0; i < nf; i++) {
+		toolPlanes[i] = _mesh->_faces[i].getPlane();
+		toolPlanes[i].transform(_toolInv);
 	}
 }
 
 bool ToolMode::toolNode() {
 	if(_selectedNode == NULL) return false;
+	
+	_toolWorld = _tool->getWorldMatrix();
+	_toolWorld.invert(&_toolInv);
+	_toolNorm = _tool->getInverseTransposeWorldMatrix();
+	
 	_node = _selectedNode;
 	_node->updateTransform();
 	setMesh(_node);
@@ -317,7 +325,6 @@ bool ToolMode::toolNode() {
 	toolInt.clear();
 	segmentEdges.clear();
 	
-	_toolWorld = _tool->getWorldMatrix();
 	Vector3 center = Vector3::zero();
 	axis = Vector3::unitZ();
 	right = -Vector3::unitX();
@@ -337,17 +344,18 @@ bool ToolMode::toolNode() {
 	
 	app->setAction("tool", _node);
 
-	//transform the new model and convex hull vertices back to model space and store in the original node
-	Matrix worldModel;
-	_node->getWorldMatrix().invert(&worldModel);
+	//transform the new model and convex hull vertices from tool space back to model space and store in the original node
+	Matrix toolModel;
+	_node->_worldMatrix.invert(&toolModel);
+	Matrix::multiply(toolModel, _toolWorld, &toolModel);
 	_node->copyMesh(_newNode);
 	for(i = 0; i < _node->nv(); i++) {
-		worldModel.transformPoint(&_node->_vertices[i]);
+		toolModel.transformPoint(&_node->_vertices[i]);
 	}
 	for(i = 0; i < _node->_hulls.size(); i++) {
 		MyNode::ConvexHull *hull = _node->_hulls[i];
 		for(j = 0; j < hull->nv(); j++) {
-			worldModel.transformPoint(&hull->_vertices[j]);
+			toolModel.transformPoint(&hull->_vertices[j]);
 		}
 		hull->setNormals();
 	}

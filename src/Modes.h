@@ -78,7 +78,7 @@ public:
 	short _currentTool;
 	//to display the tool to the user
 	MyNode *_tool;
-	Matrix _toolWorld;
+	Matrix _toolWorld, _toolInv, _toolNorm;
 	//tool translation in xy-plane and rotation about z-axis in its local frame
 	Vector2 _toolTrans;
 	float _toolRot;
@@ -123,6 +123,7 @@ public:
 	std::vector<Plane> planes;
 	Vector3 axis, right, up;
 	std::vector<Vector3> toolVertices; //coords of model vertices in tool frame
+	std::vector<Plane> toolPlanes; //model face planes in tool frame
 	std::vector<short> keep; //-1 if discarding the vertex, otherwise its index in the new model's vertex list
 	//edgeInt[edge vertex 1][edge vertex 2] = (tool plane number, index of intersection point in new model's vertex list)
 	std::map<unsigned short, std::map<unsigned short, std::pair<unsigned short, unsigned short> > > edgeInt;
