@@ -98,10 +98,10 @@ void T4TApp::initialize()
 	
 	// populate catalog of items
 	_models = Scene::create("models");
+	_models->addNode(new MyNode("box"));
 	_models->addNode(new MyNode("sphere"));
 	_models->addNode(new MyNode("cylinder"));
 	_models->addNode(new MyNode("halfpipe"));
-	_models->addNode(new MyNode("box"));
 	_models->addNode(new MyNode("gear_basic"));
 /*	_models->addNode(new MyNode("gear"));
 	_models->addNode(new MyNode("tube"));
@@ -802,17 +802,24 @@ void T4TApp::showFace(Meshy *mesh, std::vector<unsigned short> &face, bool world
 	_debugMesh = mesh;
 	_debugFace = face;
 	_debugWorld = world;
+	Vector3 vec;
+	short n = face.size(), i;
+	std::vector<Vector3> vFace;
+	for(i = 0; i < n; i++) {
+		vec = mesh->_vertices[face[i]];
+		if(world) mesh->_node->getWorldMatrix().transformPoint(&vec);
+		vFace.push_back(vec);
+	}
+	showFace(mesh, vFace);
+}
+
+void T4TApp::showFace(Meshy *mesh, std::vector<Vector3> &face) {
 	short i, j, k, n = face.size(), size = 6 * 2 * n, v = size-6;
-	Vector3 vec, norm;
 	std::vector<float> vertices(size);
+	Vector3 norm = Meshy::getNormal(face), vec;
 	float color[3] = {1.0f, 0.0f, 1.0f};
 	for(i = 0; i < n; i++) {
-		norm = mesh->getNormal(face, true);
-		vec = mesh->_vertices[face[i]] + 0.05f * norm;
-		if(world) {
-			mesh->_node->getInverseTransposeWorldMatrix().transformVector(&norm);
-			mesh->_node->getWorldMatrix().transformPoint(&vec);
-		}
+		vec = face[i] + 0.05f * norm;
 		for(j = 0; j < 2; j++) {
 			for(k = 0; k < 3; k++) vertices[v++] = MyNode::gv(vec, k);
 			for(k = 0; k < 3; k++) vertices[v++] = color[k];

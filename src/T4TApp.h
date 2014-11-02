@@ -97,7 +97,8 @@ public:
     Model* createModel(std::vector<float> &vertices, bool wireframe = false, const char *material = "red", Node *node = NULL);
     MyNode* createWireframe(std::vector<float>& vertices, const char *id=NULL);
 	MyNode* dropBall(Vector3 point);
-	void showFace(Meshy* mesh, std::vector<unsigned short> &face, bool world = false);
+	void showFace(Meshy *mesh, std::vector<unsigned short> &face, bool world = false);
+	void showFace(Meshy *mesh, std::vector<Vector3> &face);
 	void showEdge(short e);
 	void showVertex(short v);
 	void showEye(float radius, float theta, float phi);

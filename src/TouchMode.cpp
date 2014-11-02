@@ -7,7 +7,7 @@ TouchMode::TouchMode()
 	
 	_face = MyNode::create("touchFace");
 	_vertex = app->duplicateModelNode("sphere");
-	_vertex->setScale(0.15f);
+	_vertex->setScale(0.10f);
 	_vertex->getModel()->setMaterial("res/common/models.material#red");
 	_hullCheckbox = (CheckBox*) _controls->getControl("hulls");
 }
@@ -65,13 +65,14 @@ bool TouchMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int con
 					mesh->printVertex(touchVertex);
 					break;
 				} case 1: { //face
-					touchFace = node->pt2Face(point, app->getCameraNode()->getTranslationWorld());
+					short touchFace = node->pt2Face(point, app->getCameraNode()->getTranslationWorld());
 					if(touchFace < 0) break;
 					Face face = node->_faces[touchFace];
 					std::vector<float> vertices(6 * face.nt() * 3);
 					unsigned short v = 0;
 					float color[3] = {1.0f, 0.0f, 1.0f};
 					normal = face.getNormal();
+					std::vector<unsigned short> triangle;
 					for(i = 0; i < face.nt(); i++) {
 						triangle = face._triangles[i];
 						for(j = 0; j < 3; j++) {

@@ -348,7 +348,7 @@ bool StringMode::NodeData::getOutline() {
 	std::set<unsigned short> used;
 	std::set<unsigned short>::iterator sit;
 	short p = face[i], q, r;
-	std::map<unsigned short, unsigned short>::const_iterator eit;
+	std::map<unsigned short, short>::const_iterator eit;
 	for(eit = _node->_edgeInd[p].begin(); eit != _node->_edgeInd[p].end(); eit++) edges[p].insert(eit->first);
 	used.insert(p);
 	while(!edges.empty()) {

@@ -37,9 +37,9 @@ class Face {
 	bool hasHoles();
 	void clear();
 	void push_back(unsigned short vertex);
-	void set(std::vector<unsigned short> &boundary);
+	void set(const std::vector<unsigned short> &boundary);
 	void resize(unsigned short size);
-	void addHole(std::vector<unsigned short> &hole);
+	void addHole(const std::vector<unsigned short> &hole);
 	unsigned short& operator[](unsigned short index);
 	unsigned short front();
 	unsigned short back();
@@ -59,11 +59,12 @@ class Face {
 	static GLenum _tessType;
 	//vertices is what tesselator returns to us, buffer is the list of vertices we have fed to tesselator
 	static std::vector<unsigned short> _tessVertices, _tessBuffer;
+	static short _tessBufferInd;
 	static void initTess();
 	static void tessBegin(GLenum type);
 	static void tessEnd();
 	static void tessVertex(unsigned short *vertex);
-	static void tessCombine(GLdouble coords[3], unsigned short *vertex[4], GLfloat weight[4], unsigned short *dataOut);
+	static void tessCombine(GLdouble coords[3], unsigned short *vertex[4], GLfloat weight[4], unsigned short **dataOut);
 	static void tessError(GLenum errno);	
 };
 
@@ -93,12 +94,15 @@ public:
 	void addFace(std::vector<unsigned short> &face, std::vector<std::vector<unsigned short> > &triangles);
 	void printFace(std::vector<unsigned short> &face);
 	void printFace(unsigned short n);
+	void printFaces();
+	void printTriangles(short face = -1);
 	void addEdge(unsigned short e1, unsigned short e2, short faceInd = -1);
 	void update();
 	virtual void updateTransform();
 	virtual void updateEdges();
 	virtual void setNormals();
 	Vector3 getNormal(std::vector<unsigned short> &face, bool modelSpace = false);
+	static Vector3 getNormal(std::vector<Vector3> &face);
 	virtual void copyMesh(Meshy *mesh);
 	virtual void clearMesh();
 };
