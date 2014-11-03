@@ -451,6 +451,7 @@ void MyNode::init() {
     _lineWidth = 1.0f;
     _color.set(-1.0f, -1.0f, -1.0f); //indicates no color specified
     _objType = "none";
+    _mass = 0;
 }
 
 MyNode* MyNode::cloneNode(Node *node) {

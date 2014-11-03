@@ -606,6 +606,12 @@ form mainMenu {
 						height = 40
 						text = Add Balloon
 					}
+					button launch {
+						style = buttonStyle
+						autoWidth = true
+						height = 40
+						text = Launch
+					}
 				}
 			}
 			container balloonMenu {

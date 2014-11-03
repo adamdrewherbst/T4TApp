@@ -186,6 +186,7 @@ void T4TApp::finalize()
 int updateCount = 0;
 void T4TApp::update(float elapsedTime)
 {
+	if(_activeMode >= 0) _modes[_activeMode]->update();
     _mainMenu->update(elapsedTime);
 	if(_carVehicle) _carVehicle->update(elapsedTime, _steering, _braking, _driving);
 }
@@ -1007,17 +1008,17 @@ void T4TApp::collisionEvent(PhysicsCollisionObject::CollisionListener::EventType
 /********** PHYSICS ***********/
 
 PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const char *type,
-  const Vector3 &joint, const Vector3 &direction) {
+  const Vector3 &joint, const Vector3 &direction, bool parentChild) {
 	Quaternion rotOffset = MyNode::getVectorRotation(Vector3::unitZ(), direction),
 	  rot1 = PhysicsConstraint::getRotationOffset(n1, joint) * rotOffset,
 	  rot2 = PhysicsConstraint::getRotationOffset(n2, joint) * rotOffset;
 	Vector3 trans1 = PhysicsConstraint::getTranslationOffset(n1, joint),
 	  trans2 = PhysicsConstraint::getTranslationOffset(n2, joint);
-	return addConstraint(n1, n2, id, type, rot1, trans1, rot2, trans2);
+	return addConstraint(n1, n2, id, type, rot1, trans1, rot2, trans2, parentChild);
 }
 
 PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const char *type,
-  Quaternion &rot1, Vector3 &trans1, Quaternion &rot2, Vector3 &trans2) {
+  Quaternion &rot1, Vector3 &trans1, Quaternion &rot2, Vector3 &trans2, bool parentChild) {
 	MyNode *node[2];
 	PhysicsRigidBody *body[2];
 	Vector3 trans[2];
@@ -1044,6 +1045,14 @@ PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const c
 	} else if(strcmp(type, "fixed") == 0) {
 		ret = getPhysicsController()->createFixedConstraint(body[0], body[1]);
 	}
+	if(parentChild) {
+		n1->addChild(n2);
+		n2->_constraintParent = n1;
+		n2->_parentOffset = trans1;
+		Matrix rot;
+		Matrix::createRotation(rot1, &rot);
+		rot.transformVector(Vector3::unitZ(), &n2->_parentAxis);
+	}
 	if(id < 0) {
 		id = _constraintCount++;
 		for(i = 0; i < 2; i++) {
@@ -1054,6 +1063,7 @@ PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const c
 			node[i]->_constraints[j]->rotation = rot[i];
 			node[i]->_constraints[j]->translation = trans[i];
 			node[i]->_constraints[j]->id = id;
+			node[i]->_constraints[j]->isChild = parentChild && i == 1;
 		}
 	}
 	_constraints[id] = ret;
@@ -1074,7 +1084,7 @@ void T4TApp::addConstraints(MyNode *node) {
 				c1->id = _constraintCount;
 				c2->id = _constraintCount++;
 				addConstraint(node, other, c1->id, c1->type.c_str(), c1->rotation, c1->translation,
-					c2->rotation, c2->translation);
+					c2->rotation, c2->translation, c2->isChild);
 			}
 		}
 	}
@@ -1123,7 +1133,7 @@ void T4TApp::reloadConstraint(MyNode *node, MyNode::nodeConstraint *constraint) 
 		otherConstraint = other->_constraints[i];
 		if(otherConstraint->id == id) {
 			addConstraint(node, other, id, constraint->type.c_str(), constraint->rotation, constraint->translation,
-			  otherConstraint->rotation, otherConstraint->translation);
+			  otherConstraint->rotation, otherConstraint->translation, constraint->isChild || otherConstraint->isChild);
 			break;
 		}
 	}
@@ -1258,6 +1268,7 @@ void T4TApp::redoLastAction() {
 		std::string type;
 		Quaternion rot[2];
 		Vector3 trans[2];
+		bool parentChild = false;
 		for(short i = 0; i < 2; i++) {
 			//put the node back in its constraint-friendly position
 			node = action->nodes[i];
@@ -1268,9 +1279,10 @@ void T4TApp::redoLastAction() {
 			type = constraint->type;
 			rot[i] = constraint->rotation;
 			trans[i] = constraint->translation;
+			parentChild = parentChild || constraint->isChild;
 			delete constraint;
 		}
-		addConstraint(action->nodes[0], action->nodes[1], -1, type.c_str(), rot[0], trans[0], rot[1], trans[1]);
+		addConstraint(action->nodes[0], action->nodes[1], -1, type.c_str(), rot[0], trans[0], rot[1], trans[1], parentChild);
 		action->nodes[0]->addChild(action->nodes[1]);
 		action->nodes[1]->_constraintParent = action->nodes[0];
 	} else if(strcmp(type, "tool") == 0) {

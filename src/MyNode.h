@@ -124,6 +124,7 @@ public:
     	std::string type; //one of: hinge, spring, fixed, socket
     	Vector3 translation; //offset of the constraint point from my origin
     	Quaternion rotation; //rotation offset of the constraint point
+    	bool isChild; //if this node is the constraint child of the other one
     };
 
 	std::string _type; //which item this is from the catalog

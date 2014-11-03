@@ -39,6 +39,8 @@ Mode::Mode(const char* id) {
 	setActive(false);
 }
 
+void Mode::update() {}
+
 void Mode::draw() {}
 
 void Mode::setActive(bool active) {
