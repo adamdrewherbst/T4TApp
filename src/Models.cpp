@@ -7,6 +7,9 @@ void T4TApp::generateModels() {
 	generateModel("halfpipe", "halfpipe", 1.0f, 12.0f, 0.2f, 20);
 	generateModel("gear_basic", "gear", 0.6f, 0.9f, 1.2f, 5);
 	generateModel("stringLink", "cylinder", 0.1f, 1.0f, 5);
+	generateModel("straw", "cylinder", 0.25f, 5.0f, 8);
+	generateModel("balloon_sphere", "sphere", 1.5f, 10);
+	generateModel("balloon_long", "cylinder", 0.5f, 3.0f, 20);
 }
 
 void T4TApp::generateModel(const char *id, const char *type, ...) {

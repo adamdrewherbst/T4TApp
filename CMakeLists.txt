@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 2.7)
 PROJECT(t4tapp)
 
+set(CMAKE_CXX_FLAGS "-std=c++0x")
 set(CMAKE_BUILD_TYPE Debug)
 set(GAME_NAME t4tapp)
 
@@ -160,6 +161,7 @@ set(GAME_SRC
 	src/StringMode.cpp
 	src/TestMode.cpp
 	src/TouchMode.cpp
+	src/Rocket.cpp
 )
 
 add_executable(${GAME_NAME}

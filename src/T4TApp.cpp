@@ -134,6 +134,7 @@ void T4TApp::initialize()
 	_modes.push_back(new ToolMode());
 	_modes.push_back(new TestMode());
 	_modes.push_back(new TouchMode());
+	_modes.push_back(new Rocket());
 
 	//simple machines
     _modes.push_back(new Lever());
@@ -418,7 +419,7 @@ void T4TApp::loadScene(const char *scene) {
 	std::string oldName = _sceneName;
 	if(scene != NULL) setSceneName(scene);
 	std::string listFile = getSceneDir() + "scene.list", id;
-	std::auto_ptr<Stream> stream(FileSystem::open(listFile.c_str()));
+	std::unique_ptr<Stream> stream(FileSystem::open(listFile.c_str()));
 	if(stream.get() == NULL) {
 		cout << "Failed to open file" << listFile << endl;
 		setSceneName(oldName.c_str());
@@ -447,7 +448,7 @@ void T4TApp::saveScene(const char *scene) {
 	if(scene != NULL) setSceneName(scene);
 	//create a file that lists all root nodes in the scene, and save each one to its own file
 	std::string listFile = getSceneDir() + "scene.list", line;
-	std::auto_ptr<Stream> stream(FileSystem::open(listFile.c_str(), FileSystem::WRITE));
+	std::unique_ptr<Stream> stream(FileSystem::open(listFile.c_str(), FileSystem::WRITE));
 	if(stream.get() == NULL) {
 		GP_ERROR("Failed to open file '%s'", listFile.c_str());
 		return;
@@ -509,13 +510,8 @@ void T4TApp::releaseScene()
 	SAFE_RELEASE(_scene);
 }
 
-void T4TApp::hideScene() {
-	_scene->visit(this, &T4TApp::hideNode);
-}
-
 void T4TApp::showScene() {
-	_scene->visit(this, &T4TApp::showNode);
-	_activeScene = _scene;
+	setActiveScene(_scene);
 }
 
 bool T4TApp::hideNode(Node *node) {
@@ -870,12 +866,15 @@ void T4TApp::showEye(float radius, float theta, float phi) {
 
 void T4TApp::setActiveScene(Scene *scene)
 {
-	if(scene != _activeScene) {
-		if(_activeScene != NULL) {
-			_activeScene->removeNode(_face);
-		}
+	if(scene == _activeScene) return;
+	if(_activeScene != NULL) {
+		_activeScene->removeNode(_face);
+		_activeScene->visit(this, &T4TApp::hideNode);
 	}
 	_activeScene = scene;
+	if(_activeScene != NULL) {
+		_activeScene->visit(this, &T4TApp::showNode);
+	}
 }
 
 Camera* T4TApp::getCamera() {

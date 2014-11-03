@@ -130,7 +130,6 @@ void ProjectComponent::setActive(bool active) {
 			_nodeId = ss.str();
 		} while(app->_scene->findNode(_nodeId.c_str()) != NULL
 			|| FileSystem::fileExists(("res/common/" + _nodeId + ".node").c_str()));
-		app->hideScene();
 		loadScene();
 		app->_componentMenu->setState(Control::FOCUS);
 		app->removeListener(app->_componentMenu, app);

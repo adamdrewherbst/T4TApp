@@ -125,7 +125,6 @@ public:
 	void saveScene(const char *scene = NULL);
 	bool saveNode(Node *n);
 	void releaseScene();
-	void hideScene();
 	bool hideNode(Node *node);
 	void showScene();
 	bool showNode(Node *node);

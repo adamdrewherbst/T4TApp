@@ -733,7 +733,7 @@ std::string MyNode::resolveFilename(const char *filename) {
 void MyNode::loadData(const char *file, bool doPhysics)
 {
 	std::string filename = resolveFilename(file);
-	std::auto_ptr<Stream> stream(FileSystem::open(filename.c_str()));
+	std::unique_ptr<Stream> stream(FileSystem::open(filename.c_str()));
 	if (stream.get() == NULL)
 	{
 		GP_ERROR("Failed to open file '%s'.", filename.c_str());
@@ -892,7 +892,7 @@ void MyNode::loadData(const char *file, bool doPhysics)
 
 void MyNode::writeData(const char *file) {
 	std::string filename = resolveFilename(file);
-	std::auto_ptr<Stream> stream(FileSystem::open(filename.c_str(), FileSystem::WRITE));
+	std::unique_ptr<Stream> stream(FileSystem::open(filename.c_str(), FileSystem::WRITE));
 	if (stream.get() == NULL)
 	{
 		GP_ERROR("Failed to open file '%s'.", filename.c_str());

@@ -330,5 +330,25 @@ public:
 	void finishComponent();
 };
 
+class Rocket : public Mode
+{
+public:
+	enum BalloonShape {
+		SPHERE,
+		LONG,
+	};
+	BalloonShape _balloonShape;
+	std::vector<std::shared_ptr<MyNode> > _balloons, _balloonNodes;
+	float _balloonRadius, _strawLength, _originalStrawLength;
+	MyNode *_strawNode, *_balloonNode;
+	Container *_balloonMenu;
+	
+	Rocket();
+	void setActive(bool active);
+	bool setSubMode(short mode);
+	void controlEvent(Control *control, EventType evt);
+	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+};
+
 #endif
 
