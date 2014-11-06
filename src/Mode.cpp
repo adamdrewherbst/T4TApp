@@ -1,4 +1,6 @@
 #include "T4TApp.h"
+#include "Modes.h"
+#include "MyNode.h"
 
 Mode::Mode(const char* id) {
 
@@ -34,7 +36,7 @@ Mode::Mode(const char* id) {
 	  _camera->getNearPlane(), _camera->getFarPlane());
 	Node *cameraNode = Node::create((_id + "_camera").c_str());
 	cameraNode->setCamera(_cameraBase);
-	_cameraStateBase = new T4TApp::cameraState();
+	_cameraStateBase = new cameraState();
 	app->copyCameraState(app->_cameraState, _cameraStateBase);
 	setActive(false);
 }
@@ -156,4 +158,52 @@ void Mode::controlEvent(Control *control, EventType evt) {
 		}
 	}
 }
+
+
+TouchPoint::TouchPoint() {
+	app = (T4TApp*) Game::getInstance();
+	_point[Touch::TOUCH_PRESS] = Vector3::zero();
+	_point[Touch::TOUCH_MOVE] = Vector3::zero();
+	_point[Touch::TOUCH_RELEASE] = Vector3::zero();
+	_pix[Touch::TOUCH_PRESS] = Vector2::zero();
+	_pix[Touch::TOUCH_MOVE] = Vector2::zero();
+	_pix[Touch::TOUCH_RELEASE] = Vector2::zero();
+}
+
+void TouchPoint::set(Touch::TouchEvent evt, int x, int y, MyNode *node) {
+	Camera *camera = app->getCamera();
+	Ray ray;
+	camera->pickRay(app->getViewport(), x, y, &ray);
+	PhysicsController::HitResult result;
+	app->_nodeFilter->setNode(node);
+	_hit = app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &result, app->_nodeFilter);
+	_pix[evt].set(x, y);
+	if(_hit) _point[evt] = result.point;
+}
+
+void TouchPoint::set(Touch::TouchEvent evt, int x, int y, const Plane &plane) {
+	Camera *camera = app->getCamera();
+	Ray ray;
+	camera->pickRay(app->getViewport(), x, y, &ray);
+	float distance = ray.intersects(plane);
+	_pix[evt].set(x, y);
+	if(distance != Ray::INTERSECTS_NONE) _point[evt] = ray.getOrigin() + ray.getDirection() * distance;
+}
+
+Vector3 TouchPoint::getPoint(Touch::TouchEvent evt) {
+	return _point[evt];
+}
+
+Vector2 TouchPoint::getPix(Touch::TouchEvent evt) {
+	return _pix[evt];
+}
+
+Vector3 TouchPoint::delta() {
+	return _point[Touch::TOUCH_MOVE] - _point[Touch::TOUCH_PRESS];
+}
+
+Vector2 TouchPoint::deltaPix() {
+	return _pix[Touch::TOUCH_MOVE] - _pix[Touch::TOUCH_PRESS];
+}
+
 

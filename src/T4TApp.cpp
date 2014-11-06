@@ -1,9 +1,6 @@
 #include "T4TApp.h"
+#include "MyNode.h"
 #include "Grid.h"
-#include <cmath>
-#include <sstream>
-
-using std::istringstream;
 
 // Declare our game instance
 static T4TApp* __t4tInstance = NULL;
@@ -134,13 +131,12 @@ void T4TApp::initialize()
 	_modes.push_back(new ToolMode());
 	_modes.push_back(new TestMode());
 	_modes.push_back(new TouchMode());
-	_modes.push_back(new Rocket());
+	//_modes.push_back(new Rocket());
+	_modes.push_back(new Buggy());
 
 	//simple machines
-    _modes.push_back(new Lever());
-    _modes.push_back(new Pulley());
-    
-    _theme->release();   // So we can release it once we're done creating forms with it.
+    //_modes.push_back(new Lever());
+    //_modes.push_back(new Pulley());
     
 	//for queuing user actions for undo/redo
     _action = NULL;
@@ -149,6 +145,7 @@ void T4TApp::initialize()
 
     //exclude certain nodes (eg. ground, camera) from being selected by touches
     _hitFilter = new HitFilter(this);
+    _nodeFilter = new NodeFilter();
     
 	//nodes to illustrate mesh pieces when debugging    
 	_face = MyNode::create("face");
@@ -406,6 +403,9 @@ void T4TApp::initScene()
     	vertices[i*6+4] = 1.0f; //color green
     }
     _scene->addNode(createWireframe(vertices, "axes"));
+
+    _gravity.set(0, -10, 0);
+    getPhysicsController()->setGravity(_gravity);
 }
 
 void T4TApp::setSceneName(const char *name) {
@@ -527,9 +527,9 @@ bool T4TApp::showNode(Node *node) {
 	return true;
 }
 
-template <class ButtonType> ButtonType* T4TApp::addButton(Container *parent, const char *id, const char *text, Theme::Style *style)
+template <class ButtonType> ButtonType* T4TApp::addButton(Container *parent, const char *id, const char *text, const char *style)
 {
-	ButtonType* button = ButtonType::create(id, style == NULL ? _buttonStyle : style);
+	ButtonType* button = ButtonType::create(id, style == NULL ? _buttonStyle : _theme->getStyle(style));
 	if(text == NULL) button->setText(id);
 	else button->setText(text);
 	button->setAutoWidth(true);
@@ -539,9 +539,9 @@ template <class ButtonType> ButtonType* T4TApp::addButton(Container *parent, con
 	return button;
 }
 
-template <class ControlType> ControlType* T4TApp::addControl(Container *parent, const char *id, const char *text, Theme::Style *style)
+template <class ControlType> ControlType* T4TApp::addControl(Container *parent, const char *id, const char *text, const char *style)
 {
-	ControlType* control = ControlType::create(id, style == NULL ? _buttonStyle : style);
+	ControlType* control = ControlType::create(id, style == NULL ? _buttonStyle : _theme->getStyle(style));
 	if(text == NULL) control->setText(id);
 	else control->setText(text);
 	control->setHeight(50);
@@ -946,7 +946,7 @@ void T4TApp::resetCamera() {
 	placeCamera();
 }
 
-T4TApp::cameraState* T4TApp::copyCameraState(T4TApp::cameraState *state, T4TApp::cameraState *dst) {
+cameraState* T4TApp::copyCameraState(cameraState *state, cameraState *dst) {
 	if(dst == NULL) dst = new cameraState();
 	dst->node = state->node;
 	dst->radius = state->radius;
@@ -988,7 +988,7 @@ const std::string T4TApp::pq(const Quaternion& q) {
 	return os.str();
 }
 
-const std::string T4TApp::pcam(T4TApp::cameraState *state) {
+const std::string T4TApp::pcam(cameraState *state) {
 	std::ostringstream os;
 	os << state->radius << "," << state->theta << "," << state->phi << " => " << pv(state->target);
 	if(state->node != NULL) os << " [node " << state->node->getId() << "]";
@@ -1057,7 +1057,7 @@ PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const c
 		id = _constraintCount++;
 		for(i = 0; i < 2; i++) {
 			j = node[i]->_constraints.size();
-			node[i]->_constraints.push_back(new MyNode::nodeConstraint());
+			node[i]->_constraints.push_back(new nodeConstraint());
 			node[i]->_constraints[j]->other = node[(i+1)%2]->getId();
 			node[i]->_constraints[j]->type = type;
 			node[i]->_constraints[j]->rotation = rot[i];
@@ -1071,7 +1071,7 @@ PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const c
 }
 
 void T4TApp::addConstraints(MyNode *node) {
-	MyNode::nodeConstraint *c1, *c2;
+	nodeConstraint *c1, *c2;
 	unsigned short i, j;
 	for(i = 0; i < node->_constraints.size(); i++) {
 		c1 = node->_constraints[i];
@@ -1092,7 +1092,7 @@ void T4TApp::addConstraints(MyNode *node) {
 
 void T4TApp::removeConstraints(MyNode *node) {
 	PhysicsController *controller = getPhysicsController();
-	MyNode::nodeConstraint *c1, *c2;
+	nodeConstraint *c1, *c2;
 	unsigned short i, j;
 	for(i = 0; i < node->_constraints.size(); i++) {
 		c1 = node->_constraints[i];
@@ -1120,7 +1120,7 @@ void T4TApp::enableConstraints(MyNode *node, bool enable) {
 	}
 }
 
-void T4TApp::reloadConstraint(MyNode *node, MyNode::nodeConstraint *constraint) {
+void T4TApp::reloadConstraint(MyNode *node, nodeConstraint *constraint) {
 	int id = constraint->id;
 	if(id >= 0 && _constraints.find(id) != _constraints.end()) {
 		getPhysicsController()->removeConstraint(_constraints[id]);
@@ -1128,7 +1128,7 @@ void T4TApp::reloadConstraint(MyNode *node, MyNode::nodeConstraint *constraint) 
 	}
 	MyNode *other = dynamic_cast<MyNode*>(_activeScene->findNode(constraint->other.c_str()));
 	if(!other) return;
-	MyNode::nodeConstraint *otherConstraint;
+	nodeConstraint *otherConstraint;
 	for(short i = 0; i < other->_constraints.size(); i++) {
 		otherConstraint = other->_constraints[i];
 		if(otherConstraint->id == id) {
@@ -1139,6 +1139,7 @@ void T4TApp::reloadConstraint(MyNode *node, MyNode::nodeConstraint *constraint) 
 	}
 }
 
+
 T4TApp::HitFilter::HitFilter(T4TApp *app_) : app(app_) {}
 
 bool T4TApp::HitFilter::filter(PhysicsCollisionObject *object) {
@@ -1146,6 +1147,18 @@ bool T4TApp::HitFilter::filter(PhysicsCollisionObject *object) {
 	MyNode *node = dynamic_cast<MyNode*>(object->getNode());
 	if(!node || app->auxNode(node)) return true;
 }
+
+
+T4TApp::NodeFilter::NodeFilter() : _node(NULL) {}
+
+void T4TApp::NodeFilter::setNode(MyNode *node) {
+	_node = node;
+}
+
+bool T4TApp::NodeFilter::filter(PhysicsCollisionObject *object) {
+	return object->getNode() != _node;
+}
+
 
 void T4TApp::setAction(const char *type, ...) {
 
@@ -1171,7 +1184,7 @@ void T4TApp::setAction(const char *type, ...) {
 	} else if(strcmp(type, "position") == 0) {
 		ref->set(node);
 	} else if(strcmp(type, "constraint") == 0) {
-		MyNode::nodeConstraint *constraint = new MyNode::nodeConstraint();
+		nodeConstraint *constraint = new nodeConstraint();
 		constraint->id = _constraintCount;
 		for(i = 0; i < 2; i++) {
 			node = action->nodes[i];
@@ -1212,7 +1225,7 @@ void T4TApp::undoLastAction() {
 	} else if(strcmp(type, "position") == 0) {
 		swapTransform(node, ref);
 	} else if(strcmp(type, "constraint") == 0) {
-		MyNode::nodeConstraint *constraint[2];
+		nodeConstraint *constraint[2];
 		short i;
 		for(i = 0; i < 2; i++) constraint[i] = action->nodes[i]->_constraints.back();
 		if(constraint[0]->id < 0 || constraint[0]->id != constraint[1]->id) {
@@ -1275,7 +1288,7 @@ void T4TApp::redoLastAction() {
 			ref = action->refNodes[i];
 			swapTransform(node, ref);
 			//retrieve each side of the constraint from the reference node
-			MyNode::nodeConstraint *constraint = popBack(ref->_constraints);
+			nodeConstraint *constraint = popBack(ref->_constraints);
 			type = constraint->type;
 			rot[i] = constraint->rotation;
 			trans[i] = constraint->translation;

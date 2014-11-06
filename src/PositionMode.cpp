@@ -1,4 +1,6 @@
 #include "T4TApp.h"
+#include "Modes.h"
+#include "MyNode.h"
 
 PositionMode::PositionMode() 
   : Mode::Mode("position") {
@@ -164,7 +166,7 @@ void PositionMode::updateSlider() {
 void PositionMode::setPosition(float value, bool finalize) {
 	_positionValue = value;
 	//when finalizing, if this node has a constraint parent, get the constraint that will need to be modified
-	MyNode::nodeConstraint *constraint = NULL;
+	nodeConstraint *constraint = NULL;
 	if(finalize && _parentNode != NULL) {
 		constraint = _parentNode->getNodeConstraint(_selectedNode);
 	}

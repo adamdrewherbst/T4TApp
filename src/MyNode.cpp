@@ -1,10 +1,6 @@
+#include "T4TApp.h"
 #include "MyNode.h"
 //for convex hull decomposition
-#include "hacdCircularList.h"
-#include "hacdVector.h"
-#include "hacdICHull.h"
-#include "hacdGraph.h"
-#include "hacdHACD.h"
 
 //triangulation of faces with holes
 GLUtesselator *Face::_tess; //for triangulating polygons
@@ -452,6 +448,7 @@ void MyNode::init() {
     _color.set(-1.0f, -1.0f, -1.0f); //indicates no color specified
     _objType = "none";
     _mass = 0;
+    _radius = 0;
 }
 
 MyNode* MyNode::cloneNode(Node *node) {
@@ -1273,8 +1270,8 @@ void MyNode::myTranslate(const Vector3& delta) {
 	for(MyNode *child = dynamic_cast<MyNode*>(getFirstChild()); child; child = dynamic_cast<MyNode*>(child->getNextSibling())) {
 		child->myTranslate(delta);
 	}
-	//cout << "moving " << getId() << " by " << app->pv(delta) << endl;
-	if(getParent() == NULL || !isStatic()) translate(delta);
+	cout << "moving " << getId() << " by " << app->pv(delta) << endl;
+	if(getParent() == NULL || (getCollisionObject() != NULL && !isStatic())) translate(delta);
 }
 
 void MyNode::setMyTranslation(const Vector3& translation) {
@@ -1329,7 +1326,8 @@ void MyNode::addCollisionObject() {
 	} else if(_objType.compare("box") == 0) {
 		setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::box(), &params);
 	} else if(_objType.compare("sphere") == 0) {
-		setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::sphere(), &params);
+		setCollisionObject(PhysicsCollisionObject::RIGID_BODY,
+		  _radius > 0 ? PhysicsCollisionShape::sphere(_radius) : PhysicsCollisionShape::sphere(), &params);
 	} else if(_objType.compare("capsule") == 0) {
 		setCollisionObject(PhysicsCollisionObject::RIGID_BODY, PhysicsCollisionShape::capsule(), &params);
 	}
@@ -1394,14 +1392,14 @@ bool MyNode::physicsEnabled() {
 	return obj != NULL && obj->isEnabled();
 }
 
-MyNode::nodeConstraint* MyNode::getNodeConstraint(MyNode *other) {
+nodeConstraint* MyNode::getNodeConstraint(MyNode *other) {
 	for(short i = 0; i < _constraints.size(); i++) {
 		if(_constraints[i]->other.compare(other->getId()) == 0) return _constraints[i];
 	}
 	return NULL;
 }
 
-MyNode* MyNode::getConstraintNode(MyNode::nodeConstraint *constraint) {
+MyNode* MyNode::getConstraintNode(nodeConstraint *constraint) {
 	Node *node = app->_scene->findNode(constraint->other.c_str());
 	if(node == NULL) return NULL;
 	return dynamic_cast<MyNode*>(node);

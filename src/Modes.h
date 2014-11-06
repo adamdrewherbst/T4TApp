@@ -1,19 +1,9 @@
 #ifndef MODES_H_
 #define MODES_H_
 
-#include "gameplay.h"
-#include <cstring>
-#include <cstdio>
-#include <cstdarg>
-#include <stdlib.h>
-#include <limits>
-#include "T4TApp.h"
+#include "Meshy.h"
 
-using std::cout;
-using std::endl;
-
-using namespace gameplay;
-
+class MyNode;
 class T4TApp;
 
 class Mode : public Button, public Control::Listener
@@ -37,7 +27,7 @@ public:
 	Ray _ray;
 	//Base members remember the value from the time of the last TOUCH_PRESS event
 	Camera *_cameraBase;
-	T4TApp::cameraState *_cameraStateBase;
+	cameraState *_cameraStateBase;
 	Rectangle _viewportBase;
 	
 	Mode(const char* id);
@@ -254,30 +244,39 @@ public:
 	Vector3 plane2Vec(Vector2 &v);
 };
 
-class ProjectComponent : public Mode
+class Project : public Mode
 {
 public:
-	//each element of this component is positioned/finalized via touches => has its own touch callback
-	typedef bool (ProjectComponent::*TouchCallback)(Touch::TouchEvent, int, int);
-
 	//component is divided into elements, eg. a lever has a base and arm
 	class Element {
 		public:
-		ProjectComponent *comp;
+		Project *_project;
 		std::string _name;
-		bool _isStatic, _movable[3], _rotable[3];
+		bool _static, _multiple, _movable[3], _rotable[3];
 		float _limits[3][2];
 		short _moveRef;
-		TouchCallback _callback;
-		MyNode *_node;
+		std::vector<std::shared_ptr<MyNode> > _nodes;
+		const char *_currentNodeId;
+		Element *_parent;
+		Plane _plane;
+		TouchPoint _parentTouch, _planeTouch;
+		std::vector<Element*> _children;
 		
-		Element(ProjectComponent *comp_);
+		Element(Project *project, const char *name, Element *parent = NULL);
 		void setMovable(bool x, bool y, bool z, short ref = -1);
 		void setRotable(bool x, bool y, bool z);
 		void setLimits(short axis, float lower, float upper);
+		void setPlane(const Plane &plane);
 		void applyLimits(Vector3 &translation);
+		void setParent(Element *parent);
+		void addChild(Element *child);
+		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+		MyNode* getNode(short n = 0);
+		void setNode(const char *id);
+		virtual void placeNode(const Vector3 &position);
+		virtual void addPhysics();
 	};
-	std::vector<Element*> _elements;
+	std::vector<std::shared_ptr<Element> > _elements;
 
 	short _currentElement, _typeCount, _moveMode, _moveAxis;
 	Quaternion _baseRotation;
@@ -287,22 +286,36 @@ public:
 	std::string _sceneFile, _nodeId;
 	MyNode *_rootNode; //parent node for this component
 
-	ProjectComponent(const char* id);
+	Container *_elementContainer;
 
+	bool _inSequence; //true during the first run-through to add all the elements
+
+	Project(const char* id);
+
+	void setupMenu();
 	void setActive(bool active);
-	void loadScene();
 	virtual void releaseScene();
-	void addElement(const char *name, TouchCallback callback, bool isStatic = false);
-	Element* getEl();
+	void addElement(Element *element);
+	Element* getEl(short n = -1);
 	MyNode* getNode(short n = -1);
 	void controlEvent(Control *control, EventType evt);
 	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
-	virtual void placeElement() = 0; //position the element in space before it has physics attached
-	virtual void finishElement() = 0; //post processing once the collision object is attached
-	virtual void finishComponent();
+	void promptNextElement();
+	virtual void finish();
+	virtual void test();
 };
 
-class Lever : public ProjectComponent 
+class Buggy : public Project {
+public:
+	Buggy();
+	void test();
+	void controlEvent(Control *control, EventType evt);
+	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+	
+	Element *_body, *_frontAxle, *_rearAxle, *_frontLeftWheel, *_frontRightWheel, *_rearLeftWheel, *_rearRightWheel;
+};
+
+class Lever : public Project
 {
 public:
 	PhysicsHingeConstraint *_armConstraint;
@@ -315,7 +328,7 @@ public:
 	void finishComponent();
 };
 
-class Pulley : public ProjectComponent 
+class Pulley : public Project
 {
 public:
 	float _radius, _linkLength, _linkWidth;
@@ -331,14 +344,28 @@ public:
 	void finishComponent();
 };
 
-class Rocket : public Mode
+class Rocket : public Project
 {
 public:
-	std::vector<std::shared_ptr<MyNode> > _balloons, _balloonNodes;
-	std::vector<float> _balloonRadii;
-	float _balloonRadius, _strawRadius, _strawLength, _originalStrawLength;
-	MyNode *_strawNode, *_balloonNode;
+	//menu of balloons
 	Container *_balloonMenu;
+	std::vector<std::shared_ptr<MyNode> > _balloons;
+	short _balloonType;
+	//balloons in the simulation
+	class Balloon {
+		public:
+		Rocket *_rocket;
+		std::shared_ptr<MyNode> _balloonNode, _anchorNode;
+		float _balloonRadius, _anchorRadius, _scale = 1;
+		
+		Balloon();
+		Balloon(Rocket *rocket);
+		void setScale(float scale);
+	};
+	std::vector<Balloon> _balloonNodes;
+	float _strawRadius, _strawLength, _originalStrawLength;
+	MyNode *_strawNode;
+	PhysicsConstraint *_strawConstraint;
 	bool _launching;
 	
 	Rocket();

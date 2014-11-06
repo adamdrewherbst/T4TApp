@@ -1,4 +1,6 @@
 #include "T4TApp.h"
+#include "Modes.h"
+#include "MyNode.h"
 
 NavigateMode::NavigateMode() 
   : Mode::Mode("navigate") {

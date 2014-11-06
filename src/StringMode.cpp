@@ -1,4 +1,6 @@
 #include "T4TApp.h"
+#include "Modes.h"
+#include "MyNode.h"
 
 StringMode::StringMode() : Mode::Mode("string") {
 	_pathNode = MyNode::create("stringPath");

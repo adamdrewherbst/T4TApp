@@ -141,18 +141,15 @@ source_group(res FILES ${GAME_RES} ${GAMEPLAY_RES} ${GAME_RES_SHADERS} ${GAME_RE
 source_group(src FILES ${GAME_SRC})
 
 set(GAME_SRC
-	src/MyNode.h
-	src/Modes.h
-	src/T4TApp.h
 	src/T4TApp.cpp
 	src/Models.cpp
 	src/MyNode.cpp
 	src/Grid.cpp
-	src/Grid.h
-	src/ProjectComponent.cpp
-	src/Lever.cpp
-	src/Pulley.cpp
 	src/Mode.cpp
+	src/Project.cpp
+	src/Buggy.cpp
+	#src/Lever.cpp
+	#src/Pulley.cpp
 	src/ToolMode.cpp
 	#src/ToolCGAL.cpp
 	src/NavigateMode.cpp
@@ -161,7 +158,7 @@ set(GAME_SRC
 	src/StringMode.cpp
 	src/TestMode.cpp
 	src/TouchMode.cpp
-	src/Rocket.cpp
+	#src/Rocket.cpp
 )
 
 add_executable(${GAME_NAME}

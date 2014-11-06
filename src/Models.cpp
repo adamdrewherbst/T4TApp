@@ -1,4 +1,5 @@
 #include "T4TApp.h"
+#include "MyNode.h"
 
 void T4TApp::generateModels() {
 	generateModel("box", "box", 6.0f, 2.0f, 4.0f);

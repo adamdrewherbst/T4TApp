@@ -1,12 +1,57 @@
 #ifndef TEMPLATEGAME_H_
 #define TEMPLATEGAME_H_
 
+#include <cmath>
+#include <cstring>
+#include <sstream>
+#include <cstdio>
+#include <cstdarg>
+#include <cstdlib>
+#include <vector>
+#include <map>
+#include <limits>
 #include "gameplay.h"
-#include "MyNode.h"
 
+using std::cout;
+using std::endl;
 using namespace gameplay;
 
+class Meshy;
+class MyNode;
 class Mode;
+class T4TApp;
+
+struct cameraState {
+	MyNode *node;
+	float radius, theta, phi;
+	Vector3 target;
+};
+
+class TouchPoint {
+	public:
+	T4TApp *app;
+	std::map<Touch::TouchEvent, Vector2> _pix;
+	std::map<Touch::TouchEvent, Vector3> _point;
+	bool _hit;
+
+	TouchPoint();
+	void set(Touch::TouchEvent evt, int x, int y, MyNode *node);
+	void set(Touch::TouchEvent evt, int x, int y, const Plane &plane);
+	Vector3 getPoint(Touch::TouchEvent evt);
+	Vector2 getPix(Touch::TouchEvent evt);
+	Vector3 delta();
+	Vector2 deltaPix();
+};
+
+struct nodeConstraint {
+	int id; //global ID in simulation for this constraint
+	std::string other; //id of the node to which this one is constrained
+	std::string type; //one of: hinge, spring, fixed, socket
+	Vector3 translation; //offset of the constraint point from my origin
+	Quaternion rotation; //rotation offset of the constraint point
+	bool isChild; //if this node is the constraint child of the other one
+};
+
 
 class T4TApp: public Game, public Control::Listener, public PhysicsCollisionObject::CollisionListener
 {
@@ -43,13 +88,9 @@ public:
     bool _drawDebug;
     int _running;
     Scene *_activeScene;
+    Vector3 _gravity;
 
     //history
-    struct cameraState {
-    	MyNode *node;
-    	float radius, theta, phi;
-    	Vector3 target;
-    };
     cameraState *_cameraState;
     std::vector<cameraState*> _cameraHistory;
     //undo/redo
@@ -153,8 +194,8 @@ public:
     void addConstraints(MyNode *node);
     void removeConstraints(MyNode *node);
     void enableConstraints(MyNode *node, bool enable = true);
-    void reloadConstraint(MyNode *node, MyNode::nodeConstraint *constraint);
-     
+    void reloadConstraint(MyNode *node, nodeConstraint *constraint);
+
     bool mouseEvent(Mouse::MouseEvent evt, int x, int y, int wheelDelta);
 	void keyEvent(Keyboard::KeyEvent evt, int key);
     void touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
@@ -187,9 +228,9 @@ public:
       Layout::Type layout = Layout::LAYOUT_VERTICAL);
     Form* addPanel(const char *name, Container *parent = NULL);
     template <class ButtonType> ButtonType* addButton(Container *parent, const char *name, const char *text = NULL,
-      Theme::Style *style = NULL);
+      const char *style = NULL);
     template <class ControlType> ControlType* addControl(Container *parent, const char *name, const char *text = NULL,
-      Theme::Style *style = NULL);
+      const char *style = NULL);
     //other UI
     void promptComponent();
     void getText(const char *prompt, const char *type, void (T4TApp::*callback)(const char*));
@@ -210,10 +251,17 @@ public:
 		//bool hit(const HitResult &hit);
 	};
 	HitFilter *_hitFilter;
+
+	class NodeFilter : public PhysicsController::HitFilter {
+		public:
+		MyNode *_node;
+		
+		NodeFilter();
+		void setNode(MyNode *node);
+		bool filter(PhysicsCollisionObject *object);
+	};
+	NodeFilter *_nodeFilter;
 };
-
-
-#include "Modes.h"
 
 #endif
 
