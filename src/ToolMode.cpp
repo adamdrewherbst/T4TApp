@@ -131,7 +131,7 @@ void ToolMode::createBit(short type, ...) {
 			os << "drill_bit_" << segments << "_" << (int)(radius * 100 + 0.1);
 			tool->id = os.str();
 			std::string file = "res/png/" + tool->id + ".png";
-			ImageControl *image = (ImageControl*) app->addButton<ImageControl>(_bitMenu, tool->id.c_str(), "", app->_theme->getStyle("imageSquare"));
+			ImageControl *image = (ImageControl*) app->addButton<ImageControl>(_bitMenu, tool->id.c_str(), "", "imageSquare");
 			image->setZIndex(_bitMenu->getZIndex());
 			image->setSize(100.0f, 100.0f);
 			image->setImage(file.c_str());

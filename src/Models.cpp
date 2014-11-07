@@ -2,7 +2,7 @@
 #include "MyNode.h"
 
 void T4TApp::generateModels() {
-	generateModel("box", "box", 6.0f, 2.0f, 4.0f);
+	generateModel("box", "box", 4.0f, 2.0f, 6.0f);
 	generateModel("sphere", "sphere", 1.0f, 10);
 	generateModel("cylinder", "cylinder", 1.0f, 4.0f, 20);
 	generateModel("halfpipe", "halfpipe", 1.0f, 12.0f, 0.2f, 20);
@@ -11,6 +11,9 @@ void T4TApp::generateModels() {
 	generateModel("straw", "cylinder", 0.25f, 5.0f, 8);
 	generateModel("balloon_sphere", "sphere", 1.5f, 10);
 	generateModel("balloon_long", "cylinder", 0.5f, 3.0f, 20);
+	generateModel("axle1", "cylinder", 0.15f, 6.0f, 8);
+	generateModel("wheel1", "cylinder", 1.2f, 0.5f, 20);
+	generateModel("buggyRamp", "wedge", 15.0f, 15.0f, 5.0f);
 }
 
 void T4TApp::generateModel(const char *id, const char *type, ...) {
@@ -129,6 +132,23 @@ void T4TApp::generateModel(const char *id, const char *type, ...) {
 		node->addFace(4, 2, 6, 7, 3);
 		node->addFace(4, 4, 6, 2, 0);
 		node->addFace(4, 1, 3, 7, 5);
+		node->setOneHull();
+	}
+	else if(strcmp(type, "wedge") == 0) {
+		float length = (float)va_arg(arguments, double);
+		float width = (float)va_arg(arguments, double);
+		float height = (float)va_arg(arguments, double);
+		node->_vertices.resize(6);
+		for(i = 0; i < 3; i++) {
+			for(j = 0; j < 2; j++) {
+				node->_vertices[i*2 + j].set((2*j-1) * width/2, (i/2) * height, (2*(i%2)-1) * length/2);
+			}
+		}
+		node->addFace(4, 0, 1, 3, 2);
+		node->addFace(4, 0, 4, 5, 1);
+		node->addFace(4, 2, 3, 5, 4);
+		node->addFace(3, 0, 2, 4);
+		node->addFace(3, 1, 5, 3);
 		node->setOneHull();
 	}
 	else if(strcmp(type, "gear") == 0) {

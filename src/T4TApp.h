@@ -32,9 +32,10 @@ class TouchPoint {
 	T4TApp *app;
 	std::map<Touch::TouchEvent, Vector2> _pix;
 	std::map<Touch::TouchEvent, Vector3> _point;
-	bool _hit;
+	bool _hit, _touching;
 
 	TouchPoint();
+	void set(Touch::TouchEvent evt, int x, int y);
 	void set(Touch::TouchEvent evt, int x, int y, MyNode *node);
 	void set(Touch::TouchEvent evt, int x, int y, const Plane &plane);
 	Vector3 getPoint(Touch::TouchEvent evt);
@@ -72,10 +73,10 @@ public:
     float _steering, _braking, _driving;
     
     //for placing objects
-    Node *_intersectModel;
     std::vector<MyNode*> _intersectNodeGroup;
     BoundingBox _intersectBox;
     Vector3 _intersectPoint;
+    MyNode *_intersectModel, *_axes, *_ground;
     Plane _groundPlane;
     
     //each constraint in the simulation will have an integer ID for lookup
@@ -149,7 +150,7 @@ public:
     PhysicsConstraint* addConstraint(MyNode *n1, MyNode *n2, int id, const char *type,
       Quaternion &rot1, Vector3 &trans1, Quaternion &rot2, Vector3 &trans2, bool parentChild = false);
     PhysicsConstraint* addConstraint(MyNode *n1, MyNode *n2, int id, const char *type,
-      const Vector3 &joint, const Vector3 &direction, bool parentChild = false);
+      const Vector3 &joint = Vector3::zero(), const Vector3 &direction = Vector3::unitZ(), bool parentChild = false);
     //misc functions
     const std::string pv(const Vector3& v);
     const std::string pv2(const Vector2& v);

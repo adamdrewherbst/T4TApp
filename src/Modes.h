@@ -12,14 +12,15 @@ public:
 	T4TApp *app;
 	Scene *_scene;
 	Camera *_camera;
-	
+
 	std::vector<std::string> _subModes;
 	short _subMode;
 	Container *_container, *_controls, *_subModePanel;
 	bool _active, _touching, _doSelect;
 	std::ostringstream os;
 
-	int _x, _y; //mouse position wrt upper left of entire window, not just my button		
+	int _x, _y; //mouse position wrt upper left of entire window, not just my button
+	TouchPoint _touchPt;
 	MyNode *_selectedNode, *_touchNode;
 	Vector3 _selectPoint, _touchPoint, _mousePoint;
 	Vector2 _touchPix, _mousePix;
@@ -41,6 +42,7 @@ public:
 	virtual void placeCamera();
 	virtual void update();
 	virtual void draw();
+	
 };
 
 class NavigateMode : public Mode
@@ -250,11 +252,12 @@ public:
 	//component is divided into elements, eg. a lever has a base and arm
 	class Element {
 		public:
+		T4TApp *app;
 		Project *_project;
-		std::string _name;
+		std::string _id, _name;
 		bool _static, _multiple, _movable[3], _rotable[3];
 		float _limits[3][2];
-		short _moveRef;
+		short _moveRef, _numNodes;
 		std::vector<std::shared_ptr<MyNode> > _nodes;
 		const char *_currentNodeId;
 		Element *_parent;
@@ -262,7 +265,7 @@ public:
 		TouchPoint _parentTouch, _planeTouch;
 		std::vector<Element*> _children;
 		
-		Element(Project *project, const char *name, Element *parent = NULL);
+		Element(Project *project, const char *id, const char *name = NULL, Element *parent = NULL);
 		void setMovable(bool x, bool y, bool z, short ref = -1);
 		void setRotable(bool x, bool y, bool z);
 		void setLimits(short axis, float lower, float upper);
@@ -273,8 +276,9 @@ public:
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		MyNode* getNode(short n = 0);
 		void setNode(const char *id);
-		virtual void placeNode(const Vector3 &position);
-		virtual void addPhysics();
+		void addNode(const Vector3 &position);
+		virtual void placeNode(const Vector3 &position, short n = 0);
+		virtual void addPhysics(short n = -1);
 	};
 	std::vector<std::shared_ptr<Element> > _elements;
 
@@ -289,30 +293,60 @@ public:
 	Container *_elementContainer;
 
 	bool _inSequence; //true during the first run-through to add all the elements
+	bool _testing; //when in Test mode
 
 	Project(const char* id);
 
-	void setupMenu();
+	virtual void setupMenu();
 	void setActive(bool active);
-	virtual void releaseScene();
-	void addElement(Element *element);
+	Element* addElement(Element *element);
 	Element* getEl(short n = -1);
 	MyNode* getNode(short n = -1);
 	void controlEvent(Control *control, EventType evt);
 	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 	void promptNextElement();
 	virtual void finish();
+	virtual void addPhysics();
 	virtual void test();
 };
 
 class Buggy : public Project {
 public:
+	class Body : public Project::Element {
+		public:
+		Body(Project *project);
+		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+	};
+
+	class Axle : public Project::Element {
+		public:
+		Axle(Project *project, const char *id, const char *name, Element *parent);
+		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+		void placeNode(const Vector3 &position, short n);
+		void addPhysics(short n);
+	};
+
+	class Wheels : public Project::Element {
+		public:
+		Wheels(Project *project, const char *id, const char *name, Element *parent);
+		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+		void placeNode(const Vector3 &position, short n);
+		void addPhysics(short n);
+	};
+	
+	Element *_body, *_frontAxle, *_rearAxle, *_frontWheels, *_rearWheels;
+	MyNode *_ramp;
+	float _rampSlope;
+	bool _launched;
+	Button *_launchButton;
+
 	Buggy();
-	void test();
+	void setupMenu();
+	void setActive(bool active);
 	void controlEvent(Control *control, EventType evt);
 	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
-	
-	Element *_body, *_frontAxle, *_rearAxle, *_frontLeftWheel, *_frontRightWheel, *_rearLeftWheel, *_rearRightWheel;
+	void test();
+	void setRampHeight(float scale);
 };
 
 class Lever : public Project

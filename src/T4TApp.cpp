@@ -100,6 +100,8 @@ void T4TApp::initialize()
 	_models->addNode(new MyNode("cylinder"));
 	_models->addNode(new MyNode("halfpipe"));
 	_models->addNode(new MyNode("gear_basic"));
+	_models->addNode(new MyNode("axle1"));
+	_models->addNode(new MyNode("wheel1"));
 /*	_models->addNode(new MyNode("gear"));
 	_models->addNode(new MyNode("tube"));
 	_models->addNode(new MyNode("vase"));
@@ -123,6 +125,9 @@ void T4TApp::initialize()
 		modelNode = dynamic_cast<MyNode*>(modelNode->getNextSibling());
 	}
 
+    addListener(_mainMenu, this);
+    addListener(_textName, this, Control::Listener::TEXT_CHANGED);
+	
 	//interactive modes
 	_modes.push_back(new NavigateMode());
 	_modes.push_back(new PositionMode());
@@ -167,9 +172,6 @@ void T4TApp::initialize()
 	_drawDebug = true;	
     _sideMenu->setState(Control::FOCUS);
     
-    addListener(_mainMenu, this);
-    addListener(_textName, this, Control::Listener::TEXT_CHANGED);
-	
 	_running = 0;
 	_constraintCount = 0;
 }
@@ -370,42 +372,41 @@ void T4TApp::initScene()
     _scene->setId("scene");
     setSceneName("test");
     _scene->visit(this, &T4TApp::printNode);
-    setActiveScene(_scene);
-    
+
     // Set the aspect ratio for the scene's camera to match the current resolution
     _scene->getActiveCamera()->setAspectRatio(getAspectRatio());
     _cameraState = new cameraState();
-    resetCamera();
-    
+
     // Get light node
     _lightNode = _scene->findNode("lightNode");
     _light = _lightNode->getLight();
 
 	//create the grid on which to place objects
-    MyNode* node = MyNode::create("grid");
+    _ground = MyNode::create("grid");
     Model* gridModel = createGridModel();
     gridModel->setMaterial("res/common/models.material#grid");
-    node->setModel(gridModel);
+    _ground->setModel(gridModel);
     gridModel->release();
-    node->_objType = "box";
-    node->setStatic(true);
-    node->addPhysics();
-    _scene->addNode(node);
+    _ground->_objType = "box";
+    _ground->setStatic(true);
+    _ground->addPhysics();
     //store the plane representing the grid, for calculating intersections
     _groundPlane = Plane(Vector3(0, 1, 0), 0);
-    
+
     //create lines for the positive axes
     std::vector<float> vertices;
     vertices.resize(36,0);
     for(int i = 0; i < 6; i++) {
-    	vertices[i*6+1] = 5.0f;
     	if(i%2 == 1) vertices[i*6+i/2] += 5.0f;
-    	vertices[i*6+4] = 1.0f; //color green
+    	vertices[i*6+3+i/2] = 1.0f; //axes are R, G, and B
     }
-    _scene->addNode(createWireframe(vertices, "axes"));
+    _axes = createWireframe(vertices, "axes");
 
     _gravity.set(0, -10, 0);
     getPhysicsController()->setGravity(_gravity);
+
+    setActiveScene(_scene);
+    resetCamera();
 }
 
 void T4TApp::setSceneName(const char *name) {
@@ -606,7 +607,6 @@ void T4TApp::enableListener(bool enable, Control *control, Control::Listener *li
 			if(strncmp(id, "parent_", 7) == 0) {
 				submenuID = MyNode::concat(2, "submenu_", id+7);
 				submenu = dynamic_cast<Container*>(_mainMenu->getControl(submenuID));
-				cout << "enabling on submenu " << submenuID << " = " << submenu << endl;
 				if(submenu) enableListener(enable, submenu, listener, evtFlags);
 			}
 		}
@@ -665,12 +665,13 @@ bool T4TApp::printNode(Node *node) {
 
 bool T4TApp::drawNode(Node* node)
 {
-    Model* model = node->getModel(); 
+    Model* model = node->getModel();
     if (model) {
 		bool wireframe = false;
 		float lineWidth = 1.0f;
     	MyNode *myNode = dynamic_cast<MyNode*>(node);
     	if(myNode) {
+    		if(!myNode->_visible) return true;
     		wireframe = myNode->_wireframe || myNode->_chain;
     		lineWidth = myNode->_lineWidth;
     	}
@@ -704,7 +705,7 @@ bool T4TApp::checkTouchModel(Node* n)
 	for(int i = 0; i < _intersectNodeGroup.size(); i++)
 		if(node == _intersectNodeGroup[i]) return true;
 	Vector3 pos = node->getTranslation();
-	BoundingBox bbox = node->getWorldBox();
+	BoundingBox bbox = node->getBoundingBox();
 	if(bbox.isEmpty()) return true;
 	float halfX = (_intersectBox.max.x - _intersectBox.min.x) / 2.0f,
 		halfY = (_intersectBox.max.y - _intersectBox.min.y) / 2.0f,
@@ -786,7 +787,7 @@ void T4TApp::placeNode(MyNode *node, float x, float z)
 {
 	_intersectNodeGroup.clear();
 	_intersectNodeGroup.push_back(node);
-	_intersectBox = node->getWorldBox();
+	_intersectBox = node->getBoundingBox();
 	float minY = _intersectBox.min.y;
 	node->setTranslation(x, -minY, z); //put the bounding box bottom on the ground
 	_intersectPoint.set(x, -minY, z);
@@ -874,6 +875,8 @@ void T4TApp::setActiveScene(Scene *scene)
 	}
 	_activeScene = scene;
 	if(_activeScene != NULL) {
+		_activeScene->addNode(_axes);
+		_activeScene->addNode(_ground);
 		_activeScene->visit(this, &T4TApp::showNode);
 	}
 }
@@ -1111,7 +1114,7 @@ void T4TApp::removeConstraints(MyNode *node) {
 	}
 }
 
-void T4TApp::enableConstraints(MyNode *node, bool enable) {	
+void T4TApp::enableConstraints(MyNode *node, bool enable) {
 	int id;
 	for(short i = 0; i < node->_constraints.size(); i++) {
 		id = node->_constraints[i]->id;

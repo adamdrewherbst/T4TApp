@@ -438,6 +438,7 @@ MyNode* MyNode::create(const char *id) {
 
 void MyNode::init() {
 	_node = this;
+	_element = NULL;
     app = (T4TApp*) Game::getInstance();
     _staticObj = false;
     _constraintParent = NULL;
@@ -449,6 +450,7 @@ void MyNode::init() {
     _objType = "none";
     _mass = 0;
     _radius = 0;
+    _visible = true;
 }
 
 MyNode* MyNode::cloneNode(Node *node) {
@@ -534,18 +536,34 @@ Matrix MyNode::getInverseWorldMatrix() {
 	return m;
 }
 
-BoundingBox MyNode::getWorldBox() {
-	Model *model = getModel();
-	if(model == NULL) return BoundingBox::empty();
-	BoundingBox box = model->getMesh()->getBoundingBox();
-	Vector3 scale = getScale(), center = box.getCenter(), min = box.min - center, max = box.max - center;
-	min.x *= scale.x;
-	min.y *= scale.y;
-	min.z *= scale.z;
-	max.x *= scale.x;
-	max.y *= scale.y;
-	max.z *= scale.z;
-	return BoundingBox(center + min, center + max);
+BoundingBox MyNode::getBoundingBox(bool modelSpace) {
+	Vector3 vec, min(1e6, 1e6, 1e6), max(-1e6, -1e6, -1e6);
+	std::vector<MyNode*> nodes;
+	nodes.push_back(this);
+	short i = 0;
+	while(i < nodes.size()) {
+		MyNode *node = nodes[i++];
+		for(Node *child = node->getFirstChild(); child; child = child->getNextSibling()) {
+			MyNode *node = dynamic_cast<MyNode*>(child);
+			if(node) nodes.push_back(node);			
+		}
+	}
+	short n = nodes.size();
+	Matrix m;
+	if(modelSpace) getWorldMatrix().invert(&m);
+	for(i = 0; i < n; i++) {
+		MyNode *node = nodes[i];
+		short nv = node->nv(), j, k;
+		for(j = 0; j < nv; j++) {
+			vec = node->_worldVertices[j];
+			if(modelSpace) m.transformPoint(&vec);
+			for(k = 0; k < 3; k++) {
+				MyNode::sv(min, k, fmin(MyNode::gv(min, k), MyNode::gv(vec, k)));
+				MyNode::sv(max, k, fmax(MyNode::gv(max, k), MyNode::gv(vec, k)));
+			}
+		}
+	}
+	return BoundingBox(min, max);
 }
 
 //given a point in space, find the best match for the face that contains it
@@ -1000,6 +1018,10 @@ void MyNode::writeData(const char *file) {
 void MyNode::updateTransform() {
 	Meshy::updateTransform();
 	for(short i = 0; i < _hulls.size(); i++) _hulls[i]->updateTransform();
+	for(Node *child = getFirstChild(); child; child = child->getNextSibling()) {
+		MyNode *node = dynamic_cast<MyNode*>(child);
+		if(node) node->updateTransform();
+	}
 }
 
 void MyNode::updateEdges() {
@@ -1270,7 +1292,7 @@ void MyNode::myTranslate(const Vector3& delta) {
 	for(MyNode *child = dynamic_cast<MyNode*>(getFirstChild()); child; child = dynamic_cast<MyNode*>(child->getNextSibling())) {
 		child->myTranslate(delta);
 	}
-	cout << "moving " << getId() << " by " << app->pv(delta) << endl;
+	//cout << "moving " << getId() << " by " << app->pv(delta) << endl;
 	if(getParent() == NULL || (getCollisionObject() != NULL && !isStatic())) translate(delta);
 }
 
@@ -1279,7 +1301,7 @@ void MyNode::setMyTranslation(const Vector3& translation) {
 }
 
 void MyNode::myRotate(const Quaternion& delta) {
-	Vector3 baseTrans(getTranslationWorld()), offset, offsetRot;
+	Vector3 baseTrans = getTranslationWorld(), offset, offsetRot;
 	Matrix rot;
 	Matrix::createRotation(delta, &rot);
 	for(MyNode *child = dynamic_cast<MyNode*>(getFirstChild()); child; child = dynamic_cast<MyNode*>(child->getNextSibling())) {
@@ -1297,7 +1319,7 @@ void MyNode::setMyRotation(const Quaternion& rotation) {
 	delta = rotation * rotInv;
 	Vector3 axis;
 	float angle = delta.toAxisAngle(&axis);
-	cout << "rotating by " << angle << " about " << app->pv(axis) << " [" << delta.x << "," << delta.y << "," << delta.z << "," << delta.w << "]" << endl;
+	//cout << "rotating by " << angle << " about " << app->pv(axis) << " [" << delta.x << "," << delta.y << "," << delta.z << "," << delta.w << "]" << endl;
 	myRotate(delta);
 }
 
@@ -1307,6 +1329,25 @@ void MyNode::myScale(const Vector3& scale) {
 
 void MyNode::setMyScale(const Vector3& scale) {
 	setScale(scale);
+}
+
+void MyNode::setBase() {
+	_baseTranslation = getTranslation();
+	_baseRotation = getRotation();
+	_baseScale = getScale();
+}
+
+void MyNode::baseTranslate(const Vector3& delta) {
+	setMyTranslation(_baseTranslation + delta);
+}
+
+void MyNode::baseRotate(const Quaternion& delta) {
+	setMyRotation(delta * _baseRotation);
+}
+
+void MyNode::baseScale(const Vector3& delta) {
+	Vector3 scale = getScale(), newScale = Vector3(scale.x * delta.x, scale.y * delta.y, scale.z * delta.z);
+	setMyScale(newScale);
 }
 
 /*********** PHYSICS ************/
@@ -1390,6 +1431,11 @@ void MyNode::enablePhysics(bool enable, bool recur) {
 bool MyNode::physicsEnabled() {
 	PhysicsCollisionObject *obj = getCollisionObject();
 	return obj != NULL && obj->isEnabled();
+}
+
+void MyNode::setVisible(bool visible) {
+	_visible = visible;
+	enablePhysics(visible);
 }
 
 nodeConstraint* MyNode::getNodeConstraint(MyNode *other) {

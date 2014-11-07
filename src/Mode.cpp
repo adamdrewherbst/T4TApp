@@ -2,16 +2,14 @@
 #include "Modes.h"
 #include "MyNode.h"
 
-Mode::Mode(const char* id) {
+Mode::Mode(const char* id) : _selectedNode(NULL), _touchNode(NULL), _touching(false), _doSelect(true) {
 
 	app = dynamic_cast<T4TApp*>(Game::getInstance());
 	_scene = app->_scene;
 	_camera = app->getCamera();
 	
-	Theme::Style *hidden = Theme::create("res/common/default.theme")->getStyle("hidden");
-	
 	_id = id;
-	_style = hidden;
+	_style = app->_theme->getStyle("hidden");
 	setAutoWidth(true);	
 	setAutoHeight(true);
 	setConsumeInputEvents(true);
@@ -26,12 +24,11 @@ Mode::Mode(const char* id) {
 	if(_controls != NULL) {
 		_subModePanel = (Container*)_controls->getControl("subMode");
 	}
-	
+
+	app->removeListener(_container, app);
 	app->addListener(_container, this);
 
 	_plane = app->_groundPlane;
-	_doSelect = true;
-	_touching = false;
 	_cameraBase = Camera::createPerspective(_camera->getFieldOfView(), _camera->getAspectRatio(),
 	  _camera->getNearPlane(), _camera->getFarPlane());
 	Node *cameraNode = Node::create((_id + "_camera").c_str());
@@ -104,6 +101,7 @@ bool Mode::isSelecting() {
 bool Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
 	_x = (int)(x + getX() + _container->getX() + app->_stage->getX());
 	_y = (int)(y + getY() + _container->getY() + app->_stage->getY());
+	_touchPt.set(evt, _x, _y);
 	_mousePix.set(_x, _y);
 	_camera = _scene->getActiveCamera();
 	_camera->pickRay(app->getViewport(), _x, _y, &_ray);
@@ -121,6 +119,7 @@ bool Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactI
 				MyNode *node = dynamic_cast<MyNode*>(hitResult.object->getNode());
 				if(!node || node->getCollisionObject() == NULL || app->auxNode(node)) break;
 				_touchNode = node;
+				_touchNode->setBase();
 				_touchPoint.set(hitResult.point);
 				setSelectedNode(_touchNode, _touchPoint);
 				cout << "selected: " << node->getId() << " at " << app->pv(_touchPoint) << endl;
@@ -139,6 +138,7 @@ bool Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactI
 			break;
 		case Touch::TOUCH_RELEASE:
 			_touching = false;
+			_touchNode = NULL;
 			break;
 	}
 	return true;
@@ -162,6 +162,8 @@ void Mode::controlEvent(Control *control, EventType evt) {
 
 TouchPoint::TouchPoint() {
 	app = (T4TApp*) Game::getInstance();
+	_touching = false;
+	_hit = false;
 	_point[Touch::TOUCH_PRESS] = Vector3::zero();
 	_point[Touch::TOUCH_MOVE] = Vector3::zero();
 	_point[Touch::TOUCH_RELEASE] = Vector3::zero();
@@ -170,23 +172,29 @@ TouchPoint::TouchPoint() {
 	_pix[Touch::TOUCH_RELEASE] = Vector2::zero();
 }
 
+void TouchPoint::set(Touch::TouchEvent evt, int x, int y) {
+	if(evt == Touch::TOUCH_PRESS) _touching = true;
+	else if(evt == Touch::TOUCH_RELEASE) _touching = true;
+	_pix[evt].set(x, y);
+}
+
 void TouchPoint::set(Touch::TouchEvent evt, int x, int y, MyNode *node) {
+	set(evt, x, y);
 	Camera *camera = app->getCamera();
 	Ray ray;
 	camera->pickRay(app->getViewport(), x, y, &ray);
 	PhysicsController::HitResult result;
 	app->_nodeFilter->setNode(node);
 	_hit = app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &result, app->_nodeFilter);
-	_pix[evt].set(x, y);
 	if(_hit) _point[evt] = result.point;
 }
 
 void TouchPoint::set(Touch::TouchEvent evt, int x, int y, const Plane &plane) {
+	set(evt, x, y);
 	Camera *camera = app->getCamera();
 	Ray ray;
 	camera->pickRay(app->getViewport(), x, y, &ray);
 	float distance = ray.intersects(plane);
-	_pix[evt].set(x, y);
 	if(distance != Ray::INTERSECTS_NONE) _point[evt] = ray.getOrigin() + ray.getDirection() * distance;
 }
 

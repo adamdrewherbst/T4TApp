@@ -93,6 +93,18 @@ material box : colored
     }
 }
 
+material wedge : colored
+{
+    technique
+    {
+        pass
+        {
+        	u_ambientColor = 0.6, 1.0, 0.2
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
+        }
+    }
+}
+
 material heart : colored
 {
     technique

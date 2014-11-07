@@ -24,12 +24,15 @@ public:
 	//physics
 	std::string _objType; //mesh, box, sphere, capsule
 	float _mass, _radius;
-	bool _staticObj;
+	bool _staticObj, _visible;
 	std::vector<ConvexHull*> _hulls;
 	std::vector<nodeConstraint*> _constraints;
 	MyNode *_constraintParent;
 	//location and axis of constraint joint with parent in parent's model space
 	Vector3 _parentOffset, _parentAxis;
+	//when moving the node by dragging
+	Vector3 _baseTranslation, _baseScale;
+	Quaternion _baseRotation;
 	
 	Project::Element *_element; //if we are part of a project
 
@@ -54,7 +57,7 @@ public:
 	Matrix getInverseWorldMatrix();
 	Vector3 getScaleVertex(short v);
 	Vector3 getScaleNormal(short f);
-	BoundingBox getWorldBox();
+	BoundingBox getBoundingBox(bool modelSpace = false);
 	void set(const Matrix& trans);
 	void set(Node *other);
 	void myTranslate(const Vector3& delta);
@@ -63,6 +66,10 @@ public:
 	void setMyRotation(const Quaternion& rotation);
 	void myScale(const Vector3& scale);
 	void setMyScale(const Vector3& scale);
+	void setBase();
+	void baseTranslate(const Vector3& delta);
+	void baseRotate(const Quaternion& delta);
+	void baseScale(const Vector3& delta);
 	
 	short pt2Face(Vector3 point, Vector3 viewer = Vector3::zero());
 	Plane facePlane(unsigned short f, bool modelSpace = false);
@@ -88,6 +95,7 @@ public:
 	void removePhysics(bool recur = true);
 	void enablePhysics(bool enable = true, bool recur = true);
 	bool physicsEnabled();
+	void setVisible(bool visible);
 	nodeConstraint* getNodeConstraint(MyNode *other);
 	MyNode *getConstraintNode(nodeConstraint *constraint);
 
