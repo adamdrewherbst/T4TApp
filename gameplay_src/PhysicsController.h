@@ -157,6 +157,9 @@ public:
      * @param listener The listener to remove.
      */
     void removeStatusListener(Listener* listener);
+    
+    //call before adding a constraint to indicate the constrained objects should not collide
+    void setConstraintNoCollide();
 
     /**
      * Creates a fixed constraint.
@@ -536,6 +539,7 @@ private:
     };
 
     bool _isUpdating;
+    bool _constraintNoCollide;
     btDefaultCollisionConfiguration* _collisionConfiguration;
     btCollisionDispatcher* _dispatcher;
     btBroadphaseInterface* _overlappingPairCache;

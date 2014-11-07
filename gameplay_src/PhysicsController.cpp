@@ -32,7 +32,7 @@ const int PhysicsController::REGISTERED    = 0x04;
 const int PhysicsController::REMOVE        = 0x08;
 
 PhysicsController::PhysicsController()
-  : _isUpdating(false), _collisionConfiguration(NULL), _dispatcher(NULL),
+  : _isUpdating(false), _constraintNoCollide(false), _collisionConfiguration(NULL), _dispatcher(NULL),
     _overlappingPairCache(NULL), _solver(NULL), _world(NULL), _ghostPairCallback(NULL),
     _debugDrawer(NULL), _status(PhysicsController::Listener::DEACTIVATED), _listeners(NULL),
     _gravity(btScalar(0.0), btScalar(-9.8), btScalar(0.0)), _collisionCallback(NULL)
@@ -74,6 +74,10 @@ void PhysicsController::removeStatusListener(Listener* listener)
             return;
         }
     }
+}
+
+void PhysicsController::setConstraintNoCollide() {
+	_constraintNoCollide = true;
 }
 
 PhysicsFixedConstraint* PhysicsController::createFixedConstraint(PhysicsRigidBody* a, PhysicsRigidBody* b)
@@ -1142,7 +1146,8 @@ void PhysicsController::addConstraint(PhysicsRigidBody* a, PhysicsRigidBody* b, 
         b->addConstraint(constraint);
     }
     
-    _world->addConstraint(constraint->_constraint);
+    _world->addConstraint(constraint->_constraint, _constraintNoCollide);
+    _constraintNoCollide = false;
 }
 
 bool PhysicsController::checkConstraintRigidBodies(PhysicsRigidBody* a, PhysicsRigidBody* b)
