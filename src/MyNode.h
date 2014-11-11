@@ -1,7 +1,7 @@
 #ifndef MYNODE_H_
 #define MYNODE_H_
 
-#include "Modes.h"
+#include "Project.h"
 
 class MyNode : public Node, public Meshy {
 
@@ -28,6 +28,8 @@ public:
 	std::vector<ConvexHull*> _hulls;
 	std::vector<nodeConstraint*> _constraints;
 	MyNode *_constraintParent;
+	//for a compound object, store a rest position for each node so we have a rest configuration for the object
+	Matrix _restPosition;
 	//location and axis of constraint joint with parent in parent's model space
 	Vector3 _parentOffset, _parentAxis;
 	//when moving the node by dragging
@@ -70,6 +72,8 @@ public:
 	void baseTranslate(const Vector3& delta);
 	void baseRotate(const Quaternion& delta);
 	void baseScale(const Vector3& delta);
+	void setRest();
+	void placeRest();
 	
 	short pt2Face(Vector3 point, Vector3 viewer = Vector3::zero());
 	Plane facePlane(unsigned short f, bool modelSpace = false);
@@ -96,6 +100,7 @@ public:
 	void enablePhysics(bool enable = true, bool recur = true);
 	bool physicsEnabled();
 	void setVisible(bool visible);
+	void setActivation(int state);
 	nodeConstraint* getNodeConstraint(MyNode *other);
 	MyNode *getConstraintNode(nodeConstraint *constraint);
 

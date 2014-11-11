@@ -1,5 +1,5 @@
 #include "T4TApp.h"
-#include "Modes.h"
+#include "NavigateMode.h"
 #include "MyNode.h"
 
 NavigateMode::NavigateMode() 

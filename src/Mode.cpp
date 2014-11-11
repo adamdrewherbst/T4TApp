@@ -1,5 +1,5 @@
 #include "T4TApp.h"
-#include "Modes.h"
+#include "Mode.h"
 #include "MyNode.h"
 
 Mode::Mode(const char* id) : _selectedNode(NULL), _touchNode(NULL), _touching(false), _doSelect(true) {

@@ -1,5 +1,14 @@
 #include "T4TApp.h"
 #include "MyNode.h"
+#include "NavigateMode.h"
+#include "PositionMode.h"
+#include "ConstraintMode.h"
+#include "StringMode.h"
+#include "TestMode.h"
+#include "TouchMode.h"
+#include "ToolMode.h"
+#include "Buggy.h"
+#include "Rocket.h"
 #include "Grid.h"
 
 // Declare our game instance
@@ -54,14 +63,18 @@ void T4TApp::initialize()
 	_sideMenu = (Container*)_mainMenu->getControl("sideMenu");
 	_stage = (Container*)_mainMenu->getControl("stage");
 	_sceneMenu = (Container*)_mainMenu->getControl("submenu_sceneMenu");
+	_machineMenu = (Container*)_mainMenu->getControl("submenu_machineMenu");
+	_modePanel = (Container*)_sideMenu->getControl("modePanel");
+	_cameraMenu = (Container*)_stage->getControl("camera");
+
+	//for selecting items	
 	_componentMenu = (Container*)_mainMenu->getControl("submenu_componentMenu");
     _componentMenu->setPosition(_sideMenu->getX() + _sideMenu->getWidth() + 25.0f, 25.0f);
     _componentMenu->setWidth(getWidth() - 2 * _componentMenu->getX());
     _componentMenu->setHeight(getHeight() - 2 * _componentMenu->getY());
-	_machineMenu = (Container*)_mainMenu->getControl("submenu_machineMenu");
-	_modePanel = (Container*)_sideMenu->getControl("modePanel");
-	_cameraMenu = (Container*)_stage->getControl("camera");
-	
+    //to hold items that are currently filtered out of the selection set
+    _filteredComponents = Container::create("filteredComponents", _formStyle);
+
 	//dialogs
 	_textDialog = (Container*)_mainMenu->getControl("textDialog");
 	_textPrompt = (Label*)_textDialog->getControl("textPrompt");
@@ -95,35 +108,11 @@ void T4TApp::initialize()
 	
 	// populate catalog of items
 	_models = Scene::create("models");
-	_models->addNode(new MyNode("box"));
-	_models->addNode(new MyNode("sphere"));
-	_models->addNode(new MyNode("cylinder"));
-	_models->addNode(new MyNode("halfpipe"));
-	_models->addNode(new MyNode("gear_basic"));
-	_models->addNode(new MyNode("axle1"));
-	_models->addNode(new MyNode("wheel1"));
-/*	_models->addNode(new MyNode("gear"));
-	_models->addNode(new MyNode("tube"));
-	_models->addNode(new MyNode("vase"));
-	_models->addNode(new MyNode("disc"));
-	_models->addNode(new MyNode("cone"));
-	_models->addNode(new MyNode("heart"));
-	_models->addNode(new MyNode("gear_thin"));//*/
-
-    MyNode *modelNode = dynamic_cast<MyNode*>(_models->getFirstNode());
-    while(modelNode) {
-    	if(strstr(modelNode->getId(), "_part") == NULL) {
-			modelNode->loadData("res/common/", false);
-			modelNode->_type = modelNode->getId();
-			ImageControl* itemImage = addButton <ImageControl> (_componentMenu, concat(2, "comp_", modelNode->getId()));
-			itemImage->setZIndex(_componentMenu->getZIndex());
-			itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
-			itemImage->setWidth(150.0f);
-			itemImage->setHeight(150.0f);
-		}
-		modelNode->setTranslation(Vector3(1000.0f,0.0f,0.0f));
-		modelNode = dynamic_cast<MyNode*>(modelNode->getNextSibling());
-	}
+	addItem("box", 2, "general", "body");
+	addItem("sphere", 2, "general", "body");
+	addItem("cylinder", 2, "general", "body");
+	addItem("halfpipe", 3, "general", "body", "lever arm");
+	addItem("gear_basic", 2, "general", "gear");
 
     addListener(_mainMenu, this);
     addListener(_textName, this, Control::Listener::TEXT_CHANGED);
@@ -132,12 +121,12 @@ void T4TApp::initialize()
 	_modes.push_back(new NavigateMode());
 	_modes.push_back(new PositionMode());
 	_modes.push_back(new ConstraintMode());
+	_modes.push_back(new Rocket());
+	_modes.push_back(new Buggy());
 	_modes.push_back(new StringMode());
 	_modes.push_back(new ToolMode());
 	_modes.push_back(new TestMode());
 	_modes.push_back(new TouchMode());
-	//_modes.push_back(new Rocket());
-	_modes.push_back(new Buggy());
 
 	//simple machines
     //_modes.push_back(new Lever());
@@ -167,7 +156,7 @@ void T4TApp::initialize()
 	setMode(0);
 
 	//_drawDebugCheckbox = addControl <CheckBox> (_sideMenu, "drawDebug", _buttonStyle, "Draw Debug");
-	//Button *debugButton = addControl <Button> (_sideMenu, "debugButton", _buttonStyle, "Debug");
+	//Button *debugButton = addButton <Button> (_sideMenu, "debugButton", _buttonStyle, "Debug");
 	
 	_drawDebug = true;	
     _sideMenu->setState(Control::FOCUS);
@@ -409,6 +398,47 @@ void T4TApp::initScene()
     resetCamera();
 }
 
+void T4TApp::addItem(const char *type, short numTags, ...) {
+	if(_models->findNode(type) != NULL) return;
+	va_list args;
+	va_start(args, numTags);
+	MyNode *node = MyNode::create(type);
+	node->loadData("res/common/", false);
+	node->_type = type;
+	node->setTranslation(Vector3(1000.0f,0.0f,0.0f));
+	for(short i = 0; i < numTags; i++) {
+		const char *tag = va_arg(args, const char*);
+		node->setTag(tag);
+	}
+	va_end(args);
+	_models->addNode(node);
+	ImageControl* itemImage = addButton <ImageControl> (_componentMenu, concat(2, "comp_", type));
+	itemImage->setZIndex(_componentMenu->getZIndex());
+	itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
+	itemImage->setWidth(150.0f);
+	itemImage->setHeight(150.0f);
+}
+
+void T4TApp::filterItemMenu(const char *tag) {
+	for(Node *n = _models->getFirstNode(); n; n = n->getNextSibling()) {
+		MyNode *node = dynamic_cast<MyNode*>(n);
+		bool filtered = tag && !node->hasTag(tag);
+		const char *id = MyNode::concat(2, "comp_", node->getId());
+		if(filtered) {
+			Control *button = _componentMenu->getControl(id);
+			if(button) _filteredComponents->addControl(button);
+		} else {
+			Control *button = _filteredComponents->getControl(id);
+			if(button) _componentMenu->addControl(button);
+		}
+	}
+}
+
+void T4TApp::promptItem(const char *tag) {
+	filterItemMenu(tag);
+	_componentMenu->setVisible(true);
+}
+
 void T4TApp::setSceneName(const char *name) {
 	_sceneName = name;
 }
@@ -526,6 +556,21 @@ bool T4TApp::showNode(Node *node) {
 	MyNode *n = dynamic_cast<MyNode*>(node);
 	if(n) n->enablePhysics(true);
 	return true;
+}
+
+Project* T4TApp::getProject(const char *id) {
+	short i, n = _modes.size();
+	for(i = 0; i < n; i++) {
+		Project *project = dynamic_cast<Project*>(_modes[i]);
+		if(project && strcmp(project->getId(), id) == 0) return project;
+	}
+	return NULL;
+}
+
+MyNode* T4TApp::getProjectNode(const char *id) {
+	Project *project = getProject(id);
+	if(project) return project->_rootNode;
+	return NULL;
 }
 
 template <class ButtonType> ButtonType* T4TApp::addButton(Container *parent, const char *id, const char *text, const char *style)

@@ -13,6 +13,7 @@ void T4TApp::generateModels() {
 	generateModel("balloon_long", "cylinder", 0.5f, 3.0f, 20);
 	generateModel("axle1", "cylinder", 0.15f, 6.0f, 8);
 	generateModel("wheel1", "cylinder", 1.2f, 0.5f, 20);
+	generateModel("wheel2", "box", 2.5f, 2.5f, 0.5f);
 	generateModel("buggyRamp", "wedge", 15.0f, 15.0f, 5.0f);
 }
 
@@ -242,4 +243,5 @@ void T4TApp::generateModel(const char *id, const char *type, ...) {
 	}
 	node->writeData("res/common/");
 }
+
 

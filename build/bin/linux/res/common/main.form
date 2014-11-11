@@ -298,6 +298,78 @@ form mainMenu {
 			}
 		}
 
+		container mode_buggy {
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+
+			container controls {
+				style = basicContainer
+				position = 20, 10
+				size = 180, 50
+				layout = LAYOUT_VERTICAL
+				consumeInputEvents = true
+				zIndex = 5
+				
+				container subMode {
+					style = hiddenContainer
+					autoWidth = true
+					height = 100
+					layout = LAYOUT_VERTICAL
+					
+					button build {
+						style = buttonStyle
+						autoWidth = true
+						height = 40
+						text = Build
+					}
+					button test {
+						style = buttonStyle
+						autoWidth = true
+						height = 40
+						text = Test
+					}
+				}
+			}
+		}
+
+		container mode_rocket {
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+
+			container controls {
+				style = basicContainer
+				position = 20, 10
+				size = 180, 250
+				layout = LAYOUT_VERTICAL
+				consumeInputEvents = true
+				zIndex = 5
+				
+				container subMode {
+					style = hiddenContainer
+					autoWidth = true
+					height = 100
+					layout = LAYOUT_VERTICAL
+					
+					button build {
+						style = buttonStyle
+						autoWidth = true
+						height = 40
+						text = Build
+					}
+					button test {
+						style = buttonStyle
+						autoWidth = true
+						height = 40
+						text = Test
+					}
+				}
+			}
+		}
+	
 		container mode_tool {
 			style = hiddenContainer
 			autoWidth = true
@@ -461,22 +533,6 @@ form mainMenu {
 					text = Hulls
 					value = false
 				}
-			}
-		}
-
-		container mode_buggy {
-			style = hiddenContainer
-			autoWidth = true
-			autoHeight = true
-			layout = LAYOUT_ABSOLUTE
-
-			container controls {
-				style = basicContainer
-				position = 20, 10
-				size = 180, 50
-				layout = LAYOUT_VERTICAL
-				consumeInputEvents = true
-				zIndex = 5
 			}
 		}
 	}

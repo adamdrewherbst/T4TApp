@@ -19,6 +19,7 @@ using namespace gameplay;
 class Meshy;
 class MyNode;
 class Mode;
+class Project;
 class T4TApp;
 
 struct cameraState {
@@ -104,10 +105,13 @@ public:
     std::vector<Action*> _history, _undone; //queue of committed actions and those undone since the last commit
     MyNode *_tmpNode; //for swapping info between nodes
     int _tmpCount; //number of nodes whose info has been temporarily saved to disk
+    
+    //projects
+    MyNode *_buggy, *_rocket;
 
     //user interface
     Form *_mainMenu;
-    Container *_sideMenu, *_stage, *_sceneMenu, *_componentMenu, *_machineMenu, *_modePanel,
+    Container *_sideMenu, *_stage, *_sceneMenu, *_componentMenu, *_filteredComponents, *_machineMenu, *_modePanel,
       *_textDialog, *_confirmDialog, *_overlay, *_cameraMenu;
     Label *_textPrompt, *_confirmMessage;
     TextBox *_textName;
@@ -132,6 +136,9 @@ public:
     T4TApp* getInstance();
 	void generateModels();
 	void generateModel(const char *id, const char *type, ...);
+	void addItem(const char *type, short numTags = 0, ...);
+	void filterItemMenu(const char *tag = NULL);
+	void promptItem(const char *tag = NULL);
 	
 	MyNode* loadNode(const char* id);
     MyNode* duplicateModelNode(const char* type, bool isStatic = false);
@@ -172,6 +179,9 @@ public:
 	bool showNode(Node *node);
     void setActiveScene(Scene *scene);
     std::string _sceneName;
+    
+    Project* getProject(const char *id);
+    MyNode* getProjectNode(const char *id);
 
     Camera* getCamera();
     Node* getCameraNode();

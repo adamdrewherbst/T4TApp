@@ -1,5 +1,5 @@
 #include "T4TApp.h"
-#include "Modes.h"
+#include "ToolMode.h"
 #include "MyNode.h"
 
 ToolMode *ToolMode::_instance;

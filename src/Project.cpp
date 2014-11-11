@@ -1,5 +1,5 @@
 #include "T4TApp.h"
-#include "Modes.h"
+#include "Project.h"
 #include "MyNode.h"
 
 Project::Project(const char* id) : Mode::Mode(id) {
@@ -11,10 +11,12 @@ Project::Project(const char* id) : Mode::Mode(id) {
 
 	_rootNode = MyNode::create(_id.c_str());
 	_rootNode->_type = "root";
-	_scene->addNode(_rootNode);
-	
+
 	_currentElement = 0;
 	_moveMode = 0;
+
+	_subModes.push_back("build");
+	_subModes.push_back("test");
 }
 
 void Project::setupMenu() {
@@ -28,14 +30,13 @@ void Project::setupMenu() {
 		Button *button = app->addButton <Button> (_elementContainer, _elements[i]->_name.c_str(), _elements[i]->_name.c_str());
 	}
 	_controls->addControl(_elementContainer);
-	Button *button = app->addButton <Button> (_controls, "test", "Test");
 }
 
 void Project::controlEvent(Control *control, EventType evt) {
 	Mode::controlEvent(control, evt);
 	const char *id = control->getId();
 	cout << "project control " << id << endl;
-	
+
 	if(_elementContainer->getControl(id) == control) {
 		for(short i = 0; i < _elements.size(); i++) if(_elements[i]->_name.compare(id) == 0) {
 			_currentElement = i;
@@ -52,8 +53,6 @@ void Project::controlEvent(Control *control, EventType evt) {
 		app->setNavMode(-1);
 	} else if(strcmp(id, "finishElement") == 0) {
 		promptNextElement();
-	} else if(strcmp(id, "test") == 0) {
-		test();
 	}
 }
 
@@ -69,10 +68,6 @@ bool Project::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int conta
 		//otherwise just trigger whatever node we clicked
 		_touchNode->_element->touchEvent(evt, x, y, contactIndex);
 	}
-}
-
-void Project::test() {
-	_testing = true;
 }
 
 Project::Element* Project::getEl(short n) {
@@ -114,10 +109,15 @@ void Project::addPhysics() {
 }
 
 void Project::setActive(bool active) {
+	if(active) {
+		app->cameraPush();
+		app->setActiveScene(_scene);
+	} else {
+		app->cameraPop();
+		app->showScene();
+	}
 	Mode::setActive(active);
-	app->_componentMenu->setVisible(active);
-	_inSequence = active;
-	_testing = false;
+	_currentElement = -1;
 	if(active) {
 		//determine the count of this component type based on the highest index for this element in the scene or in saved files
 		_typeCount = 0;
@@ -128,31 +128,48 @@ void Project::setActive(bool active) {
 		} while(app->_scene->findNode(_nodeId.c_str()) != NULL
 			|| FileSystem::fileExists(("res/common/" + _nodeId + ".node").c_str()));
 		_rootNode->setId(_nodeId.c_str());
-		app->setActiveScene(_scene);
+		_scene->addNode(_rootNode);
 		app->_ground->setVisible(false);
-		app->cameraPush();
-		app->setCameraEye(30, -M_PI/3, M_PI/12);
 		app->_componentMenu->setState(Control::FOCUS);
+		app->filterItemMenu();
 		app->removeListener(app->_componentMenu, app);
 		app->addListener(app->_componentMenu, this);
 		Control *finish = _controls->getControl("finishElement");
 		if(finish) finish->setEnabled(true);
 		app->getPhysicsController()->setGravity(Vector3::zero());
+		_inSequence = true;
+		promptNextElement();
 	}else {
-		app->cameraPop();
-		app->showScene();
 		app->_componentMenu->setState(Control::NORMAL);
+		app->filterItemMenu();
 		app->removeListener(app->_componentMenu, this);
 		app->addListener(app->_componentMenu, app);
 		app->getPhysicsController()->setGravity(app->_gravity);
 	}
 }
 
+bool Project::setSubMode(short mode) {
+	bool building = _subMode == 0, changed = Mode::setSubMode(mode);
+	if(building) {
+		if(changed) _rootNode->setRest();
+	} else _rootNode->placeRest();
+	switch(_subMode) {
+		case 0: { //build
+			app->setCameraEye(30, -M_PI/3, M_PI/12);
+			break;
+		} case 1: { //test
+			app->setCameraEye(40, 0, M_PI/12);
+			break;
+		}
+	}
+	return changed;
+}
+
 void Project::promptNextElement() {
-	if(_currentElement < _elements.size()-1) _currentElement++;
+	if(_currentElement < (short)_elements.size()-1) _currentElement++;
 	else _inSequence = false;
 	if(!_inSequence) return;
-	app->_componentMenu->setVisible(true);
+	app->promptItem(getEl()->_filter);
 }
 
 Project::Element::Element(Project *project, const char *id, const char *name, Element *parent)
@@ -221,13 +238,15 @@ void Project::Element::applyLimits(Vector3 &translation) {
 	}
 }
 
-void Project::Element::setNode(const char *id) {
+bool Project::Element::setNode(const char *id) {
 	_currentNodeId = id;
 	if(_parent == NULL) { //auto-place this node
 		addNode(Vector3::zero());
+		return true;
 	} else { //prompt user to click on parent to place
 		
 	}
+	return false;
 }
 
 void Project::Element::addNode(const Vector3 &position) {
@@ -236,8 +255,12 @@ void Project::Element::addNode(const Vector3 &position) {
 		MyNode *node = app->duplicateModelNode(_currentNodeId);
 		node->_element = this;
 		std::ostringstream os;
-		os << _project->_nodeId << "_" << _id;
-		if(_numNodes > 1) os << (i+1);
+		short count = 0;
+		if(_numNodes > 1 || _multiple) do {
+			os.str("");
+			os << _project->_nodeId << "_" << _id << ++count;
+		} while (_project->_scene->findNode(os.str().c_str()) != NULL);
+		else os << _project->_nodeId << "_" << _id;
 		node->setId(os.str().c_str());
 		if(append) _nodes.push_back(std::shared_ptr<MyNode>(node));
 		else _nodes[i] = std::shared_ptr<MyNode>(node);
@@ -249,17 +272,17 @@ void Project::Element::addNode(const Vector3 &position) {
 }
 
 void Project::Element::placeNode(const Vector3 &position, short n) {
-	_nodes[n]->setTranslation(position);
+	MyNode *node = _nodes[n].get(), *parent = _parent ? _parent->getNode() : _project->_rootNode;
+	node->setTranslation(position);
+	if(parent) parent->addChild(node);
 }
 
 void Project::Element::addPhysics(short n) {
-	MyNode *parent = _parent ? _parent->getNode() : _project->_rootNode;
 	short i, numNodes = _nodes.size();
 	for(short i = 0; i < numNodes; i++) {
 		if(n < 0 || i == n) {
 			MyNode *node = _nodes[i].get();
 			node->addPhysics();
-			if(parent) parent->addChild(node);
 		}
 	}
 }

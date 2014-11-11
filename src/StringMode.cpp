@@ -1,5 +1,5 @@
 #include "T4TApp.h"
-#include "Modes.h"
+#include "StringMode.h"
 #include "MyNode.h"
 
 StringMode::StringMode() : Mode::Mode("string") {

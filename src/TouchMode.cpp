@@ -1,5 +1,5 @@
 #include "T4TApp.h"
-#include "Modes.h"
+#include "TouchMode.h"
 #include "MyNode.h"
 
 TouchMode::TouchMode() 

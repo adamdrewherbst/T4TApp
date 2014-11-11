@@ -451,6 +451,7 @@ void MyNode::init() {
     _mass = 0;
     _radius = 0;
     _visible = true;
+    _restPosition = Matrix::identity();
 }
 
 MyNode* MyNode::cloneNode(Node *node) {
@@ -1272,7 +1273,7 @@ char* MyNode::concat(int n, ...)
 void MyNode::set(const Matrix& trans) {
 	PhysicsCollisionObject *obj = getCollisionObject();
 	bool doPhysics = obj != NULL && obj->isEnabled();
-	if(doPhysics) enablePhysics(false);
+	if(doPhysics) enablePhysics(false, false);
 
 	Vector3 translation, scale;
 	Quaternion rotation;
@@ -1281,7 +1282,7 @@ void MyNode::set(const Matrix& trans) {
 	setRotation(rotation);
 	setTranslation(translation);
 	
-	if(doPhysics) enablePhysics(true);
+	if(doPhysics) enablePhysics(true, false);
 }
 
 void MyNode::set(Node *other) {
@@ -1348,6 +1349,30 @@ void MyNode::baseRotate(const Quaternion& delta) {
 void MyNode::baseScale(const Vector3& delta) {
 	Vector3 scale = getScale(), newScale = Vector3(scale.x * delta.x, scale.y * delta.y, scale.z * delta.z);
 	setMyScale(newScale);
+}
+
+void MyNode::setRest() {
+	_restPosition = getMatrix();
+	for(Node *n = getFirstChild(); n; n = n->getNextSibling()) {
+		MyNode *node = dynamic_cast<MyNode*>(n);
+		if(node) node->setRest();
+	}
+}
+
+void MyNode::placeRest() {
+	set(_restPosition);
+	PhysicsCollisionObject *obj = getCollisionObject();
+	if(obj) {
+		PhysicsRigidBody *body = obj->asRigidBody();
+		if(body) {
+			body->setLinearVelocity(0, 0, 0);
+			body->setAngularVelocity(0, 0, 0);
+		}
+	}
+	for(Node *n = getFirstChild(); n; n = n->getNextSibling()) {
+		MyNode *node = dynamic_cast<MyNode*>(n);
+		if(node) node->placeRest();
+	}
 }
 
 /*********** PHYSICS ************/
@@ -1436,6 +1461,15 @@ bool MyNode::physicsEnabled() {
 void MyNode::setVisible(bool visible) {
 	_visible = visible;
 	enablePhysics(visible);
+}
+
+void MyNode::setActivation(int state) {
+	PhysicsCollisionObject *obj = getCollisionObject();
+	if(obj && obj->asRigidBody()) obj->asRigidBody()->setActivation(state);
+	for(Node *n = getFirstChild(); n; n = n->getNextSibling()) {
+		MyNode *node = dynamic_cast<MyNode*>(n);
+		if(node) node->setActivation(state);
+	}
 }
 
 nodeConstraint* MyNode::getNodeConstraint(MyNode *other) {

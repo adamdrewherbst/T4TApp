@@ -1,5 +1,5 @@
 #include "T4TApp.h"
-#include "Modes.h"
+#include "TestMode.h"
 #include "MyNode.h"
 
 TestMode::TestMode() 

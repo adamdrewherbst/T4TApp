@@ -148,6 +148,7 @@ set(GAME_SRC
 	src/Mode.cpp
 	src/Project.cpp
 	src/Buggy.cpp
+	src/Rocket.cpp
 	#src/Lever.cpp
 	#src/Pulley.cpp
 	src/ToolMode.cpp
@@ -158,7 +159,6 @@ set(GAME_SRC
 	src/StringMode.cpp
 	src/TestMode.cpp
 	src/TouchMode.cpp
-	#src/Rocket.cpp
 )
 
 add_executable(${GAME_NAME}
