@@ -54,6 +54,16 @@ struct nodeConstraint {
 	bool isChild; //if this node is the constraint child of the other one
 };
 
+class MenuFilter {
+public:
+	std::vector<Control*> _ordered;
+	Container *_container, *_filtered;
+	
+	MenuFilter(Container *container);
+	void filter(const char *id, bool filter);
+	void filterAll(bool filter);
+};
+
 
 class T4TApp: public Game, public Control::Listener, public PhysicsCollisionObject::CollisionListener
 {
@@ -106,13 +116,11 @@ public:
     MyNode *_tmpNode; //for swapping info between nodes
     int _tmpCount; //number of nodes whose info has been temporarily saved to disk
     
-    //projects
-    MyNode *_buggy, *_rocket;
-
     //user interface
     Form *_mainMenu;
-    Container *_sideMenu, *_stage, *_sceneMenu, *_componentMenu, *_filteredComponents, *_machineMenu, *_modePanel,
-      *_textDialog, *_confirmDialog, *_overlay, *_cameraMenu;
+    Container *_sideMenu, *_stage, *_sceneMenu, *_machineMenu, *_modePanel,
+      *_textDialog, *_confirmDialog, *_overlay, *_cameraMenu, *_componentMenu;
+    MenuFilter *_itemFilter;
     Label *_textPrompt, *_confirmMessage;
     TextBox *_textName;
     Button *_textSubmit, *_textCancel, *_confirmYes, *_confirmNo, *_undo, *_redo;

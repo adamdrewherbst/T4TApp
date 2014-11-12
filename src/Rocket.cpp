@@ -4,8 +4,6 @@
 
 Rocket::Rocket() : Project::Project("rocket") {
 
-	app->_rocket = _rootNode;
-
 	app->addItem("straw", 2, "general", "straw");
 	app->addItem("balloon_sphere", 2, "general", "balloon");
 	app->addItem("balloon_long", 2, "general", "balloon");

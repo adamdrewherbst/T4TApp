@@ -27,9 +27,24 @@ void Project::setupMenu() {
 	_elementContainer->setAutoWidth(true);
 	_elementContainer->setHeight(n * 50.0f);
 	for(i = 0; i < n; i++) {
-		Button *button = app->addButton <Button> (_elementContainer, _elements[i]->_name.c_str(), _elements[i]->_name.c_str());
+		Button *button = app->addButton <Button> (_elementContainer, _elements[i]->_name.c_str());
 	}
 	_controls->addControl(_elementContainer);
+
+	//add a button for each action that any element has - we will enable them on the fly for the selected element
+	_actionContainer = Container::create("actions", app->_theme->getStyle("hiddenContainer"), Layout::LAYOUT_FLOW);
+	short numActions, j;
+	for(i = 0; i < n; i++) {
+		numActions = _elements[i]->_actions.size();
+		for(j = 0; j < numActions; j++) {
+			const char *action = _elements[i]->_actions[j].c_str();
+			if(_actionContainer->getControl(action) != NULL) continue;
+			ImageControl *button = app->addButton <ImageControl> (_actionContainer, action, action, "imageSquare");
+			button->setImage(MyNode::concat(3, "res/png/", action, ".png"));
+			button->setSize(50.0f, 50.0f);
+		}
+	}
+	_actionFilter = new MenuFilter(_actionContainer);
 }
 
 void Project::controlEvent(Control *control, EventType evt) {
@@ -39,7 +54,7 @@ void Project::controlEvent(Control *control, EventType evt) {
 
 	if(_elementContainer->getControl(id) == control) {
 		for(short i = 0; i < _elements.size(); i++) if(_elements[i]->_name.compare(id) == 0) {
-			_currentElement = i;
+			setCurrentElement(i);
 			break;
 		}
 	} else if(strncmp(id, "comp_", 5) == 0) {
@@ -165,8 +180,19 @@ bool Project::setSubMode(short mode) {
 	return changed;
 }
 
+void Project::setCurrentElement(short n) {
+	_currentElement = n;
+	if(_currentElement >= 0) {
+		std::vector<std::string> &actions = getEl()->_actions;
+		_actionContainer->filterAll(true);
+		for(short i = 0; i < actions.size(); i++) {
+			_actionContainer->filter(actions[i].c_str(), false);
+		}
+	}
+}
+
 void Project::promptNextElement() {
-	if(_currentElement < (short)_elements.size()-1) _currentElement++;
+	if(_currentElement < (short)_elements.size()-1) setCurrentElement(_currentElement+1);
 	else _inSequence = false;
 	if(!_inSequence) return;
 	app->promptItem(getEl()->_filter);

@@ -4,8 +4,6 @@
 
 Buggy::Buggy() : Project::Project("buggy") {
 
-	app->_buggy = _rootNode;
-
 	app->addItem("axle1", 2, "general", "axle");
 	app->addItem("wheel1", 2, "general", "wheel");
 	app->addItem("wheel2", 2, "general", "wheel");

@@ -72,8 +72,6 @@ void T4TApp::initialize()
     _componentMenu->setPosition(_sideMenu->getX() + _sideMenu->getWidth() + 25.0f, 25.0f);
     _componentMenu->setWidth(getWidth() - 2 * _componentMenu->getX());
     _componentMenu->setHeight(getHeight() - 2 * _componentMenu->getY());
-    //to hold items that are currently filtered out of the selection set
-    _filteredComponents = Container::create("filteredComponents", _formStyle);
 
 	//dialogs
 	_textDialog = (Container*)_mainMenu->getControl("textDialog");
@@ -131,6 +129,8 @@ void T4TApp::initialize()
 	//simple machines
     //_modes.push_back(new Lever());
     //_modes.push_back(new Pulley());
+    
+    _itemFilter = new MenuFilter(_componentMenu);
     
 	//for queuing user actions for undo/redo
     _action = NULL;
@@ -415,8 +415,7 @@ void T4TApp::addItem(const char *type, short numTags, ...) {
 	ImageControl* itemImage = addButton <ImageControl> (_componentMenu, concat(2, "comp_", type));
 	itemImage->setZIndex(_componentMenu->getZIndex());
 	itemImage->setImage("res/png/cowboys-helmet-nobkg.png");
-	itemImage->setWidth(150.0f);
-	itemImage->setHeight(150.0f);
+	itemImage->setSize(150.0f, 150.0f);
 }
 
 void T4TApp::filterItemMenu(const char *tag) {
@@ -424,13 +423,7 @@ void T4TApp::filterItemMenu(const char *tag) {
 		MyNode *node = dynamic_cast<MyNode*>(n);
 		bool filtered = tag && !node->hasTag(tag);
 		const char *id = MyNode::concat(2, "comp_", node->getId());
-		if(filtered) {
-			Control *button = _componentMenu->getControl(id);
-			if(button) _filteredComponents->addControl(button);
-		} else {
-			Control *button = _filteredComponents->getControl(id);
-			if(button) _componentMenu->addControl(button);
-		}
+		_itemFilter->filter(id, filtered);
 	}
 }
 
@@ -1205,6 +1198,38 @@ void T4TApp::NodeFilter::setNode(MyNode *node) {
 
 bool T4TApp::NodeFilter::filter(PhysicsCollisionObject *object) {
 	return object->getNode() != _node;
+}
+
+
+MenuFilter::MenuFilter(Container *container) : _container(container) {
+	_ordered = _container->getControls();
+	_filtered = new Container();
+}
+
+void MenuFilter::filter(const char *id, bool filter) {
+	if(filter) {
+		Control *control = _container->getControl(id);
+		if(control) _filtered->addControl(control);
+	} else {
+		Control *control = _filtered->getControl(id);
+		if(control) {
+			//preserve the original button order when making this one visible again
+			short position = 0;
+			std::vector<Control*>::const_iterator it;
+			for(it = _ordered.begin(); *it != control && it != _ordered.end(); it++) {
+				if(getControl((*it)->getId()) == *it) position++;
+			}
+			if(it == _ordered.end() || position >= getControlCount()) _container->addControl(control);
+			else _container->insertControl(control, position);
+		}
+	}
+}
+
+void MenuFilter::filterAll(bool filter) {
+	std::vector<Control*>::const_iterator it;
+	for(it = _ordered.begin(); it != _ordered.end(); it++) {
+		this->filter((*it)->getId(), filter);
+	}
 }
 
 

@@ -47,7 +47,8 @@ public:
 	std::string _sceneFile, _nodeId;
 	MyNode *_rootNode; //parent node for this component
 
-	Container *_elementContainer;
+	Container *_elementContainer, *_actionContainer;
+	MenuFilter *_actionFilter;
 
 	bool _inSequence; //true during the first run-through to add all the elements
 

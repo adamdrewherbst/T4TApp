@@ -572,14 +572,6 @@ form mainMenu {
 		}
 	}
 	
-	//holds component catalog - populated programmatically
-	container submenu_componentMenu {
-		style = basicContainer
-		layout = LAYOUT_FLOW
-		zIndex = 20
-		consumeInputEvents = true
-	}
-
 	container submenu_machineMenu {
 		style = basicContainer
 		width = 200
@@ -600,6 +592,13 @@ form mainMenu {
 			height = 50
 			text = Pulley
 		}
+	}
+	
+	container submenu_componentMenu {
+		style = basicContainer
+		layout = LAYOUT_FLOW
+		zIndex = 20
+		consumeInputEvents = true
 	}
 
 	//MODAL DIALOGS - use hidden overlay with intermediate z-index to block other controls

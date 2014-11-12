@@ -4,6 +4,11 @@
 
 Satellite::Satellite() : Project::Project("satellite") {
 
+	app->addItem("solarPanel", 1, "instrument");
+	app->addItem("heatSensor", 1, "instrument");
+	app->addItem("cameraProbe", 1, "instrument");
+	app->addItem("gravityProbe", 1, "instrument");
+
 	_body = addElement(new Body(this));
 	_instruments = addElement(new Instrument(this, _body));
 
@@ -56,10 +61,13 @@ bool Satellite::setSubMode(short mode) {
 }
 
 Satellite::Body::Body(Project *project) : Project::Element::Element(project, NULL, "body", "Body") {
+	_filter = "body";
 }
 
 Satellite::Instrument::Instrument(Project *project, Element *parent)
   : Project::Element::Element(project, parent, "instrument", "Instrument") {
+	_multiple = true;
+	_filter = "instrument";
 }
 
 void Satellite::Instrument::placeNode(const Vector3 &position, short n) {
@@ -79,6 +87,14 @@ void Satellite::Instrument::placeNode(const Vector3 &position, short n) {
 }
 
 void Satellite::Instrument::addPhysics(short n) {
+	short i, numNodes = _nodes.size();
+	MyNode *body = _parent->getNode();
+	for(i = 0; i < numNodes; i++) {
+		if(n >= 0 && i != n) continue;
+		MyNode *node = _nodes[i];
+		Vector3 joint, dir;
+		app->addConstraint(body, node, -1, "fixed", joint, dir, true);
+	}
 }
 
 
