@@ -13,7 +13,7 @@ public:
 
 	class Axle : public Project::Element {
 		public:
-		Axle(Project *project, const char *id, const char *name, Element *parent);
+		Axle(Project *project, Element *parent);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void placeNode(const Vector3 &position, short n);
 		void addPhysics(short n);
@@ -21,7 +21,7 @@ public:
 
 	class Wheels : public Project::Element {
 		public:
-		Wheels(Project *project, const char *id, const char *name, Element *parent);
+		Wheels(Project *project, Element *parent);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void placeNode(const Vector3 &position, short n);
 		void addPhysics(short n);

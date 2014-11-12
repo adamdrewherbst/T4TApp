@@ -10,8 +10,8 @@ Rocket::Rocket() : Project::Project("rocket") {
 	app->addItem("balloon_sphere", 2, "general", "balloon");
 	app->addItem("balloon_long", 2, "general", "balloon");
 
-	_straw = (Straw*) addElement(new Straw(this, "straw", "Straw"));
-	_balloons = (Balloon*) addElement(new Balloon(this, "balloons", "Balloon", _straw));
+	_straw = (Straw*) addElement(new Straw(this));
+	_balloons = (Balloon*) addElement(new Balloon(this, _straw));
 	setupMenu();
 	app->addListener(_controls, this);
 }
@@ -111,8 +111,8 @@ bool Rocket::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contac
 	return true;
 }
 
-Rocket::Straw::Straw(Project *project, const char *id, const char *name)
-  : Project::Element::Element(project, id, name) {
+Rocket::Straw::Straw(Project *project)
+  : Project::Element::Element(project, NULL, "straw", "Straw") {
   	_filter = "straw";
 }
   
@@ -156,8 +156,8 @@ bool Rocket::Straw::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int
 	}
 }
 
-Rocket::Balloon::Balloon(Project *project, const char *id, const char *name, Element *parent)
-  : Project::Element::Element(project, id, name, parent) {
+Rocket::Balloon::Balloon(Project *project, Element *parent)
+  : Project::Element::Element(project, parent, "balloon", "Balloon") {
   	_filter = "balloon";
 }
   

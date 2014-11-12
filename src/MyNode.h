@@ -88,6 +88,7 @@ public:
 	void setWireframe(bool wireframe);
 	void copyMesh(Meshy *mesh);
 	void clearMesh();
+	std::vector<MyNode*> getAllNodes();
 
 	//physics
 	void addHullFace(ConvexHull *hull, short f);

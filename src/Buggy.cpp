@@ -11,10 +11,10 @@ Buggy::Buggy() : Project::Project("buggy") {
 	app->addItem("wheel2", 2, "general", "wheel");
 
 	_body = addElement(new Body(this));
-	_frontAxle = addElement(new Axle(this, "frontAxle", "Front Axle", _body));
-	_rearAxle = addElement(new Axle(this, "rearAxle", "Rear Axle", _body));
-	_frontWheels = addElement(new Wheels(this, "frontWheels", "Front Wheels", _frontAxle));
-	_rearWheels = addElement(new Wheels(this, "rearWheels", "Rear Wheels", _rearAxle));
+	_frontAxle = addElement(new Axle(this, _body, "frontAxle", "Front Axle"));
+	_rearAxle = addElement(new Axle(this, _body, "rearAxle", "Rear Axle"));
+	_frontWheels = addElement(new Wheels(this, _frontAxle, "frontWheels", "Front Wheels"));
+	_rearWheels = addElement(new Wheels(this, _rearAxle, "rearWheels", "Rear Wheels"));
 	setupMenu();
 	app->addListener(_controls, this);
 
@@ -104,7 +104,7 @@ bool Buggy::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contact
 	return true;
 }
 
-Buggy::Body::Body(Project *project) : Project::Element(project, "body", "Body") {
+Buggy::Body::Body(Project *project) : Project::Element(project, NULL, "body", "Body") {
 	_filter = "body";
 }
 
@@ -112,8 +112,8 @@ bool Buggy::Body::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int c
 	return true;
 }
 
-Buggy::Axle::Axle(Project *project, const char *id, const char *name, Element *parent)
-  : Project::Element(project, id, name, parent) {
+Buggy::Axle::Axle(Project *project, Element *parent, const char *id, const char *name)
+  : Project::Element(project, parent, id, name) {
   	_filter = "axle";
 }
 
@@ -137,8 +137,8 @@ bool Buggy::Axle::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int c
 	}
 }
 
-Buggy::Wheels::Wheels(Project *project, const char *id, const char *name, Element *parent)
-  : Project::Element(project, id, name, parent) {
+Buggy::Wheels::Wheels(Project *project, Element *parent, const char *id, const char *name)
+  : Project::Element(project, parent, id, name) {
 	_numNodes = 2;
 	_filter = "wheel";
 }

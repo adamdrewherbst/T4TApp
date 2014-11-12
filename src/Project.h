@@ -22,7 +22,7 @@ public:
 		TouchPoint _parentTouch, _planeTouch;
 		std::vector<Element*> _children;
 		
-		Element(Project *project, const char *id, const char *name = NULL, Element *parent = NULL);
+		Element(Project *project, Element *parent, const char *id, const char *name = NULL);
 		void setMovable(bool x, bool y, bool z, short ref = -1);
 		void setRotable(bool x, bool y, bool z);
 		void setLimits(short axis, float lower, float upper);

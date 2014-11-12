@@ -539,16 +539,7 @@ Matrix MyNode::getInverseWorldMatrix() {
 
 BoundingBox MyNode::getBoundingBox(bool modelSpace) {
 	Vector3 vec, min(1e6, 1e6, 1e6), max(-1e6, -1e6, -1e6);
-	std::vector<MyNode*> nodes;
-	nodes.push_back(this);
-	short i = 0;
-	while(i < nodes.size()) {
-		MyNode *node = nodes[i++];
-		for(Node *child = node->getFirstChild(); child; child = child->getNextSibling()) {
-			MyNode *node = dynamic_cast<MyNode*>(child);
-			if(node) nodes.push_back(node);			
-		}
-	}
+	std::vector3<MyNode*> nodes = getAllNodes();
 	short n = nodes.size();
 	Matrix m;
 	if(modelSpace) getWorldMatrix().invert(&m);
@@ -722,6 +713,20 @@ void MyNode::clearMesh() {
 	Meshy::clearMesh();
 	for(std::vector<ConvexHull*>::iterator it = _hulls.begin(); it != _hulls.end(); it++) delete *it;
 	_hulls.clear();
+}
+
+std::vector<MyNode*> MyNode::getAllNodes() {
+	std::vector<MyNode*> nodes;
+	nodes.push_back(this);
+	short i = 0;
+	while(i < nodes.size()) {
+		MyNode *node = nodes[i++];
+		for(Node *child = node->getFirstChild(); child; child = child->getNextSibling()) {
+			MyNode *node = dynamic_cast<MyNode*>(child);
+			if(node) nodes.push_back(node);			
+		}
+	}
+	return nodes;
 }
 
 void MyNode::addHullFace(MyNode::ConvexHull *hull, short f) {
