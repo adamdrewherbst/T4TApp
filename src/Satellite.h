@@ -3,7 +3,7 @@
 
 #include "Project.h"
 
-class Buggy : public Project {
+class Satellite : public Project {
 public:
 	class Body : public Project::Element {
 		public:
@@ -12,22 +12,27 @@ public:
 
 	class Instrument : public Project::Element {
 		public:
-		float _mass;
-		bool _folding;
+		short _addingPanels; //how many solar panels I still need to add to power the current instrument
+		float _maxMass;
 
-		Instrument(Project *project, Element *parent)
+		Instrument(Project *project, Element *parent);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+		void setNode(const char *id);
+		void addNode(const Vector3 &position);
+		void placeNode(const Vector3 &position, short n);
+		void addPhysics(short n);
+		float getMass(const char *type);
+		short getPanelsNeeded(const char *type);
+		float getTotalMass();
 	};
 	
-	Button *_launchButton;
+	Body *_body;
+	Instrument *_instruments;
 	float _maxRadius, _maxLength;
 
 	Satellite();
-	void setupMenu();
-	void setActive(bool active);
 	bool setSubMode(short mode);
-	void controlEvent(Control *control, EventType evt);
-	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+	void launch();
 };
 
 #endif

@@ -14,28 +14,33 @@ public:
 		std::string _id, _name;
 		bool _static, _multiple, _movable[3], _rotable[3];
 		float _limits[3][2];
-		short _moveRef, _numNodes;
+		short _moveRef, _numNodes, _moveMode, _touchInd;
 		std::vector<std::shared_ptr<MyNode> > _nodes;
 		const char *_currentNodeId, *_filter;
 		Element *_parent;
 		Plane _plane;
 		TouchPoint _parentTouch, _planeTouch;
+		std::vector<std::string> _actions;
 		std::vector<Element*> _children;
 		
-		Element(Project *project, Element *parent, const char *id, const char *name = NULL);
+		Element(Project *project, Element *parent, const char *id, const char *name = NULL, bool multiple = false);
 		void setMovable(bool x, bool y, bool z, short ref = -1);
 		void setRotable(bool x, bool y, bool z);
 		void setLimits(short axis, float lower, float upper);
 		void setPlane(const Plane &plane);
 		void applyLimits(Vector3 &translation);
+		void addAction(const char *action);
+		void removeAction(const char *action);
+		void doAction(const char *action);
 		void setParent(Element *parent);
 		void addChild(Element *child);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+		short getNodeCount();
 		MyNode* getNode(short n = 0);
-		bool setNode(const char *id);
+		virtual void setNode(const char *id);
 		virtual void addNode(const Vector3 &position);
 		virtual void placeNode(const Vector3 &position, short n = 0);
-		virtual void addPhysics(short n = -1);
+		virtual void addPhysics(short n = 0);
 	};
 	std::vector<std::shared_ptr<Element> > _elements;
 
@@ -49,8 +54,12 @@ public:
 
 	Container *_elementContainer, *_actionContainer;
 	MenuFilter *_actionFilter;
+	Button *_launchButton;
 
-	bool _inSequence; //true during the first run-through to add all the elements
+	PhysicsConstraint *_buildAnchor; //keep the model from moving while we are building it
+
+	bool _inSequence, //true during the first run-through to add all the elements
+	     _launching; //after user clicks the Launch button in test mode
 
 	Project(const char* id);
 
@@ -62,9 +71,11 @@ public:
 	MyNode* getNode(short n = -1);
 	void controlEvent(Control *control, EventType evt);
 	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
+	void setCurrentElement(short n);
 	void promptNextElement();
 	virtual void finish();
 	virtual void addPhysics();
+	virtual void launch();
 };
 
 #endif

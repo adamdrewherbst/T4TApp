@@ -147,6 +147,7 @@ set(GAME_SRC
 	src/Grid.cpp
 	src/Mode.cpp
 	src/Project.cpp
+	src/Satellite.cpp
 	src/Buggy.cpp
 	src/Rocket.cpp
 	#src/Lever.cpp

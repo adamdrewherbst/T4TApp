@@ -43,7 +43,25 @@ form mainMenu {
 			height = 530
 			layout = LAYOUT_VERTICAL
 			scroll = SCROLL_VERTICAL
-		
+
+			button satellite {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = Satellite
+			}
+			button rocket {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = Rocket
+			}
+			button buggy {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = Lunar Buggy
+			}
 			image navigate {
 				style = buttonStyle
 				autoWidth = true
@@ -67,18 +85,6 @@ form mainMenu {
 				autoWidth = true
 				height = 100
 				path = res/png/toolbox.png
-			}
-			button rocket {
-				style = buttonStyle
-				autoWidth = true
-				height = 40
-				text = Rocket
-			}
-			button buggy {
-				style = buttonStyle
-				autoWidth = true
-				height = 40
-				text = Lunar Buggy
 			}
 			button touch {
 				style = buttonStyle
@@ -104,7 +110,7 @@ form mainMenu {
 	//no more room on the side menu!
 	container floatPanel {
 		style = basicContainer
-		position = 220, 600
+		position = 220, 540
 		size = 165, 90
 		layout = LAYOUT_FLOW
 		zIndex = 5
@@ -126,10 +132,17 @@ form mainMenu {
 	container stage {
 		style = hiddenContainer
 		position = 200, 0
-		autoWidth = true
 		autoHeight = true
 		alignment = ALIGN_TOP
 		layout = LAYOUT_ABSOLUTE
+		
+		label message {
+			style = buttonStyle
+			position = 0, 700
+			autoWidth = true
+			height = 50
+			alignment = ALIGN_BOTTOM
+		}
 		
 		container camera {
 			style = basicContainer
@@ -312,6 +325,42 @@ form mainMenu {
 				consumeInputEvents = true
 				zIndex = 5
 				
+				container subMode {
+					style = hiddenContainer
+					autoWidth = true
+					height = 100
+					layout = LAYOUT_VERTICAL
+					
+					button build {
+						style = buttonStyle
+						autoWidth = true
+						height = 40
+						text = Build
+					}
+					button test {
+						style = buttonStyle
+						autoWidth = true
+						height = 40
+						text = Test
+					}
+				}
+			}
+		}
+		
+		container mode_satellite {
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+			
+			container controls {
+				style = basicContainer
+				position = 20, 10
+				size = 180, 100
+				layout = LAYOUT_VERTICAL
+				consumeInputEvents = true
+				zIndex = 5
+
 				container subMode {
 					style = hiddenContainer
 					autoWidth = true

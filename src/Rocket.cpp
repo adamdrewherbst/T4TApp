@@ -20,6 +20,7 @@ void Rocket::setActive(bool active) {
 
 bool Rocket::setSubMode(short mode) {
 	bool changed = Project::setSubMode(mode);
+	_launching = false;
 	switch(mode) {
 		case 0: { //build
 			break;
@@ -33,35 +34,39 @@ bool Rocket::setSubMode(short mode) {
 			_rootNode->setMyTranslation(start);
 			_rootNode->enablePhysics(true);
 			_straw->_constraint->setEnabled(true);
-			_launching = true;
 			//dangle the lunar buggy from the center of the straw with a socket constraint
-			MyNode *buggy = app->getProjectNode("buggy");
-			if(buggy && buggy->getScene() != _scene && buggy->getChildCount() > 0) {
+			MyNode *satellite = app->getProjectNode("satellite");
+			if(satellite && satellite->getScene() != _scene && satellite->getChildCount() > 0) {
 				MyNode *straw = _straw->getNode();
-				buggy->enablePhysics(false);
-				buggy->placeRest();
-				buggy->updateTransform();
+				satellite->enablePhysics(false);
+				satellite->placeRest();
+				satellite->updateTransform();
 				straw->updateTransform();
 				BoundingBox strawBox = straw->getBoundingBox(true);
-				BoundingBox buggyBox = buggy->getBoundingBox(true);
+				BoundingBox satelliteBox = satellite->getBoundingBox(true);
 				Vector3 trans = straw->getTranslationWorld();
-				trans.y += strawBox.min.y - buggyBox.max.y - 1.5f;
-				buggy->setMyTranslation(trans);
-				buggy->enablePhysics(true);
-				MyNode *body = dynamic_cast<MyNode*>(buggy->getFirstChild());
+				trans.y += strawBox.min.y - satelliteBox.max.y - 1.5f;
+				satellite->setMyTranslation(trans);
+				satellite->enablePhysics(true);
+				MyNode *body = dynamic_cast<MyNode*>(satellite->getFirstChild());
 				Vector3 joint = trans, dir = Vector3::unitY();
-				joint.y += buggyBox.max.y;
-				for(short i = 0; i < 2; i++) {
+				joint.y += satelliteBox.max.y;
+				app->addConstraint(straw, body, -1, "fixed", joint, dir, true);
+				/*for(short i = 0; i < 2; i++) {
 					Vector3 springJoint(joint.x, joint.y, joint.z + (2*i-1) * _strawLength/3);
 					PhysicsSpringConstraint *constraint = 
 						(PhysicsSpringConstraint*) app->addConstraint(straw, body, -1, "spring", springJoint, dir, true);
 					constraint->setLinearStrengthZ(0.1f);
-				}
+				}*/
 			}
 			break;
 		}
 	}
 	return changed;
+}
+
+void Rocket::launch() {
+	Project::launch();
 }
 
 void Rocket::update() {
@@ -93,6 +98,10 @@ void Rocket::update() {
 void Rocket::controlEvent(Control *control, EventType evt) {
 	Project::controlEvent(control, evt);
 	const char *id = control->getId();
+	
+	if(strcmp(id, "launch") == 0) {
+		_launching = true;
+	}
 }
 
 bool Rocket::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
@@ -128,6 +137,7 @@ void Rocket::Straw::addPhysics(short n) {
 	  angularHigh(angle, 2*M_PI, 2*M_PI);
 	MyNode *node = getNode();
 	node->addPhysics();
+	_project->_rootNode->addChild(node);
 	_constraint = app->getPhysicsController()->createGenericConstraint(node->getCollisionObject()->asRigidBody(), rot, trans);
 	_constraint->setLinearLowerLimit(linearLow);
 	_constraint->setLinearUpperLimit(linearHigh);
@@ -155,7 +165,7 @@ bool Rocket::Straw::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int
 }
 
 Rocket::Balloon::Balloon(Project *project, Element *parent)
-  : Project::Element::Element(project, parent, "balloon", "Balloon") {
+  : Project::Element::Element(project, parent, "balloon", "Balloon", true) {
   	_filter = "balloon";
 }
   
@@ -191,14 +201,9 @@ void Rocket::Balloon::placeNode(const Vector3 &position, short n) {
 }
 
 void Rocket::Balloon::addPhysics(short n) {
-	short i = 0, numNodes = _nodes.size();
-	MyNode *straw = ((Rocket*)_project)->_straw->getNode();
-	for(i = 0; i < numNodes; i++) {
-		if(n < 0 || i == n) {
-			MyNode *balloon = _nodes[i].get(), *anchor = dynamic_cast<MyNode*>(balloon->getParent());
-			anchor->addPhysics(false);
-			app->addConstraint(straw, anchor, -1, "fixed", Vector3::zero(), Vector3::zero(), true);
-		}
-	}
+	MyNode *straw = ((Rocket*)_project)->_straw->getNode(), *balloon = _nodes[n].get(),
+	  *anchor = dynamic_cast<MyNode*>(balloon->getParent());
+	anchor->addPhysics(false);
+	app->addConstraint(straw, anchor, -1, "fixed", Vector3::zero(), Vector3::zero(), true);
 }
 

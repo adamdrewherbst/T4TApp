@@ -7,6 +7,7 @@
 #include "TestMode.h"
 #include "TouchMode.h"
 #include "ToolMode.h"
+#include "Satellite.h"
 #include "Buggy.h"
 #include "Rocket.h"
 #include "Grid.h"
@@ -69,11 +70,10 @@ void T4TApp::initialize()
 
 	//for selecting items	
 	_componentMenu = (Container*)_mainMenu->getControl("submenu_componentMenu");
-    _componentMenu->setPosition(_sideMenu->getX() + _sideMenu->getWidth() + 25.0f, 25.0f);
-    _componentMenu->setWidth(getWidth() - 2 * _componentMenu->getX());
-    _componentMenu->setHeight(getHeight() - 2 * _componentMenu->getY());
 
 	//dialogs
+	_message = (Label*)_stage->getControl("message");
+	_message->setVisible(false);
 	_textDialog = (Container*)_mainMenu->getControl("textDialog");
 	_textPrompt = (Label*)_textDialog->getControl("textPrompt");
 	_textName = (TextBox*)_textDialog->getControl("textName");
@@ -119,6 +119,7 @@ void T4TApp::initialize()
 	_modes.push_back(new NavigateMode());
 	_modes.push_back(new PositionMode());
 	_modes.push_back(new ConstraintMode());
+	_modes.push_back(new Satellite());
 	_modes.push_back(new Rocket());
 	_modes.push_back(new Buggy());
 	_modes.push_back(new StringMode());
@@ -163,6 +164,20 @@ void T4TApp::initialize()
     
 	_running = 0;
 	_constraintCount = 0;
+	
+	resizeEvent(getWidth(), getHeight());
+}
+
+void T4TApp::resizeEvent(unsigned int width, unsigned int height) {
+
+	_stage->setWidth(width - _sideMenu->getWidth());
+	_stage->setHeight(height);
+
+	_componentMenu->setPosition(_sideMenu->getX() + _sideMenu->getWidth() + 25.0f, 25.0f);
+	_componentMenu->setWidth(width - 2 * _componentMenu->getX());
+	_componentMenu->setHeight(height - 2 * _componentMenu->getY());
+
+	_message->setPosition(0.0f, height - _message->getHeight());
 }
 
 void T4TApp::finalize()
@@ -680,6 +695,15 @@ void T4TApp::confirmDelete(bool yes) {
 		setAction("deleteNode", node);
 		removeNode(node, false);
 		commitAction();
+	}
+}
+
+void T4TApp::message(const char *text) {
+	if(text == NULL) {
+		_message->setVisible(false);
+	} else {
+		_message->setText(text);
+		_message->setVisible(true);
 	}
 }
 
@@ -1202,8 +1226,9 @@ bool T4TApp::NodeFilter::filter(PhysicsCollisionObject *object) {
 
 
 MenuFilter::MenuFilter(Container *container) : _container(container) {
+	app = (T4TApp*) Game::getInstance();
 	_ordered = _container->getControls();
-	_filtered = new Container();
+	_filtered = Container::create("filtered", app->_theme->getStyle("basicContainer"));
 }
 
 void MenuFilter::filter(const char *id, bool filter) {
@@ -1217,9 +1242,9 @@ void MenuFilter::filter(const char *id, bool filter) {
 			short position = 0;
 			std::vector<Control*>::const_iterator it;
 			for(it = _ordered.begin(); *it != control && it != _ordered.end(); it++) {
-				if(getControl((*it)->getId()) == *it) position++;
+				if(_container->getControl((*it)->getId()) == *it) position++;
 			}
-			if(it == _ordered.end() || position >= getControlCount()) _container->addControl(control);
+			if(it == _ordered.end() || position >= _container->getControls().size()) _container->addControl(control);
 			else _container->insertControl(control, position);
 		}
 	}

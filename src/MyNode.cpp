@@ -539,13 +539,13 @@ Matrix MyNode::getInverseWorldMatrix() {
 
 BoundingBox MyNode::getBoundingBox(bool modelSpace) {
 	Vector3 vec, min(1e6, 1e6, 1e6), max(-1e6, -1e6, -1e6);
-	std::vector3<MyNode*> nodes = getAllNodes();
-	short n = nodes.size();
+	std::vector<MyNode*> nodes = getAllNodes();
+	short n = nodes.size(), i, j, k;
 	Matrix m;
 	if(modelSpace) getWorldMatrix().invert(&m);
 	for(i = 0; i < n; i++) {
 		MyNode *node = nodes[i];
-		short nv = node->nv(), j, k;
+		short nv = node->nv();
 		for(j = 0; j < nv; j++) {
 			vec = node->_worldVertices[j];
 			if(modelSpace) m.transformPoint(&vec);

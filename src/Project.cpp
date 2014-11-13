@@ -11,6 +11,7 @@ Project::Project(const char* id) : Mode::Mode(id) {
 
 	_rootNode = MyNode::create(_id.c_str());
 	_rootNode->_type = "root";
+	_buildAnchor = NULL;
 
 	_currentElement = 0;
 	_moveMode = 0;
@@ -20,9 +21,12 @@ Project::Project(const char* id) : Mode::Mode(id) {
 }
 
 void Project::setupMenu() {
+	//add a launch button
+	_launchButton = app->addButton <Button> (_controls, "launch", "Launch");
+	_launchButton->setHeight(40.0f);
+
 	//add a button for each element to choose its item and edit it
 	short i, n = _elements.size();
-	_controls->setHeight(_controls->getHeight() + n*50.0f + 50.0f);
 	_elementContainer = Container::create("elements", app->_theme->getStyle("hiddenContainer"), Layout::LAYOUT_VERTICAL);
 	_elementContainer->setAutoWidth(true);
 	_elementContainer->setHeight(n * 50.0f);
@@ -45,12 +49,19 @@ void Project::setupMenu() {
 		}
 	}
 	_actionFilter = new MenuFilter(_actionContainer);
+	_actionContainer->setAutoWidth(true);
+	_actionContainer->setHeight((numActions/3) * 60.0f);
+	_controls->addControl(_actionContainer);
+	_controls->setHeight(_controls->getHeight() + _elementContainer->getHeight() + _actionContainer->getHeight() + 80.0f);
+	
+	app->addListener(_controls, this);
 }
 
 void Project::controlEvent(Control *control, EventType evt) {
 	Mode::controlEvent(control, evt);
 	const char *id = control->getId();
 	cout << "project control " << id << endl;
+	Element *element = getEl();
 
 	if(_elementContainer->getControl(id) == control) {
 		for(short i = 0; i < _elements.size(); i++) if(_elements[i]->_name.compare(id) == 0) {
@@ -59,7 +70,11 @@ void Project::controlEvent(Control *control, EventType evt) {
 		}
 	} else if(strncmp(id, "comp_", 5) == 0) {
 		app->_componentMenu->setVisible(false);
-		getEl()->setNode(id+5);
+		element->setNode(id+5);
+	} else if(_actionContainer->getControl(id) == control) {
+		if(element) element->doAction(id);
+	} else if(control == _launchButton) {
+		launch();
 	} else if(strcmp(id, "translate") == 0) {
 		_moveMode = 0;
 	} else if(strlen(id) == 7 && strncmp(id, "rotate", 6) == 0) {
@@ -119,7 +134,10 @@ Project::Element* Project::addElement(Element *element) {
 void Project::addPhysics() {
 	short i, n = _elements.size();
 	for(i = 0; i < n; i++) {
-		_elements[i]->addPhysics();
+		short numNodes = _elements[i]->_nodes.size(), j;
+		for(j = 0; j < numNodes; j++) {
+			_elements[i]->addPhysics(j);
+		}
 	}
 }
 
@@ -155,6 +173,7 @@ void Project::setActive(bool active) {
 		_inSequence = true;
 		promptNextElement();
 	}else {
+		if(_buildAnchor) _buildAnchor->setEnabled(false);
 		app->_componentMenu->setState(Control::NORMAL);
 		app->filterItemMenu();
 		app->removeListener(app->_componentMenu, this);
@@ -165,15 +184,18 @@ void Project::setActive(bool active) {
 
 bool Project::setSubMode(short mode) {
 	bool building = _subMode == 0, changed = Mode::setSubMode(mode);
+	if(_subMode == 0) app->_ground->setVisible(false);
 	if(building) {
 		if(changed) _rootNode->setRest();
 	} else _rootNode->placeRest();
+	if(_buildAnchor) _buildAnchor->setEnabled(_subMode == 0);
 	switch(_subMode) {
 		case 0: { //build
 			app->setCameraEye(30, -M_PI/3, M_PI/12);
 			break;
-		} case 1: { //test
+		} case 1: { //place in test position
 			app->setCameraEye(40, 0, M_PI/12);
+			_launchButton->setEnabled(true);
 			break;
 		}
 	}
@@ -183,11 +205,13 @@ bool Project::setSubMode(short mode) {
 void Project::setCurrentElement(short n) {
 	_currentElement = n;
 	if(_currentElement >= 0) {
-		std::vector<std::string> &actions = getEl()->_actions;
-		_actionContainer->filterAll(true);
+		Element *element = getEl();
+		std::vector<std::string> &actions = element->_actions;
+		_actionFilter->filterAll(true);
 		for(short i = 0; i < actions.size(); i++) {
-			_actionContainer->filter(actions[i].c_str(), false);
+			_actionFilter->filter(actions[i].c_str(), false);
 		}
+		element->_moveMode = -1;
 	}
 }
 
@@ -198,8 +222,13 @@ void Project::promptNextElement() {
 	app->promptItem(getEl()->_filter);
 }
 
-Project::Element::Element(Project *project, const char *id, const char *name, Element *parent)
-  : _project(project), _id(id), _name(name), _numNodes(1), _currentNodeId(NULL), _multiple(false) {
+void Project::launch() {
+	_launching = true;
+	_launchButton->setEnabled(false);
+}
+
+Project::Element::Element(Project *project, Element *parent, const char *id, const char *name, bool multiple)
+  : _project(project), _id(id), _name(name), _numNodes(1), _currentNodeId(NULL), _multiple(multiple) {
 	app = (T4TApp*) Game::getInstance();
   	if(name == NULL) _name = _id;
 	setParent(parent);
@@ -207,6 +236,13 @@ Project::Element::Element(Project *project, const char *id, const char *name, El
 	setMovable(false, false, false, -1);
 	setRotable(false, false, false);
 	for(short i = 0; i < 3; i++) setLimits(i, -MyNode::inf(), MyNode::inf());
+	if(_parent) {
+		addAction("translate");
+		addAction("rotate");
+	}
+	if(_multiple) {
+		addAction("add");
+	}
 }
 
 void Project::Element::setParent(Element *parent) {
@@ -264,19 +300,36 @@ void Project::Element::applyLimits(Vector3 &translation) {
 	}
 }
 
-bool Project::Element::setNode(const char *id) {
+void Project::Element::addAction(const char *action) {
+	_actions.push_back(action);
+}
+
+void Project::Element::removeAction(const char *action) {
+	std::vector<std::string>::iterator it = std::find(_actions.begin(), _actions.end(), action);
+	if(it != _actions.end()) _actions.erase(it);
+}
+
+void Project::Element::doAction(const char *action) {
+	_moveMode = -1;
+	if(strcmp(action, "add") == 0) {
+		app->_componentMenu->setVisible(true);
+	} else if(strcmp(action, "translate") == 0) {
+		_moveMode = 0;
+	} else if(strcmp(action, "rotate") == 0) {
+		_moveMode = 1;
+	}
+}
+
+void Project::Element::setNode(const char *id) {
 	_currentNodeId = id;
 	if(_parent == NULL) { //auto-place this node
 		addNode(Vector3::zero());
-		return true;
-	} else { //prompt user to click on parent to place
-		
 	}
-	return false;
 }
 
 void Project::Element::addNode(const Vector3 &position) {
 	bool append = _multiple || _nodes.empty();
+	short offset = _multiple ? _nodes.size() / _numNodes : 0;
 	for(short i = 0; i < _numNodes; i++) {
 		MyNode *node = app->duplicateModelNode(_currentNodeId);
 		node->_element = this;
@@ -288,29 +341,34 @@ void Project::Element::addNode(const Vector3 &position) {
 		} while (_project->_scene->findNode(os.str().c_str()) != NULL);
 		else os << _project->_nodeId << "_" << _id;
 		node->setId(os.str().c_str());
+		short numSets = 0;
 		if(append) _nodes.push_back(std::shared_ptr<MyNode>(node));
 		else _nodes[i] = std::shared_ptr<MyNode>(node);
-		placeNode(position, i);
-		addPhysics(i);
+		placeNode(position, offset + i);
+		addPhysics(offset + i);
 	}
 	_currentNodeId = NULL;
 	_project->promptNextElement();
 }
 
 void Project::Element::placeNode(const Vector3 &position, short n) {
-	MyNode *node = _nodes[n].get(), *parent = _parent ? _parent->getNode() : _project->_rootNode;
+	MyNode *node = _nodes[n].get();
 	node->setTranslation(position);
-	if(parent) parent->addChild(node);
 }
 
 void Project::Element::addPhysics(short n) {
-	short i, numNodes = _nodes.size();
-	for(short i = 0; i < numNodes; i++) {
-		if(n < 0 || i == n) {
-			MyNode *node = _nodes[i].get();
-			node->addPhysics();
-		}
+	MyNode *node = _nodes[n].get();
+	node->addPhysics();
+	if(_parent == NULL) {
+		Vector3 joint, dir;
+		_project->_buildAnchor = app->getPhysicsController()->createFixedConstraint(
+		  node->getCollisionObject()->asRigidBody());
+		_project->_rootNode->addChild(node);
 	}
+}
+
+short Project::Element::getNodeCount() {
+	return _nodes.size();
 }
 
 MyNode* Project::Element::getNode(short n) {
@@ -325,7 +383,13 @@ bool Project::Element::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 	_planeTouch.set(evt, x, y, _plane);
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
-			for(short i = 0; i < _nodes.size(); i++) _nodes[i]->setBase();
+			for(short i = 0; i < _nodes.size(); i++) {
+				_nodes[i]->setBase();
+				_touchInd = -1;
+				if(_nodes[i].get() == _project->_touchNode) {
+					_touchInd = i;
+				}
+			}
 			break;
 		} case Touch::TOUCH_MOVE: {
 			break;

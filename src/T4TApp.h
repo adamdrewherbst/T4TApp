@@ -56,6 +56,7 @@ struct nodeConstraint {
 
 class MenuFilter {
 public:
+	T4TApp *app;
 	std::vector<Control*> _ordered;
 	Container *_container, *_filtered;
 	
@@ -121,7 +122,7 @@ public:
     Container *_sideMenu, *_stage, *_sceneMenu, *_machineMenu, *_modePanel,
       *_textDialog, *_confirmDialog, *_overlay, *_cameraMenu, *_componentMenu;
     MenuFilter *_itemFilter;
-    Label *_textPrompt, *_confirmMessage;
+    Label *_message, *_textPrompt, *_confirmMessage;
     TextBox *_textName;
     Button *_textSubmit, *_textCancel, *_confirmYes, *_confirmNo, *_undo, *_redo;
     std::vector<Container*> _submenus; //submenus
@@ -215,6 +216,7 @@ public:
     void enableConstraints(MyNode *node, bool enable = true);
     void reloadConstraint(MyNode *node, nodeConstraint *constraint);
 
+	void resizeEvent(unsigned int width, unsigned int height);
     bool mouseEvent(Mouse::MouseEvent evt, int x, int y, int wheelDelta);
 	void keyEvent(Keyboard::KeyEvent evt, int key);
     void touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
@@ -256,6 +258,7 @@ public:
     void doConfirm(const char *message, void (T4TApp::*callback)(bool));
     void showDialog(Container *dialog, bool show = true);
     void confirmDelete(bool yes);
+    void message(const char *text);
     
     //miscellaneous
     template <class T> T* popBack(std::vector<T*> &vec);

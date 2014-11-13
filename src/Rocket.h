@@ -10,7 +10,7 @@ public:
 		public:
 		PhysicsGenericConstraint *_constraint;
 
-		Straw(Project *project, const char *id, const char *name);
+		Straw(Project *project);
 		void addPhysics(short n);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 	};
@@ -19,7 +19,7 @@ public:
 		public:
 		std::vector<float> _balloonRadius, _anchorRadius;
 
-		Balloon(Project *project, const char *id, const char *name, Element *parent);
+		Balloon(Project *project, Element *parent);
 		void placeNode(const Vector3 &position, short n);
 		void addPhysics(short n);
 	};
@@ -32,6 +32,7 @@ public:
 	Rocket();
 	void setActive(bool active);
 	bool setSubMode(short mode);
+	void launch();
 	void update();
 	void controlEvent(Control *control, EventType evt);
 	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);

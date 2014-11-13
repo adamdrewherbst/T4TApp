@@ -51,8 +51,6 @@ bool Buggy::setSubMode(short mode) {
 			app->setCameraEye(30, 0, M_PI/12);
 			app->_ground->setVisible(true);
 			_ramp->setVisible(true);
-			_launched = false;
-			_launchButton->setEnabled(true);
 			break;
 		}
 	}
@@ -78,21 +76,20 @@ void Buggy::setRampHeight(float scale) {
 	_rootNode->setMyRotation(rot);
 }
 
+void Buggy::launch() {
+	_rootNode->enablePhysics(true);
+	app->getPhysicsController()->setGravity(app->_gravity);
+	_rootNode->setActivation(DISABLE_DEACTIVATION);
+}
+
 void Buggy::controlEvent(Control *control, EventType evt) {
 	Project::controlEvent(control, evt);
 	const char *id = control->getId();
-	
-	if(strcmp(id, "launch") == 0) {
-		_rootNode->enablePhysics(true);
-		app->getPhysicsController()->setGravity(app->_gravity);
-		_rootNode->setActivation(DISABLE_DEACTIVATION);
-		_launched = true;
-	}
 }
 
 bool Buggy::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
 	Project::touchEvent(evt, x, y, contactIndex);
-	if(_subMode == 1 && !_launched) {
+	if(_subMode == 1 && !_launching) {
 		if(_touching && _touchNode == _ramp) {
 			float scale = _ramp->_baseScale.y * (1.0f - _touchPt.deltaPix().y / 400.0f);
 			scale = fmin(4.0f, fmax(0.2f, scale));
@@ -112,7 +109,7 @@ bool Buggy::Body::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int c
 
 Buggy::Axle::Axle(Project *project, Element *parent, const char *id, const char *name)
   : Project::Element(project, parent, id, name) {
-  	_filter = "axle";
+	_filter = "axle";
 }
 
 void Buggy::Axle::placeNode(const Vector3 &position, short n) {
