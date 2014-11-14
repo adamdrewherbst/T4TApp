@@ -8,6 +8,8 @@ void T4TApp::generateModels() {
 	generateModel("halfpipe", "halfpipe", 1.0f, 12.0f, 0.2f, 20);
 	generateModel("gear_basic", "gear", 0.6f, 0.9f, 1.2f, 5);
 	generateModel("stringLink", "cylinder", 0.1f, 1.0f, 5);
+	
+	//BEST projects
 	generateModel("straw", "cylinder", 0.25f, 5.0f, 8);
 	generateModel("balloon_sphere", "sphere", 1.5f, 10);
 	generateModel("balloon_long", "cylinder", 0.5f, 3.0f, 20);
@@ -19,9 +21,35 @@ void T4TApp::generateModels() {
 	generateModel("heatSensor", "cylinder", 0.3f, 0.6f, 8);
 	generateModel("cameraProbe", "box", 1.0f, 1.0f, 1.0f);
 	generateModel("solarPanel", "box", 2.0f, 3.0f, 0.3f);
+	
+	//robot
+	MyNode *robot[6];
+	robot[0] = generateModel("robot_torso", "box", 2.0f, 3.0f, 1.5f);
+	robot[1] = generateModel("robot_head", "box", 1.0f, 1.0f, 1.0f);
+	robot[2] = generateModel("robot_arm1", "box", 0.7f, 2.5f, 0.7f);
+	robot[3] = generateModel("robot_arm2", "box", 0.7f, 2.5f, 0.7f);
+	robot[4] = generateModel("robot_leg1", "box", 1.0f, 2.0f, 1.0f);
+	robot[5] = generateModel("robot_leg2", "box", 1.0f, 2.0f, 1.0f);
+	short i;
+	for(i = 1; i < 6; i++) robot[0]->addChild(robot[i]);
+	//arms and legs should move wrt top of their model
+	for(i = 2; i < 4; i++) robot[i]->shiftModel(0, -1.25f, 0);
+	for(i = 4; i < 6; i++) robot[i]->shiftModel(0, -1.0f, 0);
+	//no physics - the Robot class just adds a capsule on the root node
+	for(i = 0; i < 6; i++) robot[i]->_objType = "none";
+	robot[0]->setTranslation(0, 3.5f, 0);
+	robot[1]->setTranslation(0, 2.0f, 0);
+	robot[2]->setTranslation(-1.5f, 1.25f, 0);
+	robot[3]->setTranslation(1.5f, 1.25f, 0);
+	robot[4]->setTranslation(-0.6f, -1.5f, 0);
+	robot[5]->setTranslation(0.6f, -1.5f, 0);
+	MyNode *_robot = MyNode::create("robot");
+	_robot->_type = "root";
+	_robot->addChild(robot[0]);
+	_robot->writeData("res/common/");
 }
 
-void T4TApp::generateModel(const char *id, const char *type, ...) {
+MyNode* T4TApp::generateModel(const char *id, const char *type, ...) {
 	va_list arguments;
 	va_start(arguments, type);
 	MyNode *node = MyNode::create(id);
@@ -246,6 +274,7 @@ void T4TApp::generateModel(const char *id, const char *type, ...) {
 		node->_hulls.push_back(hull);
 	}
 	node->writeData("res/common/");
+	return node;
 }
 
 

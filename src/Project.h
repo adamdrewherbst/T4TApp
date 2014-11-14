@@ -44,7 +44,7 @@ public:
 	};
 	std::vector<std::shared_ptr<Element> > _elements;
 
-	short _currentElement, _typeCount, _moveMode, _moveAxis;
+	short _numElements, _numActions, _currentElement, _typeCount, _moveMode, _moveAxis;
 	Quaternion _baseRotation;
 	Vector3 _baseTranslation;
 

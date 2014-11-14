@@ -37,6 +37,9 @@ public:
 	Quaternion _baseRotation;
 	
 	Project::Element *_element; //if we are part of a project
+	
+	//animation
+	AnimationClip *_currentClip;
 
 	MyNode(const char *id);
 	static MyNode* create(const char *id = NULL);
@@ -46,6 +49,9 @@ public:
 	std::string resolveFilename(const char *filename = NULL);
 	void loadData(const char *filename = NULL, bool doPhysics = true);
 	void writeData(const char *filename = NULL);
+	void loadAnimation(const char *filename, const char *id);
+	void playAnimation(const char *id, bool repeat = false, float speed = 1.0f);
+	void stopAnimation();
 	void updateTransform();
 	void updateEdges();
 	void setNormals();
@@ -68,6 +74,7 @@ public:
 	void setMyRotation(const Quaternion& rotation);
 	void myScale(const Vector3& scale);
 	void setMyScale(const Vector3& scale);
+	void shiftModel(float x, float y, float z);
 	void setBase();
 	void baseTranslate(const Vector3& delta);
 	void baseRotate(const Quaternion& delta);

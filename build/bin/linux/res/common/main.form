@@ -62,6 +62,12 @@ form mainMenu {
 				height = 40
 				text = Lunar Buggy
 			}
+			button robot {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = Robot
+			}
 			image navigate {
 				style = buttonStyle
 				autoWidth = true
@@ -419,6 +425,54 @@ form mainMenu {
 			}
 		}
 	
+		container mode_robot {
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+
+			container controls {
+				style = basicContainer
+				position = 20, 10
+				size = 180, 250
+				layout = LAYOUT_VERTICAL
+				consumeInputEvents = true
+				zIndex = 5
+				
+				container subMode {
+					style = hiddenContainer
+					autoWidth = true
+					height = 100
+					layout = LAYOUT_VERTICAL
+					
+					button build {
+						style = buttonStyle
+						autoWidth = true
+						height = 40
+						text = Build
+					}
+					button test {
+						style = buttonStyle
+						autoWidth = true
+						height = 40
+						text = Test
+					}
+				}
+				button walk {
+					style = buttonStyle
+					autoWidth = true
+					height = 50
+					text = Walk
+				}
+				button stop {
+					style = buttonStyle
+					autoWidth = true
+					height = 50
+					text = Stop
+				}
+			}
+		}
+
 		container mode_tool {
 			style = hiddenContainer
 			autoWidth = true

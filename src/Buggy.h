@@ -30,8 +30,6 @@ public:
 	Element *_body, *_frontAxle, *_rearAxle, *_frontWheels, *_rearWheels;
 	MyNode *_ramp;
 	float _rampSlope;
-	bool _launched;
-	Button *_launchButton;
 
 	Buggy();
 	void setupMenu();

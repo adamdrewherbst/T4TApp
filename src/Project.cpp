@@ -21,36 +21,39 @@ Project::Project(const char* id) : Mode::Mode(id) {
 }
 
 void Project::setupMenu() {
+	_numElements = _elements.size();
+
 	//add a launch button
 	_launchButton = app->addButton <Button> (_controls, "launch", "Launch");
 	_launchButton->setHeight(40.0f);
 
 	//add a button for each element to choose its item and edit it
-	short i, n = _elements.size();
+	short i, j, n;
 	_elementContainer = Container::create("elements", app->_theme->getStyle("hiddenContainer"), Layout::LAYOUT_VERTICAL);
 	_elementContainer->setAutoWidth(true);
-	_elementContainer->setHeight(n * 50.0f);
-	for(i = 0; i < n; i++) {
+	_elementContainer->setHeight(_numElements * 50.0f);
+	for(i = 0; i < _numElements; i++) {
 		Button *button = app->addButton <Button> (_elementContainer, _elements[i]->_name.c_str());
 	}
 	_controls->addControl(_elementContainer);
 
 	//add a button for each action that any element has - we will enable them on the fly for the selected element
 	_actionContainer = Container::create("actions", app->_theme->getStyle("hiddenContainer"), Layout::LAYOUT_FLOW);
-	short numActions, j;
-	for(i = 0; i < n; i++) {
-		numActions = _elements[i]->_actions.size();
+	_numActions = 0;
+	for(i = 0; i < _numElements; i++) {
+		short numActions = _elements[i]->_actions.size();
 		for(j = 0; j < numActions; j++) {
 			const char *action = _elements[i]->_actions[j].c_str();
 			if(_actionContainer->getControl(action) != NULL) continue;
 			ImageControl *button = app->addButton <ImageControl> (_actionContainer, action, action, "imageSquare");
 			button->setImage(MyNode::concat(3, "res/png/", action, ".png"));
 			button->setSize(50.0f, 50.0f);
+			_numActions++;
 		}
 	}
 	_actionFilter = new MenuFilter(_actionContainer);
 	_actionContainer->setAutoWidth(true);
-	_actionContainer->setHeight((numActions/3) * 60.0f);
+	_actionContainer->setHeight((_numActions/3) * 60.0f);
 	_controls->addControl(_actionContainer);
 	_controls->setHeight(_controls->getHeight() + _elementContainer->getHeight() + _actionContainer->getHeight() + 80.0f);
 	
@@ -63,7 +66,7 @@ void Project::controlEvent(Control *control, EventType evt) {
 	cout << "project control " << id << endl;
 	Element *element = getEl();
 
-	if(_elementContainer->getControl(id) == control) {
+	if(_numElements > 0 && _elementContainer->getControl(id) == control) {
 		for(short i = 0; i < _elements.size(); i++) if(_elements[i]->_name.compare(id) == 0) {
 			setCurrentElement(i);
 			break;
@@ -71,7 +74,7 @@ void Project::controlEvent(Control *control, EventType evt) {
 	} else if(strncmp(id, "comp_", 5) == 0) {
 		app->_componentMenu->setVisible(false);
 		element->setNode(id+5);
-	} else if(_actionContainer->getControl(id) == control) {
+	} else if(_numActions > 0 && _actionContainer->getControl(id) == control) {
 		if(element) element->doAction(id);
 	} else if(control == _launchButton) {
 		launch();
@@ -102,6 +105,7 @@ bool Project::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int conta
 
 Project::Element* Project::getEl(short n) {
 	if(n < 0) n = _currentElement;
+	if(n > _elements.size()) return NULL;
 	return _elements[n].get();
 }
 

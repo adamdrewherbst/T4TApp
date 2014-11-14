@@ -452,6 +452,7 @@ void MyNode::init() {
     _radius = 0;
     _visible = true;
     _restPosition = Matrix::identity();
+    _currentClip = NULL;
 }
 
 MyNode* MyNode::cloneNode(Node *node) {
@@ -904,7 +905,7 @@ void MyNode::loadData(const char *file, bool doPhysics)
 		in.str(str);
 		in >> childId;
 		MyNode *child = MyNode::create(childId.c_str());
-		child->loadData(NULL, doPhysics);
+		child->loadData(file, doPhysics);
 		addChild(child);
 	}
     stream->close();
@@ -1018,7 +1019,40 @@ void MyNode::writeData(const char *file) {
 	line = os.str();
 	stream->write(line.c_str(), sizeof(char), line.length());
 	stream->close();
-	for(i = 0; i < children.size(); i++) children[i]->writeData();
+	for(i = 0; i < children.size(); i++) children[i]->writeData(file);
+}
+
+void MyNode::loadAnimation(const char *filename, const char *id) {
+	std::vector<MyNode*> nodes = getAllNodes();
+	short i = 0, n = nodes.size();
+	for(i = 0; i < n; i++) {
+		const char *url = MyNode::concat(5, filename, "#", nodes[i]->getId(), "_", id);
+		nodes[i]->createAnimation(id, url);
+	}
+}
+
+void MyNode::playAnimation(const char *id, bool repeat, float speed) {
+	std::vector<MyNode*> nodes = getAllNodes();
+	short i = 0, n = nodes.size();
+	for(i = 0; i < n; i++) {
+		Animation *animation = nodes[i]->getAnimation(id);
+		if(!animation || animation->getDuration() == 0) continue;
+		AnimationClip *clip = animation->getClip();
+		clip->setRepeatCount(repeat ? AnimationClip::REPEAT_INDEFINITE : 1);
+		clip->setSpeed(speed);
+		clip->play();
+		nodes[i]->_currentClip = clip;
+	}	
+}
+
+void MyNode::stopAnimation() {
+	std::vector<MyNode*> nodes = getAllNodes();
+	short i = 0, n = nodes.size();
+	for(i = 0; i < n; i++) {
+		AnimationClip *clip = nodes[i]->_currentClip;
+		if(clip) clip->stop();
+		nodes[i]->_currentClip = NULL;
+	}	
 }
 
 void MyNode::updateTransform() {
@@ -1054,6 +1088,7 @@ void MyNode::updateModel(bool doPhysics) {
 		float radius = 0, f1;
 		unsigned short i, j, k, m, n, v = 0, nv = this->nv(), nf = this->nf();
 		Vector3 min(1000,1000,1000), max(-1000,-1000,-1000);
+		bool hasPhysics = _objType.compare("none") != 0;
 
 		//first find our new bounding box and bounding sphere, and position our node at their center
 		// - otherwise Bullet applies gravity at node origin, not COM (why?) so produces torque
@@ -1065,9 +1100,9 @@ void MyNode::updateModel(bool doPhysics) {
 			}
 		}
 		Vector3 center = min + (max - min)/2.0f, vec, normal;
-		translate(center);
+		if(hasPhysics) translate(center);
 		for(i = 0; i < nv; i++) {
-			_vertices[i] -= center;
+			if(hasPhysics) _vertices[i] -= center;
 			f1 = _vertices[i].length();
 			if(f1 > radius) radius = f1;
 		}
@@ -1335,6 +1370,15 @@ void MyNode::myScale(const Vector3& scale) {
 
 void MyNode::setMyScale(const Vector3& scale) {
 	setScale(scale);
+}
+
+void MyNode::shiftModel(float x, float y, float z) {
+	short i, n = nv();
+	for(i = 0; i < n; i++) {
+		_vertices[i].x += x;
+		_vertices[i].y += y;
+		_vertices[i].z += z;
+	}
 }
 
 void MyNode::setBase() {

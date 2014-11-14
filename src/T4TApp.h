@@ -144,7 +144,7 @@ public:
     T4TApp();
     T4TApp* getInstance();
 	void generateModels();
-	void generateModel(const char *id, const char *type, ...);
+	MyNode* generateModel(const char *id, const char *type, ...);
 	void addItem(const char *type, short numTags = 0, ...);
 	void filterItemMenu(const char *tag = NULL);
 	void promptItem(const char *tag = NULL);

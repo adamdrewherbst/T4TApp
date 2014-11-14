@@ -27,9 +27,6 @@ Buggy::Buggy() : Project::Project("buggy") {
 
 void Buggy::setupMenu() {
 	Project::setupMenu();
-	_controls->setHeight(_controls->getHeight() + 50.0f);
-	_launchButton = app->addButton <Button> (_controls, "launch", "Launch!");
-	_launchButton->setEnabled(false);
 }
 
 void Buggy::setActive(bool active) {
