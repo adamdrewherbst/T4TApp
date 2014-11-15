@@ -76,6 +76,14 @@ public:
      */
     static Vector3 getTranslationOffset(const Node* node, const Vector3& point);
 
+	struct Deleter
+	{
+		void operator()(PhysicsConstraint *constraint) const
+		{
+			delete constraint;
+		}
+	};
+	
 protected:
 
     /**
@@ -88,7 +96,7 @@ protected:
      */
     virtual ~PhysicsConstraint();
 
-    /**
+     /**
      * Calculates the transform to be used as the offset (i.e. "frame in" 
      * parameter in Bullet terms) to the given constraint origin.
      */

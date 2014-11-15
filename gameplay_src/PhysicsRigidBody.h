@@ -11,7 +11,6 @@
 namespace gameplay
 {
 
-//class T4TApp;
 class Node;
 class PhysicsConstraint;
 
