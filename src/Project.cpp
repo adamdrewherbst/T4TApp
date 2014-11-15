@@ -53,7 +53,7 @@ void Project::setupMenu() {
 	}
 	_actionFilter = new MenuFilter(_actionContainer);
 	_actionContainer->setAutoWidth(true);
-	_actionContainer->setHeight((_numActions/3) * 60.0f);
+	_actionContainer->setHeight(ceil(_numActions/3.0f) * 60.0f);
 	_controls->addControl(_actionContainer);
 	_controls->setHeight(_controls->getHeight() + _elementContainer->getHeight() + _actionContainer->getHeight() + 80.0f);
 	
@@ -76,6 +76,8 @@ void Project::controlEvent(Control *control, EventType evt) {
 		element->setNode(id+5);
 	} else if(_numActions > 0 && _actionContainer->getControl(id) == control) {
 		if(element) element->doAction(id);
+		if(strcmp(id, "translate") == 0) _moveMode = 0;
+		else if(strcmp(id, "rotate") == 0) _moveMode = 1;
 	} else if(control == _launchButton) {
 		launch();
 	} else if(strcmp(id, "translate") == 0) {
@@ -90,16 +92,18 @@ void Project::controlEvent(Control *control, EventType evt) {
 }
 
 bool Project::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
+	MyNode *touchNode = _touchNode; //get the current node first in case we release and thus set it to null
 	Mode::touchEvent(evt, x, y, contactIndex);
+	if(touchNode == NULL) touchNode = _touchNode;
 	if(app->_navMode >= 0) return false;
-	if(_touchNode != NULL && _touchNode->_element != NULL && _touchNode->_element->_project == this) {
+	if(touchNode != NULL && touchNode->_element != NULL && touchNode->_element->_project == this) {
 		//see if we are placing a node on its parent
 		Element *current = getEl();
-		if(evt == Touch::TOUCH_PRESS && current && current->_parent == _touchNode->_element && current->_currentNodeId) {
+		if(evt == Touch::TOUCH_PRESS && current && current->_parent == touchNode->_element && current->_currentNodeId) {
 			current->addNode(_touchPoint);
 		}
 		//otherwise just trigger whatever node we clicked
-		_touchNode->_element->touchEvent(evt, x, y, contactIndex);
+		else touchNode->_element->touchEvent(evt, x, y, contactIndex);
 	}
 }
 
@@ -365,8 +369,8 @@ void Project::Element::addPhysics(short n) {
 	node->addPhysics();
 	if(_parent == NULL) {
 		Vector3 joint, dir;
-		_project->_buildAnchor = app->getPhysicsController()->createFixedConstraint(
-		  node->getCollisionObject()->asRigidBody());
+		_project->_buildAnchor = ConstraintPtr(app->getPhysicsController()->createFixedConstraint(
+		  node->getCollisionObject()->asRigidBody()));
 		_project->_rootNode->addChild(node);
 	}
 }
@@ -380,26 +384,46 @@ MyNode* Project::Element::getNode(short n) {
 }
 
 bool Project::Element::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
-	//element is generally positioned wrt its parent => get the touch point on the parent
-	if(_parent && _parent->getNode()) {
-		_parentTouch.set(evt, x, y, _parent->getNode());
-	}
 	_planeTouch.set(evt, x, y, _plane);
-	switch(evt) {
-		case Touch::TOUCH_PRESS: {
-			for(short i = 0; i < _nodes.size(); i++) {
-				_nodes[i]->setBase();
-				_touchInd = -1;
-				if(_nodes[i].get() == _project->_touchNode) {
-					_touchInd = i;
+	bool hasParent = _parent != NULL && _parent->getNode() != NULL;
+	//identify which of my nodes was touched
+	if(evt == Touch::TOUCH_PRESS) {
+		_touchInd = -1;
+		for(short i = 0; i < _nodes.size(); i++) {
+			_nodes[i]->setBase();
+			if(_nodes[i].get() == _project->_touchNode) _touchInd = i;
+		}
+	}
+	//move the node as needed
+	if(hasParent && _project->_moveMode >= 0 && _touchInd >= 0) switch(_project->_moveMode) {
+		case 0: { //translate
+			switch(evt) {
+				case Touch::TOUCH_PRESS: {
+					//treat it as if the user clicked on the point where this node is attached to its parent
+					MyNode *parent = _parent->getNode();
+					parent->updateTransform();
+					parent->updateCamera();
+					Vector3 point = _nodes[_touchInd]->getAnchorPoint();
+					_parentTouch.set(evt, x, y, point);
+					_nodes[_touchInd]->enablePhysics(false);
+					break;
+				} case Touch::TOUCH_MOVE: {
+					_parentTouch.set(evt, x, y, _parent->getNode());
+					placeNode(_parentTouch.getPoint(evt), _touchInd);
+					break;
+				} case Touch::TOUCH_RELEASE: {
+					addPhysics(_touchInd);
+					_nodes[_touchInd]->enablePhysics(true);
+					break;
 				}
 			}
 			break;
-		} case Touch::TOUCH_MOVE: {
-			break;
-		} case Touch::TOUCH_RELEASE: {
+		} case 1: { //rotate
 			break;
 		}
+	}
+	if(evt == Touch::TOUCH_RELEASE) {
+		_touchInd = -1;
 	}
 }
 

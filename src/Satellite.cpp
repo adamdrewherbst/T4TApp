@@ -119,16 +119,15 @@ void Satellite::Instrument::placeNode(const Vector3 &position, short n) {
 	Quaternion rot = MyNode::getVectorRotation(Vector3::unitZ(), normal);
 	node->setMyRotation(rot);
 	node->setMyTranslation(position - normal * box.min.z);
+	node->_parentOffset = position;
+	node->_parentAxis = normal;
 }
 
 void Satellite::Instrument::addPhysics(short n) {
-	//_project->_scene->addNode(_nodes[n].get());
 	Project::Element::addPhysics(n);
 	MyNode *body = _parent->getNode(), *node = _nodes[n].get();
-	body->addChild(node);
-	Vector3 joint, dir;
 	app->getPhysicsController()->setConstraintNoCollide();
-	app->addConstraint(body, node, -1, "fixed", joint, dir, true);
+	app->addConstraint(body, node, node->_constraintId, "fixed", node->_parentOffset, node->_parentAxis, true);
 }
 
 bool Satellite::Instrument::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {

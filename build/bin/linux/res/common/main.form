@@ -40,7 +40,7 @@ form mainMenu {
 		container modePanel {
 			style = hiddenContainer
 			autoWidth = true
-			height = 530
+			height = 480
 			layout = LAYOUT_VERTICAL
 			scroll = SCROLL_VERTICAL
 
@@ -326,7 +326,7 @@ form mainMenu {
 			container controls {
 				style = basicContainer
 				position = 20, 10
-				size = 180, 50
+				size = 180, 150
 				layout = LAYOUT_VERTICAL
 				consumeInputEvents = true
 				zIndex = 5

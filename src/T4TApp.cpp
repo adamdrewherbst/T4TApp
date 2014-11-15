@@ -112,7 +112,11 @@ void T4TApp::initialize()
 	addItem("cylinder", 2, "general", "body");
 	addItem("halfpipe", 3, "general", "body", "lever arm");
 	addItem("gear_basic", 2, "general", "gear");
+	addItem("cap_with_hole_1", 1, "general");
 
+	_drawDebugCheckbox = addControl <CheckBox> (_sideMenu, "drawDebug", "Draw Debug");
+	//Button *debugButton = addButton <Button> (_sideMenu, "debugButton", "Debug");
+	
     addListener(_mainMenu, this);
     addListener(_textName, this, Control::Listener::TEXT_CHANGED);
 	
@@ -158,9 +162,6 @@ void T4TApp::initialize()
 	_activeMode = -1;
 	setMode(0);
 
-	//_drawDebugCheckbox = addControl <CheckBox> (_sideMenu, "drawDebug", _buttonStyle, "Draw Debug");
-	//Button *debugButton = addButton <Button> (_sideMenu, "debugButton", _buttonStyle, "Debug");
-	
 	_drawDebug = true;	
     _sideMenu->setState(Control::FOCUS);
     
@@ -1112,28 +1113,35 @@ PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const c
 	} else if(strcmp(type, "fixed") == 0) {
 		ret = getPhysicsController()->createFixedConstraint(body[0], body[1]);
 	}
+	bool append = id < 0;
+	if(id < 0) id = _constraintCount++;
+	nodeConstraint *constraint;
+	for(i = 0; i < 2; i++) {
+		if(append) {
+			constraint = new nodeConstraint();
+			node[i]->_constraints.push_back(constraint);
+		}
+		else {
+			for(j = 0; j < node[i]->_constraints.size() && node[i]->_constraints[j]->id != id; j++);
+			constraint = node[i]->_constraints[j];
+		}
+		constraint->other = node[(i+1)%2]->getId();
+		constraint->type = type;
+		constraint->rotation = rot[i];
+		constraint->translation = trans[i];
+		constraint->id = id;
+		constraint->isChild = parentChild && i == 1;
+	}
+	_constraints[id] = ConstraintPtr(ret);
 	if(parentChild) {
 		n1->addChild(n2);
 		n2->_constraintParent = n1;
-		n2->_parentOffset = trans1;
-		Matrix rot;
-		Matrix::createRotation(rot1, &rot);
-		rot.transformVector(Vector3::unitZ(), &n2->_parentAxis);
+		n2->_constraintId = id;
+		n2->_parentOffset = trans[0];
+		Matrix m;
+		Matrix::createRotation(rot[0], &m);
+		m.transformVector(Vector3::unitZ(), &n2->_parentAxis);
 	}
-	if(id < 0) {
-		id = _constraintCount++;
-		for(i = 0; i < 2; i++) {
-			j = node[i]->_constraints.size();
-			node[i]->_constraints.push_back(new nodeConstraint());
-			node[i]->_constraints[j]->other = node[(i+1)%2]->getId();
-			node[i]->_constraints[j]->type = type;
-			node[i]->_constraints[j]->rotation = rot[i];
-			node[i]->_constraints[j]->translation = trans[i];
-			node[i]->_constraints[j]->id = id;
-			node[i]->_constraints[j]->isChild = parentChild && i == 1;
-		}
-	}
-	_constraints[id] = ret;
 	return ret;
 }
 
@@ -1169,7 +1177,6 @@ void T4TApp::removeConstraints(MyNode *node) {
 		for(j = 0; j < other->_constraints.size(); j++) {
 			c2 = other->_constraints[j];
 			if(c2->other.compare(node->getId()) == 0 && c2->type.compare(c1->type) == 0 && c2->id == c1->id) {
-				controller->removeConstraint(_constraints[c1->id]);
 				_constraints.erase(c1->id);
 				c1->id = -1;
 				c2->id = -1;
@@ -1190,7 +1197,6 @@ void T4TApp::enableConstraints(MyNode *node, bool enable) {
 void T4TApp::reloadConstraint(MyNode *node, nodeConstraint *constraint) {
 	int id = constraint->id;
 	if(id >= 0 && _constraints.find(id) != _constraints.end()) {
-		getPhysicsController()->removeConstraint(_constraints[id]);
 		_constraints.erase(id);
 	}
 	MyNode *other = dynamic_cast<MyNode*>(_activeScene->findNode(constraint->other.c_str()));
@@ -1337,7 +1343,7 @@ void T4TApp::undoLastAction() {
 				GP_WARN("No constraint with id %d", id);
 				allowRedo = false;
 			} else {
-				getPhysicsController()->removeConstraint(_constraints[id]);
+				_constraints.erase(id);
 				for(i = 0; i < 2; i++) {
 					node = action->nodes[i];
 					ref = action->refNodes[i];

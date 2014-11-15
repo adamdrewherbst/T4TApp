@@ -20,6 +20,11 @@ public:
 		_chain, _loop; //whether node is treated as vertex chain or triangle mesh
 	float _lineWidth; //OpenGL line width if wireframe
 	Vector3 _color;
+	
+	//my vertices in the coord frame of the camera
+	std::vector<Vector3> _cameraVertices, _cameraNormals;
+	//the outlines of the contiguous regions of my surface that face the camera
+	std::vector<std::vector<unsigned short> > _cameraPatches;
 
 	//physics
 	std::string _objType; //mesh, box, sphere, capsule
@@ -27,11 +32,12 @@ public:
 	bool _staticObj, _visible;
 	std::vector<ConvexHull*> _hulls;
 	std::vector<nodeConstraint*> _constraints;
-	MyNode *_constraintParent;
 	//for a compound object, store a rest position for each node so we have a rest configuration for the object
 	Matrix _restPosition;
-	//location and axis of constraint joint with parent in parent's model space
-	Vector3 _parentOffset, _parentAxis;
+	//when moving a node, need to know if it should move independently or relative to the node it is constrained to
+	MyNode *_constraintParent;
+	int _constraintId;
+	Vector3 _parentOffset, _parentAxis; //location and axis of constraint joint with parent in parent's model space
 	//when moving the node by dragging
 	Vector3 _baseTranslation, _baseScale;
 	Quaternion _baseRotation;
@@ -56,6 +62,7 @@ public:
 	void updateEdges();
 	void setNormals();
 	void updateModel(bool doPhysics = true);
+	void updateCamera();
 	void calculateHulls();
 	void setColor(float r, float g, float b);
 
@@ -81,7 +88,8 @@ public:
 	void baseScale(const Vector3& delta);
 	void setRest();
 	void placeRest();
-	
+
+	bool getTouchPoint(int x, int y, Vector3 *point);
 	short pt2Face(Vector3 point, Vector3 viewer = Vector3::zero());
 	Plane facePlane(unsigned short f, bool modelSpace = false);
 	Vector3 faceCenter(unsigned short f, bool modelSpace = false);
@@ -111,11 +119,13 @@ public:
 	void setActivation(int state);
 	nodeConstraint* getNodeConstraint(MyNode *other);
 	MyNode *getConstraintNode(nodeConstraint *constraint);
+	Vector3 getAnchorPoint();
 
 	//general purpose
 	static Quaternion getVectorRotation(Vector3 v1, Vector3 v2);
 	static float gv(Vector3 &v, int dim);
 	static void sv(Vector3 &v, int dim, float val);
+	static void v3v2(const Vector3 &v, Vector2 *dst);
 	static Vector3 unitV(short axis);
 	
 	static char* concat(int n, ...);

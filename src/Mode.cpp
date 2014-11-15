@@ -172,21 +172,23 @@ TouchPoint::TouchPoint() {
 	_pix[Touch::TOUCH_RELEASE] = Vector2::zero();
 }
 
-void TouchPoint::set(Touch::TouchEvent evt, int x, int y) {
-	if(evt == Touch::TOUCH_PRESS) _touching = true;
-	else if(evt == Touch::TOUCH_RELEASE) _touching = true;
+void TouchPoint::set(Touch::TouchEvent evt, int &x, int &y) {
+	if(evt == Touch::TOUCH_PRESS) {
+		_touching = true;
+		_offset.set(0, 0);
+	} else {
+		x += _offset.x;
+		y += _offset.y;
+		if(evt == Touch::TOUCH_RELEASE) _touching = false;
+	}
 	_pix[evt].set(x, y);
 }
 
 void TouchPoint::set(Touch::TouchEvent evt, int x, int y, MyNode *node) {
 	set(evt, x, y);
-	Camera *camera = app->getCamera();
-	Ray ray;
-	camera->pickRay(app->getViewport(), x, y, &ray);
-	PhysicsController::HitResult result;
-	app->_nodeFilter->setNode(node);
-	_hit = app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &result, app->_nodeFilter);
-	if(_hit) _point[evt] = result.point;
+	Vector3 point;
+	_hit = node->getTouchPoint(x, y, &point);
+	_point[evt] = point;
 }
 
 void TouchPoint::set(Touch::TouchEvent evt, int x, int y, const Plane &plane) {
@@ -196,6 +198,15 @@ void TouchPoint::set(Touch::TouchEvent evt, int x, int y, const Plane &plane) {
 	camera->pickRay(app->getViewport(), x, y, &ray);
 	float distance = ray.intersects(plane);
 	if(distance != Ray::INTERSECTS_NONE) _point[evt] = ray.getOrigin() + ray.getDirection() * distance;
+}
+
+void TouchPoint::set(Touch::TouchEvent evt, int x, int y, const Vector3& point) {
+	set(evt, x, y);
+	Camera *camera = app->getCamera();
+	Vector2 pix;
+	camera->project(app->getViewport(), point, &pix);
+	_offset.set(pix.x - x, pix.y - y);
+	_pix[evt] += _offset;
 }
 
 Vector3 TouchPoint::getPoint(Touch::TouchEvent evt) {

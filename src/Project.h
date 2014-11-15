@@ -56,7 +56,7 @@ public:
 	MenuFilter *_actionFilter;
 	Button *_launchButton;
 
-	PhysicsConstraint *_buildAnchor; //keep the model from moving while we are building it
+	ConstraintPtr _buildAnchor; //keep the model from moving while we are building it
 
 	bool _inSequence, //true during the first run-through to add all the elements
 	     _launching; //after user clicks the Launch button in test mode

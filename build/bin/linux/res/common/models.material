@@ -238,3 +238,25 @@ material cone : colored
         }
     }
 }
+
+material cap_with_hole_1 : colored
+{
+    technique
+    {
+        pass
+        {
+            u_diffuseColor = 0.5, 0.25, 0.5, 1
+        }
+    }
+}
+
+material cap_with_hole_2 : colored
+{
+    technique
+    {
+        pass
+        {
+            u_diffuseColor = 0.5, 0.25, 0.5, 1
+        }
+    }
+}

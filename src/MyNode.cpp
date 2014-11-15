@@ -442,6 +442,7 @@ void MyNode::init() {
     app = (T4TApp*) Game::getInstance();
     _staticObj = false;
     _constraintParent = NULL;
+    _constraintId = -1;
     _chain = false;
     _loop = false;
     _wireframe = false;
@@ -493,6 +494,11 @@ void MyNode::sv(Vector3 &v, int dim, float val) {
 		case 1: v.y = val; break;
 		case 2: v.z = val; break;
 	}
+}
+
+void MyNode::v3v2(const Vector3 &v, Vector2 *dst) {
+	dst->x = v.x;
+	dst->y = v.y;
 }
 
 Vector3 MyNode::unitV(short axis) {
@@ -584,7 +590,7 @@ short MyNode::pt2Face(Vector3 point, Vector3 viewer) {
 			if(coords.x >= 0 && coords.y >= 0 && coords.x + coords.y <= 1 && fabs(coords.z) < minDistance) {
 				touchFace = i;
 				minDistance = fabs(coords.z);
-				cout << "best match " << i << " at " << minDistance << endl;
+				//cout << "best match " << i << " at " << minDistance << endl;
 				break;
 			}
 		}
@@ -1169,6 +1175,123 @@ void MyNode::updateModel(bool doPhysics) {
 	}//*/
 }
 
+void MyNode::updateCamera() {
+	short nv = this->nv(), nf = this->nf(), i, j;
+	//transform my vertices and normals to camera space
+	_cameraVertices.resize(nv);
+	_cameraNormals.resize(nf);
+	Camera *camera = app->getCamera();
+	Node *cameraNode = camera->getNode();
+	Matrix camNorm = cameraNode->getInverseTransposeWorldMatrix();
+	camNorm.invert();
+	for(i = 0; i < nv; i++) {
+		camera->project(app->getViewport(), _worldVertices[i], &_cameraVertices[i]);
+	}
+	for(i = 0; i < nf; i++) {
+		camNorm.transformVector(_faces[i].getNormal(), &_cameraNormals[i]);
+	}
+	//identify contiguous patches of the surface that face the camera
+	_cameraPatches.clear();
+	short n, f, a, b;
+	std::set<unsigned short> faces, edges;
+	std::map<unsigned short, unsigned short> next;
+	for(i = 0; i < nf; i++) faces.insert(i);
+	while(!faces.empty()) {
+		edges.clear();
+		//start with one face that is facing the camera
+		f = *faces.begin();
+		faces.erase(f);
+		if(_cameraNormals[f].z > 0) continue;
+		n = _faces[f].size();
+		for(i = 0; i < n; i++) {
+			next[_faces[f][i]] = _faces[f][(i+1)%n];
+			edges.insert(_faces[f][i]);
+		}
+		//branch out to all its neighbors
+		while(!edges.empty()) {
+			a = *edges.begin();
+			b = next[a];
+			edges.erase(a);
+			if(_edgeInd.find(b) == _edgeInd.end() || _edgeInd[b].find(a) == _edgeInd[b].end() || _edgeInd[b][a] < 0)
+				continue;
+			f = _edgeInd[b][a];
+			if(faces.find(f) == faces.end()) continue;
+			faces.erase(f);
+			if(_cameraNormals[f].z > 0) continue; //make sure neighbor also faces the camera
+			n = _faces[f].size();
+			//merge its edges into the edge map for the patch
+			for(i = 0; i < n; i++) {
+				a = _faces[f][i];
+				b = _faces[f][(i+1)%n];
+				if(next.find(b) != next.end() && next[b] == a) {
+					next.erase(b);
+					edges.erase(b);
+				} else {
+					next[a] = b;
+					edges.insert(a);
+				}
+			}
+		}
+		_cameraPatches.resize(_cameraPatches.size()+1);
+		std::vector<unsigned short> &patch = _cameraPatches.back();
+		i = next.begin()->first;
+		do {
+			patch.push_back(i);
+			i = next[i];
+		} while(i != patch[0]);
+	}
+}
+
+bool MyNode::getTouchPoint(int x, int y, Vector3 *point) {
+	//first see if we are actually being touched
+	Camera *camera = app->getCamera();
+	Ray ray;
+	camera->pickRay(app->getViewport(), x, y, &ray);
+	PhysicsController::HitResult result;
+	app->_nodeFilter->setNode(this);
+	bool touching = app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &result, app->_nodeFilter);
+	if(touching) {
+		*point = result.point;
+		return true;
+	}
+	//otherwise just find the closest point on any patch border
+	short np = _cameraPatches.size(), i, j, k, n, a, b;
+	Vector2 touch(x, y), v1, v2, edgeVec, touchVec;
+	float minDist = 1e6, edgeLen, f1, f2;
+	for(i = 0; i < np; i++) {
+		n = _cameraPatches[i].size();
+		for(j = 0; j < n; j++) {
+			a = _cameraPatches[i][j];
+			b = _cameraPatches[i][(j+1)%n];
+			v3v2(_cameraVertices[a], &v1);
+			v3v2(_cameraVertices[b], &v2);
+			//find the minimum distance to this edge
+			edgeVec = v2 - v1;
+			edgeLen = edgeVec.length();
+			edgeVec.normalize();
+			touchVec = touch - v1;
+			f1 = touchVec.dot(edgeVec);
+			if(f1 >= 0 && f1 <= edgeLen) { //we are in the middle => drop a perpendicular to the edge
+				touchVec -= edgeVec * f1;
+				f2 = touchVec.length();
+				if(f2 < minDist) {
+					minDist = f2;
+					*point = _worldVertices[a] + (f1 / edgeLen) * (_worldVertices[b] - _worldVertices[a]);
+				}
+			} else { //we are off to one side => see which endpoint is closer
+				for(k = 0; k < 2; k++) {
+					f2 = touch.distance(k == 0 ? v1 : v2);
+					if(f2 < minDist) {
+						minDist = f2;
+						*point = _worldVertices[k == 0 ? a : b];
+					}
+				}
+			}
+		}
+	}
+	return false;
+}
+
 void MyNode::setColor(float r, float g, float b) {
 	_color.set(r, g, b);
 	Model *model = getModel();
@@ -1532,6 +1655,13 @@ MyNode* MyNode::getConstraintNode(nodeConstraint *constraint) {
 	Node *node = app->_scene->findNode(constraint->other.c_str());
 	if(node == NULL) return NULL;
 	return dynamic_cast<MyNode*>(node);
+}
+
+Vector3 MyNode::getAnchorPoint() {
+	if(_constraintParent == NULL) return Vector3::zero();
+	Vector3 point = _parentOffset;
+	_constraintParent->getWorldMatrix().transformPoint(&point);
+	return point;
 }
 
 MyNode::ConvexHull::ConvexHull(Node *node) {

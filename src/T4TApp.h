@@ -22,6 +22,8 @@ class Mode;
 class Project;
 class T4TApp;
 
+typedef std::unique_ptr<PhysicsConstraint, PhysicsConstraint::Deleter> ConstraintPtr;
+
 struct cameraState {
 	MyNode *node;
 	float radius, theta, phi;
@@ -34,11 +36,13 @@ class TouchPoint {
 	std::map<Touch::TouchEvent, Vector2> _pix;
 	std::map<Touch::TouchEvent, Vector3> _point;
 	bool _hit, _touching;
+	Vector2 _offset;
 
 	TouchPoint();
-	void set(Touch::TouchEvent evt, int x, int y);
+	void set(Touch::TouchEvent evt, int &x, int &y);
 	void set(Touch::TouchEvent evt, int x, int y, MyNode *node);
 	void set(Touch::TouchEvent evt, int x, int y, const Plane &plane);
+	void set(Touch::TouchEvent evt, int x, int y, const Vector3 &point);
 	Vector3 getPoint(Touch::TouchEvent evt);
 	Vector2 getPix(Touch::TouchEvent evt);
 	Vector3 delta();
@@ -92,7 +96,7 @@ public:
     Plane _groundPlane;
     
     //each constraint in the simulation will have an integer ID for lookup
-    std::map<int, PhysicsConstraint*> _constraints;
+    std::map<int, ConstraintPtr> _constraints;
     int _constraintCount;
     
     //current state
@@ -145,6 +149,7 @@ public:
     T4TApp* getInstance();
 	void generateModels();
 	MyNode* generateModel(const char *id, const char *type, ...);
+	void loadObj(const char *filename);
 	void addItem(const char *type, short numTags = 0, ...);
 	void filterItemMenu(const char *tag = NULL);
 	void promptItem(const char *tag = NULL);

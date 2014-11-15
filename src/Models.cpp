@@ -47,6 +47,8 @@ void T4TApp::generateModels() {
 	_robot->_type = "root";
 	_robot->addChild(robot[0]);
 	_robot->writeData("res/common/");
+	
+	loadObj("res/common/unnamed.obj");
 }
 
 MyNode* T4TApp::generateModel(const char *id, const char *type, ...) {
@@ -276,5 +278,75 @@ MyNode* T4TApp::generateModel(const char *id, const char *type, ...) {
 	node->writeData("res/common/");
 	return node;
 }
+
+void T4TApp::loadObj(const char *filename) {
+	std::unique_ptr<Stream> stream(FileSystem::open(filename));
+	stream->rewind();
+
+	char *str, line[2048], *label = (char*)malloc(100*sizeof(char)), *nodeName = (char*)malloc(100*sizeof(char)),
+	  *token = (char*)malloc(100*sizeof(char));
+	short i, j, k, m, n, ind, vOffset = 0;
+    float x, y, z, w;
+    Vector3 scale, vertex;
+    std::vector<unsigned short> face;
+    bool reverseFace = false;
+	MyNode *node = MyNode::create("node");
+	while(!stream->eof()) {
+		strcpy(label, "");
+		str = stream->readLine(line, 2048);
+		std::istringstream in(str);
+		in >> label;
+		if(strcmp(label, "s") == 0) {
+			in >> x >> y >> z;
+			scale.set(x, y, z);
+			cout << "Scale: " << x << ", " << y << ", " << z << endl;
+		} else if(strcmp(label, "reverse") == 0) {
+			in >> m;
+			reverseFace = m > 0;
+		} else if(strcmp(label, "v") == 0) { //vertex
+			in >> x >> y >> z;
+			node->addVertex(x, y, z);
+		} else if(strcmp(label, "f") == 0) { //face
+			face.clear();
+			in >> token;
+			while(!in.fail()) {
+				std::string str(token);
+				size_t pos = str.find('/');
+				if(pos > 0) str = str.substr(0, pos);
+				ind = atoi(str.c_str());
+				face.push_back(ind-1 - vOffset);
+				in >> token;
+			}
+			node->addFace(face, reverseFace);
+		}
+		if((strcmp(label, "g") == 0 || stream->eof()) && node->nv() > 0) { //end of current model
+			n = node->nv();
+			vertex.set(0, 0, 0);
+			for(i = 0; i < n; i++) vertex += node->_vertices[i];
+			vertex *= 1.0f / n;
+			for(i = 0; i < n; i++) {
+				node->_vertices[i] -= vertex;
+				node->_vertices[i].x *= scale.x;
+				node->_vertices[i].y *= scale.y;
+				node->_vertices[i].z *= scale.z;
+			}
+			node->setOneHull();
+			node->writeData("res/common/");
+			node->clearMesh();
+			//vOffset += n;
+		}
+		if(strcmp(label, "g") == 0) { //start of new model
+			in >> nodeName;
+			node->setId(nodeName);
+			node->_type = nodeName;
+			node->_objType = "mesh";
+			node->_mass = 10.0f;
+			scale.set(1, 1, 1);
+			cout << endl << "Model: " << nodeName << endl;
+		}
+	}
+	stream->close();
+}
+
 
 
