@@ -34,12 +34,15 @@ class TouchPoint {
 	public:
 	T4TApp *app;
 	std::map<Touch::TouchEvent, Vector2> _pix;
-	std::map<Touch::TouchEvent, Vector3> _point;
+	std::map<Touch::TouchEvent, Vector3> _point, _normal;
+	std::map<Touch::TouchEvent, MyNode*> _node;
 	bool _hit, _touching;
+	Touch::TouchEvent _lastEvent;
 	Vector2 _offset;
 
 	TouchPoint();
 	void set(Touch::TouchEvent evt, int &x, int &y);
+	void set(Touch::TouchEvent evt, int x, int y, bool getNode);
 	void set(Touch::TouchEvent evt, int x, int y, MyNode *node);
 	void set(Touch::TouchEvent evt, int x, int y, const Plane &plane);
 	void set(Touch::TouchEvent evt, int x, int y, const Vector3 &point);
@@ -47,6 +50,7 @@ class TouchPoint {
 	Vector2 getPix(Touch::TouchEvent evt);
 	Vector3 delta();
 	Vector2 deltaPix();
+	Touch::TouchEvent getLastEvent();
 };
 
 struct nodeConstraint {

@@ -34,8 +34,9 @@ bool StringMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int co
 	Mode::touchEvent(evt, x, y, contactIndex);
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
-			if(_touchNode == NULL) break;
-			addNode(_touchNode, _touchPoint);
+			MyNode *touchNode = getTouchNode();
+			if(touchNode == NULL) break;
+			addNode(touchNode, getTouchPoint());
 			break;
 		} case Touch::TOUCH_MOVE: {
 			break;

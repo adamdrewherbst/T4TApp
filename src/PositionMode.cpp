@@ -34,7 +34,7 @@ bool PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int 
 	Mode::touchEvent(evt, x, y, contactIndex);
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
-			if(_touchNode == NULL) break;
+			if(getTouchNode() == NULL) break;
 			_groundFace = -1;
 			_dragOffset.set(_x, _y);
 			if(_subMode == 0) { //translate
@@ -53,9 +53,9 @@ bool PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int 
 			break;
 		}
 		case Touch::TOUCH_MOVE: case Touch::TOUCH_RELEASE: {
-			if(_touchNode == NULL) break;
+			if(getTouchNode() == NULL) break;
 			bool finalize = evt == Touch::TOUCH_RELEASE;
-			if((!finalize && !_touching) || _selectedNode == NULL) break;
+			if((!finalize && !isTouching()) || _selectedNode == NULL) break;
 			Ray ray;
 			if(_subMode == 0) { //translate
 				_camera->pickRay(app->getViewport(), _dragOffset.x + _x, _dragOffset.y + _y, &ray);

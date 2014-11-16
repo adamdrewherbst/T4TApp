@@ -151,8 +151,8 @@ bool Rocket::Straw::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int
 		case Touch::TOUCH_PRESS: {
 			Rocket *rocket = (Rocket*)_project;
 			MyNode *node = getNode();
-			if(rocket->_touchNode == node) {
-				Vector3 trans = rocket->_touchPoint - node->getTranslationWorld();
+			if(rocket->getTouchNode() == node) {
+				Vector3 trans = rocket->getTouchPoint() - node->getTranslationWorld();
 				Matrix straw = node->getWorldMatrix(), strawInv;
 				straw.invert(&strawInv);
 				strawInv.transformVector(&trans);
@@ -169,11 +169,12 @@ Rocket::Balloon::Balloon(Project *project, Element *parent)
   	_filter = "balloon";
 }
   
-void Rocket::Balloon::placeNode(const Vector3 &position, short n) {
+void Rocket::Balloon::placeNode(short n) {
+	Vector3 point = _project->getTouchPoint(_project->getLastTouchEvent());
 	//get the unit direction vector 
 	Rocket *rocket = (Rocket*)_project;
 	MyNode *straw = rocket->_straw->getNode();
-	Vector3 trans = position - straw->getTranslationWorld(), strawAxis;
+	Vector3 trans = point - straw->getTranslationWorld(), strawAxis;
 	straw->getWorldMatrix().transformVector(Vector3::unitZ(), &strawAxis);
 	strawAxis.normalize();
 	trans -= strawAxis * trans.dot(strawAxis);
@@ -189,7 +190,7 @@ void Rocket::Balloon::placeNode(const Vector3 &position, short n) {
 	}
 	_balloonRadius[n] = balloonRadius;
 	_anchorRadius[n] = anchorRadius;
-	anchor->setTranslation(position + trans * anchorRadius);
+	anchor->setTranslation(point + trans * anchorRadius);
 	anchor->setRotation(straw->getRotation());
 	anchor->_objType = "sphere";
 	anchor->_radius = anchorRadius;

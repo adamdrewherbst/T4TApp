@@ -2,7 +2,7 @@
 #include "Mode.h"
 #include "MyNode.h"
 
-Mode::Mode(const char* id) : _selectedNode(NULL), _touchNode(NULL), _touching(false), _doSelect(true) {
+Mode::Mode(const char* id) : _selectedNode(NULL), _doSelect(true) {
 
 	app = dynamic_cast<T4TApp*>(Game::getInstance());
 	_scene = app->_scene;
@@ -69,7 +69,7 @@ bool Mode::setSelectedNode(MyNode *node, Vector3 point) {
 }
 
 void Mode::placeCamera() {
-	Vector2 delta(_mousePix - _touchPix);
+	Vector2 mouse = getTouchPix(Touch::TOUCH_MOVE), delta = mouse - getTouchPix();
 	float radius = _cameraStateBase->radius, theta = _cameraStateBase->theta, phi = _cameraStateBase->phi;
 	switch(app->_navMode) {
 		case 0: { //rotate
@@ -80,10 +80,10 @@ void Mode::placeCamera() {
 			break;
 		} case 1: { //translate
 			Ray ray;
-			_cameraBase->pickRay(_viewportBase, _mousePix.x, _mousePix.y, &ray);
+			_cameraBase->pickRay(_viewportBase, mouse.x, mouse.y, &ray);
 			float distance = ray.intersects(_plane);
 			Vector3 _newPoint(ray.getOrigin() + distance * ray.getDirection());
-			app->setCameraTarget(_cameraStateBase->target - (_newPoint - _touchPoint));
+			app->setCameraTarget(_cameraStateBase->target - (_newPoint - getTouchPoint()));
 			break;
 		} case 2: { //zoom
 			float deltaRadius = -delta.y / 40.0f;
@@ -101,45 +101,33 @@ bool Mode::isSelecting() {
 bool Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
 	_x = (int)(x + getX() + _container->getX() + app->_stage->getX());
 	_y = (int)(y + getY() + _container->getY() + app->_stage->getY());
-	_touchPt.set(evt, _x, _y);
-	_mousePix.set(_x, _y);
-	_camera = _scene->getActiveCamera();
-	_camera->pickRay(app->getViewport(), _x, _y, &_ray);
-	float distance = _ray.intersects(_plane);
-	if(distance != Ray::INTERSECTS_NONE) _mousePoint.set(_ray.getOrigin() + distance * _ray.getDirection());
+	if(isSelecting()) _touchPt.set(evt, _x, _y, true);
+	else _touchPt.set(evt, _x, _y, _plane);
 	switch(evt) {
-		case Touch::TOUCH_PRESS:
+		case Touch::TOUCH_PRESS: {
 			cout << "mode ray: " << app->pv(_ray.getOrigin()) << " => " << app->pv(_ray.getDirection()) << endl;
-			_touching = true;
-			_touchPix = _mousePix;
-			_touchNode = NULL;
+			MyNode *node = getTouchNode();
+			if(node) node->updateTransform();
 			if(isSelecting()) {
-				PhysicsController::HitResult hitResult;
-				if(!app->getPhysicsController()->rayTest(_ray, _camera->getFarPlane(), &hitResult, app->_hitFilter)) break;
-				MyNode *node = dynamic_cast<MyNode*>(hitResult.object->getNode());
-				if(!node || node->getCollisionObject() == NULL || app->auxNode(node)) break;
-				_touchNode = node;
-				_touchNode->setBase();
-				_touchPoint.set(hitResult.point);
-				setSelectedNode(_touchNode, _touchPoint);
-				cout << "selected: " << node->getId() << " at " << app->pv(_touchPoint) << endl;
+				Vector3 point = getTouchPoint();
+				if(node) node->setBase();
+				setSelectedNode(node, point);
+				if(node) cout << "selected: " << node->getId() << " at " << app->pv(point) << endl;
 			} else {
-				_touchPoint.set(_mousePoint);
 				_cameraBase->getNode()->set(*_camera->getNode());
 				_viewportBase = app->getViewport();
 				app->copyCameraState(app->_cameraState, _cameraStateBase);
 				cout << "touched: camera at " << app->pcam(_cameraStateBase) << endl;
 			}
 			break;
-		case Touch::TOUCH_MOVE:
-			if(_touching && app->_navMode >= 0) {
+		} case Touch::TOUCH_MOVE: {
+			if(isTouching() && app->_navMode >= 0) {
 				placeCamera();
 			}
 			break;
-		case Touch::TOUCH_RELEASE:
-			_touching = false;
-			_touchNode = NULL;
+		} case Touch::TOUCH_RELEASE: {
 			break;
+		}
 	}
 	return true;
 }
@@ -159,14 +147,45 @@ void Mode::controlEvent(Control *control, EventType evt) {
 	}
 }
 
+bool Mode::isTouching() {
+	return _touchPt._touching;
+}
+
+Vector2 Mode::getTouchPix(Touch::TouchEvent evt) {
+	return _touchPt._pix[evt];
+}
+
+MyNode* Mode::getTouchNode(Touch::TouchEvent evt) {
+	return _touchPt._node[evt];
+}
+
+Vector3 Mode::getTouchPoint(Touch::TouchEvent evt) {
+	return _touchPt._point[evt];
+}
+
+Vector3 Mode::getTouchNormal(Touch::TouchEvent evt) {
+	return _touchPt._normal[evt];
+}
+
+Touch::TouchEvent Mode::getLastTouchEvent() {
+	return _touchPt.getLastEvent();
+}
+
 
 TouchPoint::TouchPoint() {
 	app = (T4TApp*) Game::getInstance();
 	_touching = false;
 	_hit = false;
+	_lastEvent = Touch::TOUCH_PRESS;
+	_node[Touch::TOUCH_PRESS] = NULL;
+	_node[Touch::TOUCH_MOVE] = NULL;
+	_node[Touch::TOUCH_RELEASE] = NULL;
 	_point[Touch::TOUCH_PRESS] = Vector3::zero();
 	_point[Touch::TOUCH_MOVE] = Vector3::zero();
 	_point[Touch::TOUCH_RELEASE] = Vector3::zero();
+	_normal[Touch::TOUCH_PRESS] = Vector3::zero();
+	_normal[Touch::TOUCH_MOVE] = Vector3::zero();
+	_normal[Touch::TOUCH_RELEASE] = Vector3::zero();
 	_pix[Touch::TOUCH_PRESS] = Vector2::zero();
 	_pix[Touch::TOUCH_MOVE] = Vector2::zero();
 	_pix[Touch::TOUCH_RELEASE] = Vector2::zero();
@@ -179,16 +198,38 @@ void TouchPoint::set(Touch::TouchEvent evt, int &x, int &y) {
 	} else {
 		x += _offset.x;
 		y += _offset.y;
-		if(evt == Touch::TOUCH_RELEASE) _touching = false;
+		if(evt == Touch::TOUCH_RELEASE) {
+			_touching = false;
+			_node[Touch::TOUCH_PRESS] = NULL;
+			_node[Touch::TOUCH_MOVE] = NULL;
+		}
 	}
 	_pix[evt].set(x, y);
+	_lastEvent = evt;
+}
+
+void TouchPoint::set(Touch::TouchEvent evt, int x, int y, bool getNode) {
+	set(evt, x, y);
+	if(getNode) {
+		Camera *camera = app->getCamera();
+		Ray ray;
+		camera->pickRay(app->getViewport(), x, y, &ray);
+		PhysicsController::HitResult result;
+		_hit = app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &result, app->_hitFilter);
+		if(_hit) {
+			_node[evt] = dynamic_cast<MyNode*>(result.object->getNode());
+			_point[evt] = result.point;
+			_normal[evt] = result.normal;
+		}
+	}
 }
 
 void TouchPoint::set(Touch::TouchEvent evt, int x, int y, MyNode *node) {
 	set(evt, x, y);
-	Vector3 point;
-	_hit = node->getTouchPoint(x, y, &point);
+	Vector3 point, normal;
+	_hit = node->getTouchPoint(x, y, &point, &normal);
 	_point[evt] = point;
+	_normal[evt] = normal;
 }
 
 void TouchPoint::set(Touch::TouchEvent evt, int x, int y, const Plane &plane) {
@@ -223,6 +264,10 @@ Vector3 TouchPoint::delta() {
 
 Vector2 TouchPoint::deltaPix() {
 	return _pix[Touch::TOUCH_MOVE] - _pix[Touch::TOUCH_PRESS];
+}
+
+Touch::TouchEvent TouchPoint::getLastEvent() {
+	return _lastEvent;
 }
 
 

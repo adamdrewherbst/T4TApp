@@ -18,8 +18,8 @@ public:
 		Instrument(Project *project, Element *parent);
 		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void setNode(const char *id);
-		void addNode(const Vector3 &position);
-		void placeNode(const Vector3 &position, short n);
+		void addNode();
+		void placeNode(short n);
 		void addPhysics(short n);
 		float getMass(const char *type);
 		short getPanelsNeeded(const char *type);

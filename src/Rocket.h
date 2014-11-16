@@ -20,7 +20,7 @@ public:
 		std::vector<float> _balloonRadius, _anchorRadius;
 
 		Balloon(Project *project, Element *parent);
-		void placeNode(const Vector3 &position, short n);
+		void placeNode(short n);
 		void addPhysics(short n);
 	};
 

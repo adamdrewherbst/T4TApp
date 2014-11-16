@@ -87,7 +87,7 @@ void Buggy::controlEvent(Control *control, EventType evt) {
 bool Buggy::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
 	Project::touchEvent(evt, x, y, contactIndex);
 	if(_subMode == 1 && !_launching) {
-		if(_touching && _touchNode == _ramp) {
+		if(isTouching() && getTouchNode() == _ramp) {
 			float scale = _ramp->_baseScale.y * (1.0f - _touchPt.deltaPix().y / 400.0f);
 			scale = fmin(4.0f, fmax(0.2f, scale));
 			setRampHeight(scale);
@@ -100,33 +100,25 @@ Buggy::Body::Body(Project *project) : Project::Element(project, NULL, "body", "B
 	_filter = "body";
 }
 
-bool Buggy::Body::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
-	return true;
-}
-
 Buggy::Axle::Axle(Project *project, Element *parent, const char *id, const char *name)
   : Project::Element(project, parent, id, name) {
 	_filter = "axle";
 }
 
-void Buggy::Axle::placeNode(const Vector3 &position, short n) {
+void Buggy::Axle::placeNode(short n) {
+	Vector3 point = _project->getTouchPoint(_project->getLastTouchEvent());
 	//z-axis of the cylinder should be along the buggy's x-axis
-	_nodes[n]->setRotation(Vector3::unitY(), M_PI/2);
-	_nodes[n]->setTranslation(0, position.y, position.z);
+	Quaternion rot(Vector3::unitY(), M_PI/2);
+	_nodes[n]->setMyRotation(rot);
+	point.x = 0;
+	_nodes[n]->setMyTranslation(point);
 }
 
 void Buggy::Axle::addPhysics(short n) {
 	Element::addPhysics(n);
 	app->getPhysicsController()->setConstraintNoCollide();
-	app->addConstraint(_parent->getNode(), getNode(), -1, "fixed", Vector3::zero(), Vector3::zero(), true);
-}
-
-bool Buggy::Axle::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
-	Element::touchEvent(evt, x, y, contactIndex);
-	//moving the axle in the yz-plane but only within the bounds of the body
-	if(_parentTouch._hit) {
-		getNode()->baseTranslate(_planeTouch.delta());
-	}
+	MyNode *node = getNode(), *parent = _parent->getNode();
+	app->addConstraint(parent, node, -1, "fixed", node->getTranslationWorld(), Vector3::unitX(), true);
 }
 
 Buggy::Wheels::Wheels(Project *project, Element *parent, const char *id, const char *name)
@@ -135,12 +127,15 @@ Buggy::Wheels::Wheels(Project *project, Element *parent, const char *id, const c
 	_filter = "wheel";
 }
 
-void Buggy::Wheels::placeNode(const Vector3 &position, short n) {
+void Buggy::Wheels::placeNode(short n) {
+	Vector3 point = _project->getTouchPoint(_project->getLastTouchEvent());
 	//position determines how far we are along the axle
 	float dir = n == 0 ? 1 : -1;
 	Vector3 parent = _parent->getNode()->getTranslationWorld();
-	_nodes[n]->setRotation(Vector3::unitY(), M_PI/2);
-	_nodes[n]->setTranslation(dir * position.x, parent.y, parent.z);
+	Quaternion rot(Vector3::unitY(), M_PI/2);
+	_nodes[n]->setMyRotation(rot);
+	Vector3 trans(dir * point.x, parent.y, parent.z);
+	_nodes[n]->setMyTranslation(trans);
 }
 
 void Buggy::Wheels::addPhysics(short n) {
@@ -149,9 +144,3 @@ void Buggy::Wheels::addPhysics(short n) {
 	app->getPhysicsController()->setConstraintNoCollide();
 	app->addConstraint(_parent->getNode(), node, -1, "hinge", node->getTranslationWorld(), Vector3::unitX(), true);
 }
-
-bool Buggy::Wheels::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
-	Element::touchEvent(evt, x, y, contactIndex);
-	_parent->touchEvent(evt, x, y, contactIndex); //for now just move the axle
-}
-

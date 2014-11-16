@@ -8,22 +8,19 @@ public:
 	class Body : public Project::Element {
 		public:
 		Body(Project *project);
-		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 	};
 
 	class Axle : public Project::Element {
 		public:
 		Axle(Project *project, Element *parent, const char *id, const char *name);
-		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
-		void placeNode(const Vector3 &position, short n);
+		void placeNode(short n);
 		void addPhysics(short n);
 	};
 
 	class Wheels : public Project::Element {
 		public:
 		Wheels(Project *project, Element *parent, const char *id, const char *name);
-		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
-		void placeNode(const Vector3 &position, short n);
+		void placeNode(short n);
 		void addPhysics(short n);
 	};
 	

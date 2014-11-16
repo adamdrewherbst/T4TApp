@@ -97,8 +97,8 @@ void Satellite::Instrument::setNode(const char *id) {
 	Project::Element::setNode(id);
 }
 
-void Satellite::Instrument::addNode(const Vector3 &position) {
-	Project::Element::addNode(position);
+void Satellite::Instrument::addNode() {
+	Project::Element::addNode();
 	if(_addingPanels > 0) {
 		_currentNodeId = "solarPanel";
 		std::ostringstream os;
@@ -108,19 +108,8 @@ void Satellite::Instrument::addNode(const Vector3 &position) {
 	} else app->message(NULL);
 }
 
-void Satellite::Instrument::placeNode(const Vector3 &position, short n) {
-	MyNode *body = _parent->getNode(), *node = _nodes[n].get();
-	body->updateTransform();
-	node->updateTransform();
-	BoundingBox box = node->getBoundingBox(true);
-	Vector3 normal = Vector3::unitY();
-	short f = body->pt2Face(position);
-	if(f >= 0) normal = body->_faces[f].getNormal();
-	Quaternion rot = MyNode::getVectorRotation(Vector3::unitZ(), normal);
-	node->setMyRotation(rot);
-	node->setMyTranslation(position - normal * box.min.z);
-	node->_parentOffset = position;
-	node->_parentAxis = normal;
+void Satellite::Instrument::placeNode(short n) {
+	Project::Element::placeNode(n);
 }
 
 void Satellite::Instrument::addPhysics(short n) {

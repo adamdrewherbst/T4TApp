@@ -82,6 +82,7 @@ public:
 	void myScale(const Vector3& scale);
 	void setMyScale(const Vector3& scale);
 	void shiftModel(float x, float y, float z);
+	void attachTo(MyNode *parent, const Vector3 &point, const Vector3 &normal);
 	void setBase();
 	void baseTranslate(const Vector3& delta);
 	void baseRotate(const Quaternion& delta);
@@ -89,7 +90,7 @@ public:
 	void setRest();
 	void placeRest();
 
-	bool getTouchPoint(int x, int y, Vector3 *point);
+	bool getTouchPoint(int x, int y, Vector3 *point, Vector3 *normal);
 	short pt2Face(Vector3 point, Vector3 viewer = Vector3::zero());
 	Plane facePlane(unsigned short f, bool modelSpace = false);
 	Vector3 faceCenter(unsigned short f, bool modelSpace = false);

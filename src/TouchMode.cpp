@@ -30,10 +30,10 @@ bool TouchMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int con
 	Mode::touchEvent(evt, x, y, contactIndex);
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
-			if(_touchNode == NULL) break;
-			_touchNode->updateTransform();
-			MyNode *node = _touchNode;
-			Vector3 point = _touchPoint, v1, v2, v3, p, coords, normal;
+			MyNode *node = getTouchNode();
+			if(node == NULL) break;
+			node->updateTransform();
+			Vector3 point = getTouchPoint(), v1, v2, v3, p, coords, normal;
 			cout << "touched " << node->getId() << " at " << point.x << "," << point.y << "," << point.z << endl;
 			Matrix m;
 			unsigned short i, j, k;

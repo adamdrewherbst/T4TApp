@@ -1242,7 +1242,7 @@ void MyNode::updateCamera() {
 	}
 }
 
-bool MyNode::getTouchPoint(int x, int y, Vector3 *point) {
+bool MyNode::getTouchPoint(int x, int y, Vector3 *point, Vector3 *normal) {
 	//first see if we are actually being touched
 	Camera *camera = app->getCamera();
 	Ray ray;
@@ -1252,10 +1252,12 @@ bool MyNode::getTouchPoint(int x, int y, Vector3 *point) {
 	bool touching = app->getPhysicsController()->rayTest(ray, camera->getFarPlane(), &result, app->_nodeFilter);
 	if(touching) {
 		*point = result.point;
+		*normal = result.normal;
 		return true;
 	}
 	//otherwise just find the closest point on any patch border
-	short np = _cameraPatches.size(), i, j, k, n, a, b;
+	short np = _cameraPatches.size(), i, j, k, m, n, p, q, a, b, f, e[2], normCount;
+	Vector3 norm;
 	Vector2 touch(x, y), v1, v2, edgeVec, touchVec;
 	float minDist = 1e6, edgeLen, f1, f2;
 	for(i = 0; i < np; i++) {
@@ -1277,13 +1279,48 @@ bool MyNode::getTouchPoint(int x, int y, Vector3 *point) {
 				if(f2 < minDist) {
 					minDist = f2;
 					*point = _worldVertices[a] + (f1 / edgeLen) * (_worldVertices[b] - _worldVertices[a]);
+					//average the normals of the two faces incident on this edge
+					norm.set(0, 0, 0);
+					normCount = 0;
+					for(k = 0; k < 2; k++) {
+						e[0] = k == 0 ? a : b;
+						e[1] = k == 0 ? b : a;
+						if(_edgeInd.find(e[0]) != _edgeInd.end() && _edgeInd[e[0]].find(e[1]) != _edgeInd[e[0]].end()) {
+							f = _edgeInd[e[0]][e[1]];
+							if(_edgeInd[e[0]][e[1]] >= 0) {
+								norm += _faces[f].getNormal();
+								normCount++;
+							}
+						}
+					}
+					if(normCount > 0) {
+						*normal = norm * (1.0f / normCount);
+						normal->normalize();
+					}
 				}
 			} else { //we are off to one side => see which endpoint is closer
 				for(k = 0; k < 2; k++) {
 					f2 = touch.distance(k == 0 ? v1 : v2);
 					if(f2 < minDist) {
 						minDist = f2;
-						*point = _worldVertices[k == 0 ? a : b];
+						p = k == 0 ? a : b;
+						*point = _worldVertices[p];
+						//average the normals of all faces incident on this vertex
+						norm.set(0, 0, 0);
+						normCount = 0;
+						if(_edgeInd.find(p) != _edgeInd.end()) {
+							std::map<unsigned short, short>::const_iterator it;
+							for(it = _edgeInd[p].begin(); it != _edgeInd[p].end(); it++) {
+								if(it->second >= 0) {
+									norm += _faces[it->second].getNormal();
+									normCount++;
+								}
+							}
+							if(normCount > 0) {
+								*normal = norm * (1.0f / normCount);
+								normal->normalize();
+							}
+						}
 					}
 				}
 			}
@@ -1502,6 +1539,28 @@ void MyNode::shiftModel(float x, float y, float z) {
 		_vertices[i].y += y;
 		_vertices[i].z += z;
 	}
+}
+
+void MyNode::attachTo(MyNode *parent, const Vector3 &point, const Vector3 &norm) {
+	//keep my bottom on the bottom by rotating about the y-axis first
+	Vector3 normal = norm;
+	normal.normalize();
+	Vector3 normalXZ = normal;
+	normalXZ.y = 0;
+	Quaternion rot;
+	if(normalXZ.isZero()) {
+		rot = MyNode::getVectorRotation(Vector3::unitZ(), Vector3::unitY());
+	} else {
+		rot = MyNode::getVectorRotation(normalXZ, normal);
+		rot *= MyNode::getVectorRotation(Vector3::unitZ(), normalXZ);
+	}
+	setMyRotation(rot);
+	//flush my bottom with the parent surface
+	BoundingBox box = getBoundingBox(true);
+	setMyTranslation(point - normal * box.min.y);
+	//hold the position data in my constraint parameters in case needed to add a constraint later
+	_parentOffset = point;
+	_parentAxis = normal;
 }
 
 void MyNode::setBase() {

@@ -35,13 +35,14 @@ bool ConstraintMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned in
 	unsigned short i, j;
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
-			if(_touchNode == NULL) break;
-			if(_currentNode == 1 && _touchNode == _nodes[0]) break; //don't allow self-constraint
-			_nodes[_currentNode] = _touchNode;
-			_touchNode->updateTransform();
+			MyNode *touchNode = getTouchNode();
+			if(touchNode == NULL) break;
+			if(_currentNode == 1 && touchNode == _nodes[0]) break; //don't allow self-constraint
+			_nodes[_currentNode] = touchNode;
+			touchNode->updateTransform();
 			//find the clicked face
 			if(_subMode == 0 || _subMode == 1 || _subMode == 2 || _subMode == 3) {
-				_faces[_currentNode] = _selectedNode->pt2Face(_touchPoint,
+				_faces[_currentNode] = _selectedNode->pt2Face(getTouchPoint(),
 				  _camera->getNode()->getTranslationWorld());
 				if(_faces[_currentNode] < 0) break; //didn't hit a face - must reselect this node
 			}

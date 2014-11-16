@@ -221,7 +221,7 @@ bool ToolMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int cont
 			break;
 		}
 		case Touch::TOUCH_MOVE: {
-			if(_touching && _moveMode >= 0 && app->_navMode < 0) {
+			if(isTouching() && _moveMode >= 0 && app->_navMode < 0) {
 				Vector2 center;
 				switch(_moveMode) {
 					case 0: { //rotate
@@ -232,7 +232,7 @@ bool ToolMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int cont
 					} case 1: { //translate
 						_camera->project(app->getViewport(), _selectedNode->getTranslationWorld(), &center);
 						float angle = atan2(_x - center.x, _y - center.y);
-						float length = (_mousePoint - _selectedNode->getTranslationWorld()).length();
+						float length = (getTouchPoint(evt) - _selectedNode->getTranslationWorld()).length();
 						_toolTrans.set(length * sin(angle), -length * cos(angle));
 						break;
 					}

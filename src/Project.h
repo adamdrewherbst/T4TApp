@@ -38,8 +38,8 @@ public:
 		short getNodeCount();
 		MyNode* getNode(short n = 0);
 		virtual void setNode(const char *id);
-		virtual void addNode(const Vector3 &position);
-		virtual void placeNode(const Vector3 &position, short n = 0);
+		virtual void addNode();
+		virtual void placeNode(short n = 0);
 		virtual void addPhysics(short n = 0);
 	};
 	std::vector<std::shared_ptr<Element> > _elements;
@@ -60,6 +60,8 @@ public:
 
 	bool _inSequence, //true during the first run-through to add all the elements
 	     _launching; //after user clicks the Launch button in test mode
+	     
+	const char *_currentNodeId; //when attaching general items (not for a specific element)
 
 	Project(const char* id);
 
@@ -73,6 +75,7 @@ public:
 	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 	void setCurrentElement(short n);
 	void promptNextElement();
+	virtual void addNode();
 	virtual void finish();
 	virtual void addPhysics();
 	virtual void launch();

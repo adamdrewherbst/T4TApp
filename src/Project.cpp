@@ -33,9 +33,12 @@ void Project::setupMenu() {
 	_elementContainer->setAutoWidth(true);
 	_elementContainer->setHeight(_numElements * 50.0f);
 	for(i = 0; i < _numElements; i++) {
-		Button *button = app->addButton <Button> (_elementContainer, _elements[i]->_name.c_str());
+		Button *button = app->addButton <Button> (_elementContainer, _elements[i]->_id.c_str(), _elements[i]->_name.c_str());
 	}
 	_controls->addControl(_elementContainer);
+	
+	//add a button for attaching general items
+	Button *button = app->addButton <Button> (_controls, "other", "Other");
 
 	//add a button for each action that any element has - we will enable them on the fly for the selected element
 	_actionContainer = Container::create("actions", app->_theme->getStyle("hiddenContainer"), Layout::LAYOUT_FLOW);
@@ -67,13 +70,17 @@ void Project::controlEvent(Control *control, EventType evt) {
 	Element *element = getEl();
 
 	if(_numElements > 0 && _elementContainer->getControl(id) == control) {
-		for(short i = 0; i < _elements.size(); i++) if(_elements[i]->_name.compare(id) == 0) {
+		for(short i = 0; i < _elements.size(); i++) if(_elements[i]->_id.compare(id) == 0) {
 			setCurrentElement(i);
 			break;
 		}
+	} else if(strcmp(id, "other") == 0) {
+		setCurrentElement(-1);
+		app->promptItem();
 	} else if(strncmp(id, "comp_", 5) == 0) {
 		app->_componentMenu->setVisible(false);
-		element->setNode(id+5);
+		if(element) element->setNode(id+5);
+		else _currentNodeId = id+5;
 	} else if(_numActions > 0 && _actionContainer->getControl(id) == control) {
 		if(element) element->doAction(id);
 		if(strcmp(id, "translate") == 0) _moveMode = 0;
@@ -92,15 +99,19 @@ void Project::controlEvent(Control *control, EventType evt) {
 }
 
 bool Project::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
-	MyNode *touchNode = _touchNode; //get the current node first in case we release and thus set it to null
+	MyNode *touchNode = getTouchNode(); //get the current node first in case we release and thus set it to null
 	Mode::touchEvent(evt, x, y, contactIndex);
-	if(touchNode == NULL) touchNode = _touchNode;
+	if(touchNode == NULL) touchNode = getTouchNode();
 	if(app->_navMode >= 0) return false;
 	if(touchNode != NULL && touchNode->_element != NULL && touchNode->_element->_project == this) {
 		//see if we are placing a node on its parent
 		Element *current = getEl();
 		if(evt == Touch::TOUCH_PRESS && current && current->_parent == touchNode->_element && current->_currentNodeId) {
-			current->addNode(_touchPoint);
+			current->addNode();
+		}
+		//or attaching a general item
+		else if(evt == Touch::TOUCH_PRESS && _currentElement == -1 && _currentNodeId) {
+			addNode();
 		}
 		//otherwise just trigger whatever node we clicked
 		else touchNode->_element->touchEvent(evt, x, y, contactIndex);
@@ -117,6 +128,10 @@ MyNode* Project::getNode(short n) {
 	if(n < 0) n = _currentElement;
 	if(_elements[n]->_nodes.empty()) return NULL;
 	return _elements[n]->_nodes.back().get();
+}
+
+void Project::addNode() {
+	
 }
 
 void Project::finish() {
@@ -331,11 +346,11 @@ void Project::Element::doAction(const char *action) {
 void Project::Element::setNode(const char *id) {
 	_currentNodeId = id;
 	if(_parent == NULL) { //auto-place this node
-		addNode(Vector3::zero());
+		addNode();
 	}
 }
 
-void Project::Element::addNode(const Vector3 &position) {
+void Project::Element::addNode() {
 	bool append = _multiple || _nodes.empty();
 	short offset = _multiple ? _nodes.size() / _numNodes : 0;
 	for(short i = 0; i < _numNodes; i++) {
@@ -352,16 +367,23 @@ void Project::Element::addNode(const Vector3 &position) {
 		short numSets = 0;
 		if(append) _nodes.push_back(std::shared_ptr<MyNode>(node));
 		else _nodes[i] = std::shared_ptr<MyNode>(node);
-		placeNode(position, offset + i);
+		placeNode(offset + i);
 		addPhysics(offset + i);
 	}
 	_currentNodeId = NULL;
 	_project->promptNextElement();
 }
 
-void Project::Element::placeNode(const Vector3 &position, short n) {
+void Project::Element::placeNode(short n) {
 	MyNode *node = _nodes[n].get();
-	node->setTranslation(position);
+	Vector3 point = _project->getTouchPoint(_project->getLastTouchEvent()),
+	  normal = _project->getTouchNormal(_project->getLastTouchEvent());
+	if(_parent == NULL) {
+		node->setTranslation(0, 0, 0);
+	} else {
+		MyNode *parent = _parent->getNode();
+		if(parent) node->attachTo(parent, point, normal);
+	}
 }
 
 void Project::Element::addPhysics(short n) {
@@ -391,7 +413,7 @@ bool Project::Element::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 		_touchInd = -1;
 		for(short i = 0; i < _nodes.size(); i++) {
 			_nodes[i]->setBase();
-			if(_nodes[i].get() == _project->_touchNode) _touchInd = i;
+			if(_nodes[i].get() == _project->getTouchNode(evt)) _touchInd = i;
 		}
 	}
 	//move the node as needed
@@ -404,12 +426,12 @@ bool Project::Element::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 					parent->updateTransform();
 					parent->updateCamera();
 					Vector3 point = _nodes[_touchInd]->getAnchorPoint();
-					_parentTouch.set(evt, x, y, point);
+					_project->_touchPt.set(evt, x, y, point);
 					_nodes[_touchInd]->enablePhysics(false);
 					break;
 				} case Touch::TOUCH_MOVE: {
-					_parentTouch.set(evt, x, y, _parent->getNode());
-					placeNode(_parentTouch.getPoint(evt), _touchInd);
+					_project->_touchPt.set(evt, x, y, _parent->getNode());
+					placeNode(_touchInd);
 					break;
 				} case Touch::TOUCH_RELEASE: {
 					addPhysics(_touchInd);
