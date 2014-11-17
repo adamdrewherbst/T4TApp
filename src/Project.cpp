@@ -441,6 +441,21 @@ bool Project::Element::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 			}
 			break;
 		} case 1: { //rotate
+			switch(evt) {
+				case Touch::TOUCH_PRESS: {
+					_nodes[_touchInd]->enablePhysics(false);
+					break;
+				} case Touch::TOUCH_MOVE: {
+					float deltaAngle = _project->_touchPt.deltaPix().x * 2 * M_PI / 400.0f;
+					Quaternion rot(_nodes[_touchInd]->_parentAxis, deltaAngle);
+					_nodes[_touchInd]->baseRotate(rot);
+					break;
+				} case Touch::TOUCH_RELEASE: {
+					addPhysics(_touchInd);
+					_nodes[_touchInd]->enablePhysics(true);
+					break;
+				}
+			}
 			break;
 		}
 	}

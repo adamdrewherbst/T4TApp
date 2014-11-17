@@ -517,9 +517,16 @@ float MyNode::inf() {
 Quaternion MyNode::getVectorRotation(Vector3 v1, Vector3 v2) {
 	Vector3 axis;
 	Vector3::cross(v1, v2, &axis);
+	if(axis.length() < 1e-4) {
+		if(v1.dot(v2) > 0) return Quaternion::identity();
+		else {
+			Vector3::cross(v1, Vector3::unitZ(), &axis);
+			if(axis.length() < 1e-4) Vector3::cross(v1, Vector3::unitY(), &axis);
+			return Quaternion(axis, M_PI);
+		}
+	}
  	float angle = acos(v1.dot(v2) / (v1.length() * v2.length()));
-	Quaternion rot;
-	Quaternion::createFromAxisAngle(axis, angle, &rot);
+	Quaternion rot(axis, angle);
 	return rot;
 }
 
@@ -1542,22 +1549,24 @@ void MyNode::shiftModel(float x, float y, float z) {
 }
 
 void MyNode::attachTo(MyNode *parent, const Vector3 &point, const Vector3 &norm) {
+	updateTransform();
+	BoundingBox box = getBoundingBox(true);
 	//keep my bottom on the bottom by rotating about the y-axis first
 	Vector3 normal = norm;
 	normal.normalize();
 	Vector3 normalXZ = normal;
 	normalXZ.y = 0;
 	Quaternion rot;
-	if(normalXZ.isZero()) {
-		rot = MyNode::getVectorRotation(Vector3::unitZ(), Vector3::unitY());
+	if(normalXZ.length() < 1e-3) {
+		rot = MyNode::getVectorRotation(Vector3::unitZ(), normal);
 	} else {
-		rot = MyNode::getVectorRotation(normalXZ, normal);
-		rot *= MyNode::getVectorRotation(Vector3::unitZ(), normalXZ);
+		rot = Quaternion::identity();
+		if(fabs(normal.y) > 1e-3) rot *= MyNode::getVectorRotation(normalXZ, normal);
+		if(fabs(normal.x) > 1e-3) rot *= MyNode::getVectorRotation(Vector3::unitZ(), normalXZ);
 	}
 	setMyRotation(rot);
 	//flush my bottom with the parent surface
-	BoundingBox box = getBoundingBox(true);
-	setMyTranslation(point - normal * box.min.y);
+	setMyTranslation(point - normal * box.min.z);
 	//hold the position data in my constraint parameters in case needed to add a constraint later
 	_parentOffset = point;
 	_parentAxis = normal;
