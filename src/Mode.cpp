@@ -103,6 +103,7 @@ bool Mode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactI
 	_y = (int)(y + getY() + _container->getY() + app->_stage->getY());
 	if(isSelecting()) _touchPt.set(evt, _x, _y, true);
 	else _touchPt.set(evt, _x, _y, _plane);
+	_camera->pickRay(app->getViewport(), _x, _y, &_ray);
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
 			cout << "mode ray: " << app->pv(_ray.getOrigin()) << " => " << app->pv(_ray.getDirection()) << endl;

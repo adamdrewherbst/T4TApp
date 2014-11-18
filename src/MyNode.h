@@ -38,11 +38,14 @@ public:
 	MyNode *_constraintParent;
 	int _constraintId;
 	Vector3 _parentOffset, _parentAxis; //location and axis of constraint joint with parent in parent's model space
+	Vector3 _parentNormal; //normal to parent's surface at joint location
 	//when moving the node by dragging
 	Vector3 _baseTranslation, _baseScale;
 	Quaternion _baseRotation;
 	
-	Project::Element *_element; //if we are part of a project
+	//if we are part of a project
+	Project *_project;
+	Project::Element *_element;
 	
 	//animation
 	AnimationClip *_currentClip;
@@ -61,7 +64,7 @@ public:
 	void updateTransform();
 	void updateEdges();
 	void setNormals();
-	void updateModel(bool doPhysics = true);
+	void updateModel(bool doPhysics = true, bool doCenter = true);
 	void updateCamera();
 	void calculateHulls();
 	void setColor(float r, float g, float b);
@@ -120,7 +123,10 @@ public:
 	void setActivation(int state);
 	nodeConstraint* getNodeConstraint(MyNode *other);
 	MyNode *getConstraintNode(nodeConstraint *constraint);
+	//get the world space joint attributes
 	Vector3 getAnchorPoint();
+	Vector3 getJointAxis();
+	Vector3 getJointNormal();
 
 	//general purpose
 	static Quaternion getVectorRotation(Vector3 v1, Vector3 v2);

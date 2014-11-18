@@ -151,6 +151,7 @@ set(GAME_SRC
 	src/Buggy.cpp
 	src/Rocket.cpp
 	src/Robot.cpp
+	src/LandingPod.cpp
 	#src/Lever.cpp
 	#src/Pulley.cpp
 	src/ToolMode.cpp

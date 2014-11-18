@@ -12,7 +12,7 @@ public:
 		T4TApp *app;
 		Project *_project;
 		std::string _id, _name;
-		bool _static, _multiple, _movable[3], _rotable[3];
+		bool _static, _multiple, _isOther, _movable[3], _rotable[3];
 		float _limits[3][2];
 		short _moveRef, _numNodes, _moveMode, _touchInd;
 		std::vector<std::shared_ptr<MyNode> > _nodes;
@@ -42,7 +42,16 @@ public:
 		virtual void placeNode(short n = 0);
 		virtual void addPhysics(short n = 0);
 	};
+	
+	//represents all items that are not specifically part of this project
+	class Other : public Element {
+		public:
+		Other(Project *project);
+		void addPhysics(short n);
+	};
+	
 	std::vector<std::shared_ptr<Element> > _elements;
+	Other *_other;
 
 	short _numElements, _numActions, _currentElement, _typeCount, _moveMode, _moveAxis;
 	Quaternion _baseRotation;

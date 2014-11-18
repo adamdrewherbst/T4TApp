@@ -16,7 +16,6 @@ public:
 		float _maxMass;
 
 		Instrument(Project *project, Element *parent);
-		bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 		void setNode(const char *id);
 		void addNode();
 		void placeNode(short n);

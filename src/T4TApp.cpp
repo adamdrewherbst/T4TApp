@@ -11,6 +11,7 @@
 #include "Buggy.h"
 #include "Rocket.h"
 #include "Robot.h"
+#include "LandingPod.h"
 #include "Grid.h"
 
 // Declare our game instance
@@ -128,6 +129,7 @@ void T4TApp::initialize()
 	_modes.push_back(new Rocket());
 	_modes.push_back(new Buggy());
 	_modes.push_back(new Robot());
+	_modes.push_back(new LandingPod());
 	_modes.push_back(new StringMode());
 	_modes.push_back(new ToolMode());
 	_modes.push_back(new TestMode());
@@ -421,8 +423,8 @@ void T4TApp::addItem(const char *type, short numTags, ...) {
 	va_list args;
 	va_start(args, numTags);
 	MyNode *node = MyNode::create(type);
-	node->loadData("res/common/", false);
 	node->_type = type;
+	node->loadData("res/common/", false);
 	node->setTranslation(Vector3(1000.0f,0.0f,0.0f));
 	for(short i = 0; i < numTags; i++) {
 		const char *tag = va_arg(args, const char*);
@@ -592,7 +594,7 @@ template <class ButtonType> ButtonType* T4TApp::addButton(Container *parent, con
 	button->setAutoWidth(true);
 	button->setHeight(50);
 	button->setConsumeInputEvents(true);
-	parent->addControl(button);
+	if(parent) parent->addControl(button);
 	return button;
 }
 

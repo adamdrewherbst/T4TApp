@@ -1087,7 +1087,7 @@ void MyNode::setNormals() {
 	for(short i = 0; i < _hulls.size(); i++) _hulls[i]->setNormals();
 }
 
-void MyNode::updateModel(bool doPhysics) {
+void MyNode::updateModel(bool doPhysics, bool doCenter) {
 	if(_type.compare("root") != 0) {
 		//must detach from parent while setting transformation since physics object is off
 		Node *parent = getParent();
@@ -1102,6 +1102,7 @@ void MyNode::updateModel(bool doPhysics) {
 		unsigned short i, j, k, m, n, v = 0, nv = this->nv(), nf = this->nf();
 		Vector3 min(1000,1000,1000), max(-1000,-1000,-1000);
 		bool hasPhysics = _objType.compare("none") != 0;
+		doCenter = doCenter && hasPhysics;
 
 		//first find our new bounding box and bounding sphere, and position our node at their center
 		// - otherwise Bullet applies gravity at node origin, not COM (why?) so produces torque
@@ -1113,15 +1114,20 @@ void MyNode::updateModel(bool doPhysics) {
 			}
 		}
 		Vector3 center = min + (max - min)/2.0f, vec, normal;
-		if(hasPhysics) translate(center);
+		if(doCenter) translate(center);
 		for(i = 0; i < nv; i++) {
-			if(hasPhysics) _vertices[i] -= center;
+			if(doCenter) _vertices[i] -= center;
 			f1 = _vertices[i].length();
 			if(f1 > radius) radius = f1;
 		}
 		update();
-		BoundingBox box(min - center, max - center);
-		BoundingSphere sphere(Vector3::zero(), radius);
+		Vector3 sphereCenter(0, 0, 0);
+		if(doCenter) {
+			min -= center;
+			max -= center;
+		} else sphereCenter = center;
+		BoundingBox box(min, max);
+		BoundingSphere sphere(sphereCenter, radius);
 
 		//then create the new model
 		std::vector<float> vertices;
@@ -1570,6 +1576,7 @@ void MyNode::attachTo(MyNode *parent, const Vector3 &point, const Vector3 &norm)
 	//hold the position data in my constraint parameters in case needed to add a constraint later
 	_parentOffset = point;
 	_parentAxis = normal;
+	_parentNormal = normal;
 }
 
 void MyNode::setBase() {
@@ -1730,6 +1737,20 @@ Vector3 MyNode::getAnchorPoint() {
 	Vector3 point = _parentOffset;
 	_constraintParent->getWorldMatrix().transformPoint(&point);
 	return point;
+}
+
+Vector3 MyNode::getJointAxis() {
+	if(_constraintParent == NULL) return Vector3::zero();
+	Vector3 axis = _parentAxis;
+	_constraintParent->getRotTrans().transformVector(&axis);
+	return axis;	
+}
+
+Vector3 MyNode::getJointNormal() {
+	if(_constraintParent == NULL) return Vector3::zero();
+	Vector3 normal = _parentNormal;
+	_constraintParent->getInverseTransposeWorldMatrix().transformPoint(&normal);
+	return normal;
 }
 
 MyNode::ConvexHull::ConvexHull(Node *node) {

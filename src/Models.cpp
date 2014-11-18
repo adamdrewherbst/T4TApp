@@ -21,6 +21,8 @@ void T4TApp::generateModels() {
 	generateModel("heatSensor", "cylinder", 0.3f, 0.6f, 8);
 	generateModel("cameraProbe", "box", 1.0f, 1.0f, 1.0f);
 	generateModel("solarPanel", "box", 2.0f, 3.0f, 0.3f);
+	generateModel("hatch1", "box", 3.5f, 3.5f, 0.3f);
+	generateModel("hatch2", "box", 3.0f, 4.0f, 0.4f);
 	
 	//robot
 	MyNode *robot[6];

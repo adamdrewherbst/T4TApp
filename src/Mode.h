@@ -29,6 +29,7 @@ public:
 	Camera *_cameraBase;
 	cameraState *_cameraStateBase;
 	Rectangle _viewportBase;
+	Vector3 _jointBase; //when free rotating a node, this is the vector from its joint to the touch point
 	
 	Mode(const char* id);
 	

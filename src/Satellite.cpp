@@ -119,20 +119,6 @@ void Satellite::Instrument::addPhysics(short n) {
 	app->addConstraint(body, node, node->_constraintId, "fixed", node->_parentOffset, node->_parentAxis, true);
 }
 
-bool Satellite::Instrument::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
-	Project::Element::touchEvent(evt, x, y, contactIndex);
-	switch(evt) {
-		case Touch::TOUCH_PRESS: {
-			break;
-		} case Touch::TOUCH_MOVE: {
-			break;
-		} case Touch::TOUCH_RELEASE: {
-			break;
-		}
-	}
-	return true;
-}
-
 float Satellite::Instrument::getMass(const char *type) {
 	if(strcmp(type, "heatSensor") == 0) {
 		return 10.0f;
