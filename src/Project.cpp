@@ -12,7 +12,7 @@ Project::Project(const char* id) : Mode::Mode(id) {
 	_rootNode = MyNode::create(_id.c_str());
 	_rootNode->_type = "root";
 	_buildAnchor = NULL;
-	
+
 	_other = (Other*) addElement(new Other(this));	
 
 	_currentElement = 0;
@@ -112,7 +112,7 @@ bool Project::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int conta
 		//see if we are placing a node on its parent
 		Element *current = getEl();
 		if(evt == Touch::TOUCH_PRESS && current && current->_currentNodeId
-		  && (_currentElement == 0 || current->_parent == touchNode->_element)) {
+		  && (current->_isOther || current->_parent == touchNode->_element)) {
 			current->addNode();
 		}
 		//or attaching a general item
@@ -186,7 +186,6 @@ void Project::setActive(bool active) {
 		app->showScene();
 	}
 	Mode::setActive(active);
-	_currentElement = 0;
 	if(active) {
 		//determine the count of this component type based on the highest index for this element in the scene or in saved files
 		_typeCount = 0;
@@ -207,7 +206,11 @@ void Project::setActive(bool active) {
 		if(finish) finish->setEnabled(true);
 		app->getPhysicsController()->setGravity(Vector3::zero());
 		_inSequence = true;
-		promptNextElement();
+		//determine the next element needing to be added
+		short e;
+		for(e = 1; e < _numElements && _elements[e]->getNode(); e++);
+		_currentElement = e-1;
+		if(e < _numElements) promptNextElement();
 	}else {
 		if(_buildAnchor) _buildAnchor->setEnabled(false);
 		app->_componentMenu->setState(Control::NORMAL);
@@ -398,7 +401,7 @@ void Project::Element::placeNode(short n) {
 		node->setTranslation(0, 0, 0);
 	} else {
 		MyNode *parent = _isOther ? _project->getTouchNode(_project->getLastTouchEvent()) : _parent->getNode();
-		if(parent) node->attachTo(parent, point, normal);
+		if(parent && parent != node) node->attachTo(parent, point, normal);
 	}
 }
 
@@ -469,6 +472,7 @@ bool Project::Element::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 						node->baseRotate(rot);
 						break;
 					} case Touch::TOUCH_RELEASE: {
+						addPhysics(_touchInd);
 						node->enablePhysics(true);
 						break;
 					}
@@ -481,28 +485,36 @@ bool Project::Element::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 						_project->_jointBase = _project->getTouchPoint() - node->getAnchorPoint();
 						break;
 					} case Touch::TOUCH_MOVE: {
-						//try to keep the point that was touched under the mouse pointer
+						//try to keep the point that was touched under the mouse pointer while rotating about the joint
 						//if ray is v0 + k*v, and free radius is R, then |v0 + k*v| = R
 						// => v0^2 + 2*k*v*v0 + k^2*v^2 = R^2 => k = [-v*v0 +/- sqrt((v*v0)^2 - v^2*(v0^2 - R^2))] / v^2
 						Vector3 origin = node->getAnchorPoint();
 						Vector3 v0 = _project->_ray.getOrigin() - origin, v = _project->_ray.getDirection(), joint;
-						float R = _project->_jointBase.length(), v_v0 = v.dot(v0);
-						float det = v_v0*v_v0 - v.lengthSquared() * (v0.lengthSquared() - R*R), k;
+						float R = _project->_jointBase.length(), v_v0 = v.dot(v0), v_v = v.lengthSquared();
+						float det = v_v0*v_v0 - v_v * (v0.lengthSquared() - R*R), k;
 						if(det >= 0) {
-							k = (-v_v0 - sqrt(det)) / v.lengthSquared();
+							k = (-v_v0 - sqrt(det)) / v_v;
 							joint = v0 + v * k;
-						} else {
+						} else { //if the mouse pointer is too far out...
 							Vector3 normal = node->getJointNormal();
-							Plane plane(normal, normal.dot(origin));
-							k = _project->_ray.intersects(plane);
-							if(k != Ray::INTERSECTS_NONE) {
+							//gracefully decline the joint vector to the parent's surface
+							Plane plane(normal, -normal.dot(origin));
+							//take the joint where the determinant would be zero (joint would be perp. to camera ray)
+							float k1 = -v_v0 / v_v;
+							//and the joint that lies on the parent surface tangent plane
+							float k2 = _project->_ray.intersects(plane);
+							//and vary between them according to the determinant
+							if(k2 != Ray::INTERSECTS_NONE) {
+								k = k1 + (k2-k1) * fmin(-det, 1);
 								joint = v0 + v * k;
 							} else joint = _project->_camera->getNode()->getTranslationWorld() - origin;
 						}
 						Quaternion rot = MyNode::getVectorRotation(_project->_jointBase, joint);
-						node->baseRotate(rot);
+						//cout << "rotating to " << app->pq(rot) << " about " << app->pv(origin) << endl;
+						node->baseRotate(rot, &origin);
 						break;
 					} case Touch::TOUCH_RELEASE: {
+						addPhysics(_touchInd);
 						node->enablePhysics(true);
 						break;
 					}
@@ -523,7 +535,8 @@ Project::Other::Other(Project *project) : Project::Element::Element(project, NUL
 
 void Project::Other::addPhysics(short n) {
 	Project::Element::addPhysics(n);
-	MyNode *node = _nodes[n].get(), *parent = _project->getTouchNode(_project->getLastTouchEvent());
+	MyNode *node = _nodes[n].get(), *parent = dynamic_cast<MyNode*>(node->getParent());
+	if(!parent) parent = _project->getTouchNode();
 	app->getPhysicsController()->setConstraintNoCollide();
 	app->addConstraint(parent, node, node->_constraintId, "fixed", node->_parentOffset, node->_parentAxis, true);
 }

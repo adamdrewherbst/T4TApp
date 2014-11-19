@@ -7,6 +7,8 @@ class LandingPod : public Project {
 public:
 	class Body : public Project::Element {
 		public:
+		ConstraintPtr _groundAnchor;
+		
 		Body(Project *project);
 	};
 
@@ -21,6 +23,8 @@ public:
 	
 	Body *_body;
 	Hatch *_hatch;
+	
+	MyNode *_buggy; //use the lunar buggy as the payload
 	
 	Button *_hatchButton;
 

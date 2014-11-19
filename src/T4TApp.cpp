@@ -1100,11 +1100,11 @@ PhysicsConstraint* T4TApp::addConstraint(MyNode *n1, MyNode *n2, int id, const c
 		body[i] = node[i]->getCollisionObject()->asRigidBody();
 		rot[i] = i == 0 ? rot1 : rot2;
 		trans[i] = i == 0 ? trans1 : trans2;
-		if(strcmp(type, "hinge") == 0) {
+		/*if(strcmp(type, "hinge") == 0) {
 			body[i]->setEnabled(false);
 			body[i]->setFriction(0.01f);
 			body[i]->setEnabled(true);
-		}
+		}//*/
 	}
 	if(strcmp(type, "hinge") == 0) {
 		ret = getPhysicsController()->createHingeConstraint(body[0], rot[0], trans[0], body[1], rot[1], trans[1]);

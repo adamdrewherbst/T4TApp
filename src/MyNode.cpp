@@ -551,9 +551,11 @@ Matrix MyNode::getInverseWorldMatrix() {
 	return m;
 }
 
-BoundingBox MyNode::getBoundingBox(bool modelSpace) {
+BoundingBox MyNode::getBoundingBox(bool modelSpace, bool recur) {
 	Vector3 vec, min(1e6, 1e6, 1e6), max(-1e6, -1e6, -1e6);
-	std::vector<MyNode*> nodes = getAllNodes();
+	std::vector<MyNode*> nodes;
+	if(recur) nodes = getAllNodes();
+	else nodes.push_back(this);
 	short n = nodes.size(), i, j, k;
 	Matrix m;
 	if(modelSpace) getWorldMatrix().invert(&m);
@@ -570,6 +572,18 @@ BoundingBox MyNode::getBoundingBox(bool modelSpace) {
 		}
 	}
 	return BoundingBox(min, max);
+}
+
+float MyNode::getMaxValue(const Vector3 &axis, bool modelSpace) {
+	short i, n = this->nv();
+	Vector3 vec, center = getTranslationWorld();
+	float max = -1e6, val;
+	for(i = 0; i < n; i++) {
+		vec = (modelSpace ? _vertices[i] : _worldVertices[i]) - center;
+		val = vec.dot(axis);
+		if(val > max) max = val;
+	}
+	return max;
 }
 
 //given a point in space, find the best match for the face that contains it
@@ -1514,27 +1528,38 @@ void MyNode::setMyTranslation(const Vector3& translation) {
 	myTranslate(translation - getTranslationWorld());
 }
 
-void MyNode::myRotate(const Quaternion& delta) {
+void MyNode::myRotate(const Quaternion& delta, Vector3 *center) {
 	Vector3 baseTrans = getTranslationWorld(), offset, offsetRot;
 	Matrix rot;
 	Matrix::createRotation(delta, &rot);
+	Vector3 trans(0, 0, 0);
+	if(center) {
+		Vector3 joint = *center - baseTrans, newJoint;
+		Matrix rotInv;
+		rot.invert(&rotInv);
+		rot.transformPoint(joint, &newJoint);
+		trans = joint - newJoint;
+	}
 	for(MyNode *child = dynamic_cast<MyNode*>(getFirstChild()); child; child = dynamic_cast<MyNode*>(child->getNextSibling())) {
 		offset = child->getTranslationWorld() - baseTrans;
 		rot.transformVector(offset, &offsetRot);
 		child->myRotate(delta);
 		child->myTranslate(offsetRot - offset);
 	}
-	if(getParent() == NULL || !isStatic()) setRotation(delta * getRotation());
+	if(getParent() == NULL || !isStatic()) {
+		setRotation(delta * getRotation());
+		if(!trans.isZero()) myTranslate(trans);
+	}
 }
 
-void MyNode::setMyRotation(const Quaternion& rotation) {
+void MyNode::setMyRotation(const Quaternion& rotation, Vector3 *center) {
 	Quaternion rotInv, delta;
 	getRotation().inverse(&rotInv);
 	delta = rotation * rotInv;
 	Vector3 axis;
 	float angle = delta.toAxisAngle(&axis);
 	//cout << "rotating by " << angle << " about " << app->pv(axis) << " [" << delta.x << "," << delta.y << "," << delta.z << "," << delta.w << "]" << endl;
-	myRotate(delta);
+	myRotate(delta, center);
 }
 
 void MyNode::myScale(const Vector3& scale) {
@@ -1589,8 +1614,8 @@ void MyNode::baseTranslate(const Vector3& delta) {
 	setMyTranslation(_baseTranslation + delta);
 }
 
-void MyNode::baseRotate(const Quaternion& delta) {
-	setMyRotation(delta * _baseRotation);
+void MyNode::baseRotate(const Quaternion& delta, Vector3 *center) {
+	setMyRotation(delta * _baseRotation, center);
 }
 
 void MyNode::baseScale(const Vector3& delta) {

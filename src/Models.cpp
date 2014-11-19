@@ -21,8 +21,18 @@ void T4TApp::generateModels() {
 	generateModel("heatSensor", "cylinder", 0.3f, 0.6f, 8);
 	generateModel("cameraProbe", "box", 1.0f, 1.0f, 1.0f);
 	generateModel("solarPanel", "box", 2.0f, 3.0f, 0.3f);
+	generateModel("podBase", "box", 8.0f, 2.0f, 8.0f);
 	generateModel("hatch1", "box", 3.5f, 3.5f, 0.3f);
 	generateModel("hatch2", "box", 3.0f, 4.0f, 0.4f);
+
+	MyNode *bands[2];
+	bands[0] = generateModel("rubberBand1", "box", 0.3f, 0.3f, 0.6f);
+	bands[1] = generateModel("rubberBand2", "box", 0.2f, 0.4f, 0.7f);
+	for(short i = 0; i < 2; i++) {
+		bands[0]->_objType = "sphere";
+		bands[0]->_radius = 0.3f;
+		bands[0]->writeData("res/common/");
+	}
 	
 	//robot
 	MyNode *robot[6];

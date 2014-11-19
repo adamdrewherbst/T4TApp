@@ -4,6 +4,7 @@
 
 LandingPod::LandingPod() : Project::Project("landingPod") {
 
+	app->addItem("podBase", 2, "general", "body");
 	app->addItem("hatch1", 2, "general", "hatch");
 	app->addItem("hatch2", 2, "general", "hatch");
 
@@ -46,25 +47,46 @@ bool LandingPod::setSubMode(short mode) {
 		case 0: { //build
 			break;
 		} case 1: { //test
-			//put the buggy inside the pod
-			
 			//place the pod at a fixed height
 			_rootNode->enablePhysics(false);
 			_rootNode->placeRest();
 			Vector3 trans(0, 10, 0);
 			_rootNode->setMyTranslation(trans);
+			//attempt to place the lunar buggy right behind the hatch
+			_buggy = app->getProjectNode("buggy");
+			if(_buggy && _buggy->getChildCount() > 0) {
+				_buggy->enablePhysics(false);
+				_buggy->placeRest();
+				_buggy->updateTransform();
+				_scene->addNode(_buggy);
+				MyNode *hatch = _hatch->getNode(), *base = _body->getNode();
+				hatch->updateTransform();
+				base->updateTransform();
+				BoundingBox buggyBox = _buggy->getBoundingBox(true), baseBox = base->getBoundingBox(false, false),
+				  hatchBox = hatch->getBoundingBox(false);
+				Vector3 normal = -hatch->getJointNormal();
+				float backZ = hatch->getMaxValue(normal);
+				Vector3 pos = hatch->getTranslationWorld() + (backZ + buggyBox.max.z) * normal;
+				pos.y = baseBox.max.y - buggyBox.min.y;
+				Quaternion rot = MyNode::getVectorRotation(Vector3::unitZ(), -normal);
+				_buggy->setMyTranslation(pos);
+				_buggy->setMyRotation(rot);
+			}
+			//TODO: if not enough space, alert the user
 			app->getPhysicsController()->setGravity(Vector3::zero());
 			app->_ground->setVisible(true);
 			break;
 		}
 	}
 	if(changed) _hatchButton->setEnabled(false);
+	_body->_groundAnchor.reset();
 	return changed;
 }
 
 void LandingPod::launch() {
 	Project::launch();
 	_rootNode->enablePhysics(true);
+	_buggy->enablePhysics(true);
 	app->getPhysicsController()->setGravity(app->_gravity);
 	_rootNode->setActivation(DISABLE_DEACTIVATION);
 	_hatchButton->setEnabled(true);
@@ -75,7 +97,16 @@ void LandingPod::openHatch() {
 	if(_hatch->_lock.get() != nullptr) _hatch->_lock->setEnabled(false);
 	//the torque is about the hinge axis
 	MyNode *node = _hatch->getNode();
-	node->getCollisionObject()->asRigidBody()->applyTorqueImpulse(-node->_parentAxis * 10.0f);
+	node->getCollisionObject()->asRigidBody()->applyTorqueImpulse(-node->getJointAxis() * 10.0f);
+	//anchor the pod to the ground
+	_body->_groundAnchor = ConstraintPtr(app->getPhysicsController()->createFixedConstraint(
+	  _body->getNode()->getCollisionObject()->asRigidBody(), app->_ground->getCollisionObject()->asRigidBody()));
+	//push the buggy out through the hatch
+	if(_buggy->getScene() == _scene) {
+		MyNode *body = dynamic_cast<MyNode*>(_buggy->getFirstChild());
+		Vector3 impulse = -_buggy->getForwardVector() * 1000.0f;
+		body->getCollisionObject()->asRigidBody()->applyImpulse(impulse);
+	}
 }
 
 LandingPod::Body::Body(Project *project) : Project::Element::Element(project, NULL, "body", "Body") {
