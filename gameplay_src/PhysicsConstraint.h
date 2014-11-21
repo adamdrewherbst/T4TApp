@@ -80,7 +80,7 @@ public:
 	{
 		void operator()(PhysicsConstraint *constraint) const
 		{
-			delete constraint;
+			if(constraint) delete constraint;
 		}
 	};
 	

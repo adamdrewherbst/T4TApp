@@ -24,9 +24,11 @@ void T4TApp::generateModels() {
 	generateModel("podBase", "box", 8.0f, 2.0f, 8.0f);
 	generateModel("hatch1", "box", 3.5f, 3.5f, 0.3f);
 	generateModel("hatch2", "box", 3.0f, 4.0f, 0.4f);
+	generateModel("table1", "box", 12.0f, 5.0f, 12.0f);
+	generateModel("clamp", "box", 1.0f, 4.0f, 1.2f);
 
 	MyNode *bands[2];
-	bands[0] = generateModel("rubberBand1", "box", 0.3f, 0.3f, 0.6f);
+	bands[0] = generateModel("rubberBand1", "box", 0.2f, 0.2f, 0.4f);
 	bands[1] = generateModel("rubberBand2", "box", 0.2f, 0.4f, 0.7f);
 	for(short i = 0; i < 2; i++) {
 		bands[0]->_objType = "sphere";

@@ -12,6 +12,7 @@
 #include "Rocket.h"
 #include "Robot.h"
 #include "LandingPod.h"
+#include "Launcher.h"
 #include "Grid.h"
 
 // Declare our game instance
@@ -130,6 +131,7 @@ void T4TApp::initialize()
 	_modes.push_back(new Buggy());
 	_modes.push_back(new Robot());
 	_modes.push_back(new LandingPod());
+	_modes.push_back(new Launcher());
 	_modes.push_back(new StringMode());
 	_modes.push_back(new ToolMode());
 	_modes.push_back(new TestMode());

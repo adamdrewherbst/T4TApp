@@ -28,6 +28,7 @@ void Project::setupMenu() {
 	//add a launch button
 	_launchButton = app->addButton <Button> (_controls, "launch", "Launch");
 	_launchButton->setHeight(40.0f);
+	app->addListener(_launchButton, this);
 
 	//add a button for each element to choose its item and edit it
 	short i, j, n;
@@ -39,6 +40,7 @@ void Project::setupMenu() {
 		Button *button = app->addButton <Button> (_elementContainer, _elements[j]->_id.c_str(), _elements[j]->_name.c_str());
 	}
 	_controls->addControl(_elementContainer);
+	app->addListener(_elementContainer, this);
 	
 	//add a button for attaching general items
 	//Button *button = app->addButton <Button> (_controls, "other", "Other");
@@ -61,9 +63,9 @@ void Project::setupMenu() {
 	_actionContainer->setAutoWidth(true);
 	_actionContainer->setHeight(ceil(_numActions/3.0f) * 60.0f);
 	_controls->addControl(_actionContainer);
+	app->addListener(_actionContainer, this);
+
 	_controls->setHeight(_controls->getHeight() + _elementContainer->getHeight() + _actionContainer->getHeight() + 150.0f);
-	
-	app->addListener(_controls, this);
 }
 
 void Project::controlEvent(Control *control, EventType evt) {
@@ -227,7 +229,7 @@ bool Project::setSubMode(short mode) {
 	if(building) {
 		if(changed) _rootNode->setRest();
 	} else _rootNode->placeRest();
-	if(_buildAnchor) _buildAnchor->setEnabled(_subMode == 0);
+	if(_buildAnchor.get() != nullptr) _buildAnchor->setEnabled(_subMode == 0);
 	switch(_subMode) {
 		case 0: { //build
 			app->setCameraEye(30, -M_PI/3, M_PI/12);
@@ -409,8 +411,7 @@ void Project::Element::addPhysics(short n) {
 	MyNode *node = _nodes[n].get();
 	node->addPhysics();
 	if(_parent == NULL && !_isOther) {
-		Vector3 joint, dir;
-		_project->_buildAnchor = ConstraintPtr(app->getPhysicsController()->createFixedConstraint(
+		if(n == 0) _project->_buildAnchor = ConstraintPtr(app->getPhysicsController()->createFixedConstraint(
 		  node->getCollisionObject()->asRigidBody()));
 		_project->_rootNode->addChild(node);
 	}

@@ -11,7 +11,6 @@ Rocket::Rocket() : Project::Project("rocket") {
 	_straw = (Straw*) addElement(new Straw(this));
 	_balloons = (Balloon*) addElement(new Balloon(this, _straw));
 	setupMenu();
-	app->addListener(_controls, this);
 }
 
 void Rocket::setActive(bool active) {

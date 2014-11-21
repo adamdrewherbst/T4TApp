@@ -14,7 +14,6 @@ Buggy::Buggy() : Project::Project("buggy") {
 	_frontWheels = addElement(new Wheels(this, _frontAxle, "frontWheels", "Front Wheels"));
 	_rearWheels = addElement(new Wheels(this, _rearAxle, "rearWheels", "Rear Wheels"));
 	setupMenu();
-	app->addListener(_controls, this);
 
 	_ramp = MyNode::create("buggyRamp");
 	_ramp->loadData("res/common/", false);

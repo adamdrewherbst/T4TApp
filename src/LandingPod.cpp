@@ -11,7 +11,6 @@ LandingPod::LandingPod() : Project::Project("landingPod") {
 	_body = (Body*) addElement(new Body(this));
 	_hatch = (Hatch*) addElement(new Hatch(this, _body));
 	setupMenu();
-	app->addListener(_controls, this);
 }
 
 void LandingPod::setupMenu() {
@@ -19,6 +18,7 @@ void LandingPod::setupMenu() {
 	_hatchButton = app->addButton <Button> (NULL, "openHatch", "Open Hatch");
 	_controls->insertControl(_hatchButton, 2);
 	_hatchButton->setEnabled(false);
+	app->addListener(_hatchButton, this);
 	_controls->setHeight(_controls->getHeight() + 70.0f);	
 }
 
