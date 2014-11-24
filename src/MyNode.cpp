@@ -1710,9 +1710,9 @@ void MyNode::enablePhysics(bool enable, bool recur) {
 		if(obj == NULL) {
 			addPhysics(false);
 		} else {
+			obj->setEnabled(true);
 			PhysicsRigidBody *body = obj->asRigidBody();
-			body->setActivation(ACTIVE_TAG);
-			body->setEnabled(true);
+			if(body) body->setActivation(ACTIVE_TAG);
 			app->enableConstraints(this, true);
 		}
 	} else if(obj != NULL) {
@@ -1720,7 +1720,7 @@ void MyNode::enablePhysics(bool enable, bool recur) {
 			removePhysics(false);
 		} else {
 			app->enableConstraints(this, false);
-			obj->asRigidBody()->setEnabled(false);
+			obj->setEnabled(false);
 		}
 	}
 }

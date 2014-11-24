@@ -215,6 +215,7 @@ void Project::setActive(bool active) {
 		if(e < _numElements) promptNextElement();
 	}else {
 		if(_buildAnchor) _buildAnchor->setEnabled(false);
+		_rootNode->enablePhysics(false);
 		app->_componentMenu->setState(Control::NORMAL);
 		app->filterItemMenu();
 		app->removeListener(app->_componentMenu, this);
