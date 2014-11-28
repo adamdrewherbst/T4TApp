@@ -333,9 +333,13 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 		}
 	}
 	else if(_componentMenu->getControl(id) == control && strncmp(id, "comp_", 5) == 0) {
-		MyNode *node = addModelNode(id+5);
-		setAction("addNode", node);
-		commitAction();
+		if(_activeMode >= 0) {
+			_modes[_activeMode]->selectItem(id+5);
+		} else {
+			MyNode *node = addModelNode(id+5);
+			setAction("addNode", node);
+			commitAction();
+		}
 	}
 	else if(strcmp(id, "debugButton") == 0) {
 		debugTrigger();
@@ -362,7 +366,9 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 	}
 }
 
-void T4TApp::keyEvent(Keyboard::KeyEvent evt, int key) {}
+void T4TApp::keyEvent(Keyboard::KeyEvent evt, int key) {
+	if(_activeMode >= 0) _modes[_activeMode]->keyEvent(evt, key);
+}
 void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {}
 bool T4TApp::mouseEvent(Mouse::MouseEvent evt, int x, int y, int wheelDelta) {}
 

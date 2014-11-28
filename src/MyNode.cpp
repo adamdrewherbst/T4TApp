@@ -1521,7 +1521,7 @@ void MyNode::myTranslate(const Vector3& delta) {
 		child->myTranslate(delta);
 	}
 	//cout << "moving " << getId() << " by " << app->pv(delta) << endl;
-	if(getParent() == NULL || (getCollisionObject() != NULL && !isStatic())) translate(delta);
+	if(getParent() == NULL || (getCollisionObject() && !isStatic())) translate(delta);
 }
 
 void MyNode::setMyTranslation(const Vector3& translation) {
@@ -1546,7 +1546,7 @@ void MyNode::myRotate(const Quaternion& delta, Vector3 *center) {
 		child->myRotate(delta);
 		child->myTranslate(offsetRot - offset);
 	}
-	if(getParent() == NULL || !isStatic()) {
+	if(getParent() == NULL || (getCollisionObject() && !isStatic())) {
 		setRotation(delta * getRotation());
 		if(!trans.isZero()) myTranslate(trans);
 	}

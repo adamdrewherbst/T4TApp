@@ -38,6 +38,8 @@ Mode::Mode(const char* id) : _selectedNode(NULL), _doSelect(true) {
 	setActive(false);
 }
 
+void Mode::selectItem(const char *id) {}
+
 void Mode::update() {}
 
 void Mode::draw() {}
@@ -147,6 +149,8 @@ void Mode::controlEvent(Control *control, EventType evt) {
 		}
 	}
 }
+
+void Mode::keyEvent(Keyboard::KeyEvent evt, int key) {}
 
 bool Mode::isTouching() {
 	return _touchPt._touching;

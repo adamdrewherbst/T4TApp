@@ -13,7 +13,7 @@ Robot::Robot() : Project::Project("robot") {
 		_robot->loadAnimation("res/common/robot.animation", _animations[i].c_str());
 	}
 	setupMenu();
-	
+
 	_pathNode = MyNode::create("robotPath");
 	_pathNode->_type = "grid";
 	_pathNode->_chain = true;
@@ -49,6 +49,8 @@ bool Robot::setSubMode(short mode) {
 	switch(_subMode) {
 		case 0: { //build
 			app->setCameraEye(30, 0, M_PI/2);
+			_path.clear();
+			_path.push_back(Vector2(0, 0));
 			break;
 		} case 1: { //test
 			app->setCameraEye(30, 0, M_PI/2);
@@ -69,10 +71,12 @@ void Robot::updatePath() {
 
 void Robot::launch() {
 	Project::launch();
+	_firstUpdate = true;
 	_pathMode = 1;
 	_pathInd = 0;
 	_pathDistance = 0;
 	_robot->playAnimation("walk", true);
+	app->setCameraEye(30, 0, M_PI/3);
 }
 
 void Robot::update() {
@@ -98,16 +102,24 @@ void Robot::update() {
 			break;
 		} case 1: { //turning
 			Vector3 forward = _robot->getForwardVector();
-			float angle = atan2(dir.y, dir.x) - atan2(forward.z, forward.x);
+			if(_firstUpdate) {
+				//front and back are same for robot, so don't bother doing an about-face
+				_forwardVector = forward.x * dir.x + forward.z * dir.y > 0;
+				_firstUpdate = false;
+			}
+			if(!_forwardVector) forward *= -1;
+			float angle1 = atan2(forward.z, forward.x), angle2 = atan2(dir.y, dir.x), angle = angle2 - angle1;
 			if(angle < -M_PI) angle += 2*M_PI;
 			else if(angle > M_PI) angle -= 2*M_PI;
 			float dAngle = 0.025f * (angle < 0 ? -1 : 1);
 			if(fabs(angle) < fabs(dAngle)) {
+				cout << "done turning, moving to segment " << _pathInd << endl;
 				dAngle = angle;
 				_pathMode = 0;
 				_pathDistance = 0;
 			}
-			Quaternion rot(Vector3::unitY(), dAngle);
+			cout << "turning from " << angle1 << " to " << angle2 << " [" << angle << "] by " << dAngle << endl;
+			Quaternion rot(Vector3::unitY(), -dAngle);
 			_robot->myRotate(rot);
 			break;
 		}

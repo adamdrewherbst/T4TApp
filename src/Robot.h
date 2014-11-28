@@ -13,6 +13,7 @@ public:
 	MyNode *_pathNode;
 	short _pathInd, _pathMode;
 	float _pathDistance;
+	bool _firstUpdate, _forwardVector;
 
 	Robot();
 	void setupMenu();
