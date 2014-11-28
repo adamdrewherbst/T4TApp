@@ -80,6 +80,12 @@ form mainMenu {
 				height = 40
 				text = Launcher
 			}
+			button hull {
+				style = buttonStyle
+				autoWidth = true
+				height = 40
+				text = Hull
+			}
 			image navigate {
 				style = buttonStyle
 				autoWidth = true
@@ -556,8 +562,8 @@ form mainMenu {
 				}
 			}
 		}
-
-		container mode_tool {
+		
+		container mode_hull {
 			style = hiddenContainer
 			autoWidth = true
 			autoHeight = true
@@ -566,17 +572,59 @@ form mainMenu {
 			container controls {
 				style = basicContainer
 				position = 20, 10
+				size = 180, 250
+				layout = LAYOUT_VERTICAL
+				consumeInputEvents = true
+				zIndex = 5
+
+				container subMode {
+					style = hiddenContainer
+					autoWidth = true
+					height = 100
+					layout = LAYOUT_VERTICAL
+					
+					button selectRegion {
+						style = buttonStyle
+						autoWidth = true
+						height = 40
+						text = Select Region
+					}
+					button selectChain {
+						style = buttonStyle
+						autoWidth = true
+						height = 40
+						text = Select Chain
+					}
+				}
+				button makeHull {
+					style = buttonStyle
+					autoWidth = true
+					height = 40
+					text = Make Hulls
+				}
+			}
+		}
+
+		container mode_tool {
+			style = hiddenContainer
+			autoWidth = true
+			autoHeight = true
+			layout = LAYOUT_ABSOLUTE
+
+			container controls {
+				style = basicContainer
+				position = 20, 10
 				size = 180, 370
 				layout = LAYOUT_VERTICAL
 				consumeInputEvents = true
 				zIndex = 5
-				
+
 				container subMode {
 					style = hiddenContainer
 					autoWidth = true
 					height = 170
 					layout = LAYOUT_VERTICAL
-					
+
 					image saw {
 						style = imageWide
 						autoWidth = true

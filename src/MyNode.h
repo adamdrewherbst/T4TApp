@@ -96,6 +96,7 @@ public:
 
 	bool getTouchPoint(int x, int y, Vector3 *point, Vector3 *normal);
 	short pt2Face(Vector3 point, Vector3 viewer = Vector3::zero());
+	short pix2Face(int x, int y, Vector3 *point);
 	Plane facePlane(unsigned short f, bool modelSpace = false);
 	Vector3 faceCenter(unsigned short f, bool modelSpace = false);
 	void rotateFaceToPlane(unsigned short f, Plane p);

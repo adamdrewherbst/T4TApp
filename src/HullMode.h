@@ -6,8 +6,19 @@
 class HullMode : public Mode
 {
 public:
-	std::vector<short> _selection; //face indices
-	std::vector<MyNode*> _selections;
+	class Selection {
+		public:
+		HullMode *_mode;
+		std::vector<short> _faces;
+		MyNode *_node; //for display
+		
+		Selection(HullMode *mode, const char *id, Vector3 color = Vector3::unitX());
+		void addFace(short face);
+		void toggleFace(short face);
+		void clear();
+		void update();
+	};
+	Selection *_region, *_chain, *_currentSelection;
 	bool _shiftPressed, _ctrlPressed;
 	
 	HullMode();
@@ -17,10 +28,7 @@ public:
 	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 	void controlEvent(Control *control, Control::Listener::EventType evt);
 	void keyEvent(Keyboard::KeyEvent evt, int key);
-	void clearSelection();
-	void addFace(short face);
-	void toggleFace(short face);
-	void updateSelection();
+	void placeCamera();
 };
 
 #endif

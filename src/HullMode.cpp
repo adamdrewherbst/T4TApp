@@ -7,6 +7,9 @@ HullMode::HullMode() : Mode::Mode("hull") {
 	_doSelect = false;
 	_ctrlPressed = false;
 	_shiftPressed = false;
+	
+	_region = new Selection(this, "region", Vector3(0.0f, 0.0f, 1.0f));
+	_chain = new Selection(this, "chain", Vector3(1.0f, 0.0f, 0.0f));
 }
 
 void setActive(bool active) {
@@ -16,6 +19,18 @@ void setActive(bool active) {
 }
 
 bool setSubMode(short mode) {
+	bool changed = Mode::setSubMode(mode);
+	_currentSelection = NULL;
+	switch(_subMode) {
+		case 0: { //select region
+			_currentSelection = _region;
+			break;
+		} case 1: { //select chain
+			_currentSelection = _chain;
+			break;
+		}
+	}
+	return changed;
 }
 
 void HullMode::controlEvent(Control *control, EventType evt) {
@@ -44,48 +59,81 @@ void keyEvent(Keyboard::KeyEvent evt, int key) {
 	}
 }
 
+
+
 bool HullMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
 	Mode::touchEvent(evt, x, y, contactIndex);
-	if(_selectingFaces && isTouching() && _touchPt._hit) {
+	if(_currentSelection && isTouching() && _touchPt._hit) {
 		short face = _node->pt2Face(_touchPt.getPoint(evt));
 		if(face >= 0) {
 			if(evt == Touch::TOUCH_PRESS && !_ctrlPressed && !_shiftPressed) {
-				clearSelection();
-			} else if(_shiftPressed) {
-				toggleFace(face);
+				_currentSelection->clear();
+			}
+			if(_shiftPressed) {
+				_currentSelection->toggleFace(face);
 			} else {
-				addFace(face);
+				_currentSelection->addFace(face);
 			}
 		}
 	}
 	return true;
 }
 
-void HullMode::clearSelection() {
-	_selection.clear();
-	updateSelection();
+void HullMode::placeCamera() {
+	Mode::placeCamera();
+	_node->updateCamera();
 }
 
-void HullMode::toggleFace(short face) {
-	std::vector<short>::iterator it = std::find(_selection.begin(), _selection.end(), face);
-	if(it != _selection.end()) {
-		_selection.erase(it);
+HullMode::Selection::Selection(HullMode *mode, const char *id, Vector3 color) : _mode(mode) {
+	_node = MyNode::create(id);
+	_node->_type = "red";
+	_node->_color = color;
+}
+
+void HullMode::Selection::addFace(short face) {
+	std::vector<short>::iterator it = std::find(_faces.begin(), _faces.end(), face);
+	if(it == _faces.end()) {
+		_faces.push_back(face);
+		update();
+	}
+}
+
+void HullMode::Selection::toggleFace(short face) {
+	std::vector<short>::iterator it = std::find(_faces.begin(), _faces.end(), face);
+	if(it != _faces.end()) {
+		_faces.erase(it);
 	} else {
-		_selection.push_back(face);
+		_faces.push_back(face);
 	}
-	updateSelection();
+	update();
 }
 
-void HullMode::addFace(short face) {
-	std::vector<short>::iterator it = std::find(_selection.begin(), _selection.end(), face);
-	if(it == _selection.end()) {
-		_selection.push_back(face);
-		updateSelection();
+void HullMode::Selection::update() {
+	_node->clearMesh();
+	MyNode *node = _mode->_node;
+	short i, j, n = _faces.size(), f, nv;
+	Vector3 vec, normal;
+	std::vector<unsigned short> newFace;
+	for(i = 0; i < n; i++) {
+		const Face &face = node->_faces[_faces[i]];
+		f = face.size();
+		nv = _node->nv();
+		normal = face.getNormal(true);
+		newFace.resize(f);
+		for(j = 0; j < f; j++) {
+			vec = node->_vertices[face[j]] + normal * 0.001f;
+			_node->addVertex(vec);
+			newFace[j] = nv + j;
+		}
+		_node->addFace(newFace);
 	}
+	_node->update();
+	_node->updateModel(false, false);
 }
 
-void HullMode::updateSelection() {
-	
+void HullMode::Selection::clear() {
+	_faces.clear();
+	update();
 }
 
 

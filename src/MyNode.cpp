@@ -501,6 +501,18 @@ void MyNode::v3v2(const Vector3 &v, Vector2 *dst) {
 	dst->y = v.y;
 }
 
+bool MyNode::getBarycentric(Vector2 point, Vector2 p1, Vector2 p2, Vector3 p3, Vector2 *coords) {
+	Vector2 v1 = p2 - p1, v2 = p3 - p1;
+	//point = p1 + a*v1 + b*v2 => [v1 v2][a b] = point - p1
+	// => [a b] = [v1 v2]^-1 * (point - p1)
+	float det = v1.x * v2.y - v1.y * v2.x;
+	if(det == 0) return Vector2::zero();
+	Vector2 p = point - p1;
+	float a = (v2.y * p.x - v2.x * p.y) / det, b = (-v1.y * p.x + v1.x * p.y) / det;
+	coords.set(a, b);
+	return a >= 0 && b >= 0 && a + b <= 1;
+}
+
 Vector3 MyNode::unitV(short axis) {
 	switch(axis) {
 		case 0: return Vector3::unitX();
@@ -617,6 +629,31 @@ short MyNode::pt2Face(Vector3 point, Vector3 viewer) {
 		}
 	}
 	return touchFace;
+}
+
+short MyNode::pix2Face(int x, int y, Vector3 *point) {
+	short i, j, k, nf = this->nf(), nt, face = -1;
+	Vector3 tri[3], vec, best(0, 0, 1e8);
+	Vector2 tri2[3], pt(x, y), coords;
+	for(i = 0; i < nf; i++) {
+		const Face &face = _faces[i];
+		nt = face.nt();
+		for(j = 0; j < nt; j++) {
+			for(k = 0; k < 3; k++) {
+				tri[k] = _cameraVertices[face.triangle(j, k)];
+				v3v2(tri[k], &tri2[k]);
+			}
+			if(getBarycentric(pt, tri2[0], tri2[1], tri2[2], &coords)) {
+				vec = tri[0] + (tri[1] - tri[0]) * coords.x + (tri[2] - tri[0]) * coords.y;
+				if(vec.z < best.z) {
+					if(touchPoint) *touchPoint = vec;
+					face = i;
+				}
+				break;
+			}
+		}
+	}
+	return face;
 }
 
 Plane MyNode::facePlane(unsigned short f, bool modelSpace) {
