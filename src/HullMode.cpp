@@ -10,15 +10,16 @@ HullMode::HullMode() : Mode::Mode("hull") {
 	
 	_region = new Selection(this, "region", Vector3(0.0f, 0.0f, 1.0f));
 	_chain = new Selection(this, "chain", Vector3(1.0f, 0.0f, 0.0f));
+	_node = NULL;
 }
 
-void setActive(bool active) {
+void HullMode::setActive(bool active) {
 	if(active) {
 		app->promptItem();
 	}
 }
 
-bool setSubMode(short mode) {
+bool HullMode::setSubMode(short mode) {
 	bool changed = Mode::setSubMode(mode);
 	_currentSelection = NULL;
 	switch(_subMode) {
@@ -40,31 +41,31 @@ void HullMode::controlEvent(Control *control, EventType evt) {
 
 void HullMode::selectItem(const char *id) {
 	Mode::selectItem(id);
-	_scene->removeNode(_node);
+	if(_node) _scene->removeNode(_node);
 	_node = app->duplicateModelNode(id);
 	_node->setId(id);
 	_scene->addNode(_node);
 }
 
-void keyEvent(Keyboard::KeyEvent evt, int key) {
-	if(evt == Keyboard::KEY_CHAR) return;
+bool HullMode::keyEvent(Keyboard::KeyEvent evt, int key) {
+	if(evt == Keyboard::KEY_CHAR) return true;
 	switch(key) {
 		case Keyboard::KEY_SHIFT: {
 			_shiftPressed = evt == Keyboard::KEY_PRESS;
 			break;
 		}
 		case Keyboard::KEY_CTRL: {
-			_ctrlPressed = evt == KeyBoard::KEY_PRESS;
+			_ctrlPressed = evt == Keyboard::KEY_PRESS;
 		}
 	}
+	return true;
 }
-
-
 
 bool HullMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
 	Mode::touchEvent(evt, x, y, contactIndex);
+	if(app->_navMode >= 0) return true;
 	if(_currentSelection && isTouching() && _touchPt._hit) {
-		short face = _node->pt2Face(_touchPt.getPoint(evt));
+		short face = _node->pix2Face(_x, _y);
 		if(face >= 0) {
 			if(evt == Touch::TOUCH_PRESS && !_ctrlPressed && !_shiftPressed) {
 				_currentSelection->clear();
@@ -115,7 +116,7 @@ void HullMode::Selection::update() {
 	Vector3 vec, normal;
 	std::vector<unsigned short> newFace;
 	for(i = 0; i < n; i++) {
-		const Face &face = node->_faces[_faces[i]];
+		Face &face = node->_faces[_faces[i]];
 		f = face.size();
 		nv = _node->nv();
 		normal = face.getNormal(true);

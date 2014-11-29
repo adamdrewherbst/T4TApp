@@ -35,7 +35,7 @@ public:
 	
 	virtual bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 	virtual void controlEvent(Control *control, EventType evt);
-	virtual void keyEvent(Keyboard::KeyEvent evt, int key);
+	virtual bool keyEvent(Keyboard::KeyEvent evt, int key);
 	virtual void setActive(bool active);
 	virtual bool setSubMode(short mode);
 	virtual bool setSelectedNode(MyNode *node, Vector3 point = Vector3::zero());

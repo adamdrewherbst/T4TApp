@@ -180,13 +180,6 @@ void Project::addPhysics() {
 }
 
 void Project::setActive(bool active) {
-	if(active) {
-		app->cameraPush();
-		app->setActiveScene(_scene);
-	} else {
-		app->cameraPop();
-		app->showScene();
-	}
 	Mode::setActive(active);
 	if(active) {
 		//determine the count of this component type based on the highest index for this element in the scene or in saved files

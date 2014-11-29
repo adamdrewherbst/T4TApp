@@ -35,7 +35,10 @@ Mode::Mode(const char* id) : _selectedNode(NULL), _doSelect(true) {
 	cameraNode->setCamera(_cameraBase);
 	_cameraStateBase = new cameraState();
 	app->copyCameraState(app->_cameraState, _cameraStateBase);
-	setActive(false);
+	//setActive(false);
+	_active = false;
+	_selectedNode = NULL;
+	_container->setVisible(false);
 }
 
 void Mode::selectItem(const char *id) {}
@@ -49,9 +52,13 @@ void Mode::setActive(bool active) {
 	setSelectedNode(NULL);
 	_container->setVisible(active);
 	if(active) {
+		app->cameraPush();
+		app->setActiveScene(_scene);
 		setSubMode(0);
 		app->setNavMode(-1);
 	} else {
+		app->cameraPop();
+		app->showScene();
 	}
 }
 
@@ -150,7 +157,7 @@ void Mode::controlEvent(Control *control, EventType evt) {
 	}
 }
 
-void Mode::keyEvent(Keyboard::KeyEvent evt, int key) {}
+bool Mode::keyEvent(Keyboard::KeyEvent evt, int key) {}
 
 bool Mode::isTouching() {
 	return _touchPt._touching;

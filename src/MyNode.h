@@ -96,7 +96,7 @@ public:
 
 	bool getTouchPoint(int x, int y, Vector3 *point, Vector3 *normal);
 	short pt2Face(Vector3 point, Vector3 viewer = Vector3::zero());
-	short pix2Face(int x, int y, Vector3 *point);
+	short pix2Face(int x, int y, Vector3 *point = NULL);
 	Plane facePlane(unsigned short f, bool modelSpace = false);
 	Vector3 faceCenter(unsigned short f, bool modelSpace = false);
 	void rotateFaceToPlane(unsigned short f, Plane p);
@@ -132,6 +132,7 @@ public:
 
 	//general purpose
 	static Quaternion getVectorRotation(Vector3 v1, Vector3 v2);
+	static bool getBarycentric(Vector2 point, Vector2 p1, Vector2 p2, Vector2 p3, Vector2 *coords = NULL);
 	static float gv(Vector3 &v, int dim);
 	static void sv(Vector3 &v, int dim, float val);
 	static void v3v2(const Vector3 &v, Vector2 *dst);

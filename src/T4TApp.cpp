@@ -13,6 +13,7 @@
 #include "Robot.h"
 #include "LandingPod.h"
 #include "Launcher.h"
+#include "HullMode.h"
 #include "Grid.h"
 
 // Declare our game instance
@@ -115,6 +116,9 @@ void T4TApp::initialize()
 	addItem("halfpipe", 3, "general", "body", "lever arm");
 	addItem("gear_basic", 2, "general", "gear");
 	addItem("cap_with_hole_1", 1, "general");
+	addItem("pitri_wheel", 1, "general");
+	addItem("green_flange_wheel", 1, "general");
+	addItem("jar_with_cone", 1, "general");
 
 	_drawDebugCheckbox = addControl <CheckBox> (_sideMenu, "drawDebug", "Draw Debug");
 	//Button *debugButton = addButton <Button> (_sideMenu, "debugButton", "Debug");
@@ -132,6 +136,7 @@ void T4TApp::initialize()
 	_modes.push_back(new Robot());
 	_modes.push_back(new LandingPod());
 	_modes.push_back(new Launcher());
+	_modes.push_back(new HullMode());
 	_modes.push_back(new StringMode());
 	_modes.push_back(new ToolMode());
 	_modes.push_back(new TestMode());

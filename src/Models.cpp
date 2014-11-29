@@ -63,6 +63,9 @@ void T4TApp::generateModels() {
 	_robot->writeData("res/common/");
 	
 	loadObj("res/common/unnamed.obj");
+	loadObj("res/common/jar_with_cone.obj");
+	loadObj("res/common/green_flange_wheel.obj");
+	loadObj("res/common/pitri_wheel.obj");
 }
 
 MyNode* T4TApp::generateModel(const char *id, const char *type, ...) {
@@ -333,7 +336,7 @@ void T4TApp::loadObj(const char *filename) {
 			}
 			node->addFace(face, reverseFace);
 		}
-		if((strcmp(label, "g") == 0 || stream->eof()) && node->nv() > 0) { //end of current model
+		if((/*strcmp(label, "g") == 0 ||*/ stream->eof()) && node->nv() > 0) { //end of current model
 			n = node->nv();
 			vertex.set(0, 0, 0);
 			for(i = 0; i < n; i++) vertex += node->_vertices[i];
@@ -349,7 +352,7 @@ void T4TApp::loadObj(const char *filename) {
 			node->clearMesh();
 			//vOffset += n;
 		}
-		if(strcmp(label, "g") == 0) { //start of new model
+		if(strcmp(label, "g") == 0 && node->nv() == 0) { //start of new model
 			in >> nodeName;
 			node->setId(nodeName);
 			node->_type = nodeName;

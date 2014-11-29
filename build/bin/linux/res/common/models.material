@@ -239,6 +239,39 @@ material cone : colored
     }
 }
 
+material pitri_wheel : colored
+{
+    technique
+    {
+        pass
+        {
+            u_diffuseColor = 0.5, 0.25, 0.5, 1
+        }
+    }
+}
+
+material green_flange_wheel : colored
+{
+    technique
+    {
+        pass
+        {
+            u_diffuseColor = 0.5, 0.25, 0.5, 1
+        }
+    }
+}
+
+material jar_with_cone : colored
+{
+    technique
+    {
+        pass
+        {
+            u_diffuseColor = 0.5, 0.25, 0.5, 1
+        }
+    }
+}
+
 material cap_with_hole_1 : colored
 {
     technique

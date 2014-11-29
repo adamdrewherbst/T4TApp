@@ -832,6 +832,7 @@ form mainMenu {
 	container submenu_componentMenu {
 		style = basicContainer
 		layout = LAYOUT_FLOW
+		scroll = SCROLL_VERTICAL
 		zIndex = 20
 		consumeInputEvents = true
 	}

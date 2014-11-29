@@ -15,13 +15,13 @@ Face::Face() : _mesh(NULL) {}
 
 Face::Face(Meshy *mesh) : _mesh(mesh) {}
 
-unsigned short Face::size() { return _border.size(); }
+unsigned short Face::size() const { return _border.size(); }
 
-unsigned short Face::nv() { return _next.size(); }
+unsigned short Face::nv() const { return _next.size(); }
 
-unsigned short Face::nh() { return _holes.size(); }
+unsigned short Face::nh() const { return _holes.size(); }
 
-unsigned short Face::nt() { return _triangles.size(); }
+unsigned short Face::nt() const { return _triangles.size(); }
 
 unsigned short& Face::operator[](unsigned short index) { return _border[index]; }
 
@@ -35,11 +35,11 @@ Face::boundary_iterator Face::vend() { return _next.end(); }
 
 bool Face::hasHoles() { return !_holes.empty(); }
 
-unsigned short Face::holeSize(unsigned short h) { return _holes[h].size(); }
+unsigned short Face::holeSize(unsigned short h) const { return _holes[h].size(); }
 
-unsigned short Face::hole(unsigned short h, unsigned short ind) { return _holes[h][ind]; }
+unsigned short Face::hole(unsigned short h, unsigned short ind) const { return _holes[h][ind]; }
 
-unsigned short Face::triangle(unsigned short t, unsigned short ind) { return _triangles[t][ind]; }
+unsigned short Face::triangle(unsigned short t, unsigned short ind) const { return _triangles[t][ind]; }
 
 void Face::clear() {
 	_border.clear();
@@ -107,7 +107,7 @@ Plane Face::getPlane(bool modelSpace) {
 	return modelSpace ? _plane : _worldPlane;
 }
 
-Vector3 Face::getNormal(bool modelSpace) {
+Vector3 Face::getNormal(bool modelSpace) const {
 	return modelSpace ? _plane.getNormal() : _worldPlane.getNormal();
 }
 
@@ -501,15 +501,15 @@ void MyNode::v3v2(const Vector3 &v, Vector2 *dst) {
 	dst->y = v.y;
 }
 
-bool MyNode::getBarycentric(Vector2 point, Vector2 p1, Vector2 p2, Vector3 p3, Vector2 *coords) {
+bool MyNode::getBarycentric(Vector2 point, Vector2 p1, Vector2 p2, Vector2 p3, Vector2 *coords) {
 	Vector2 v1 = p2 - p1, v2 = p3 - p1;
 	//point = p1 + a*v1 + b*v2 => [v1 v2][a b] = point - p1
 	// => [a b] = [v1 v2]^-1 * (point - p1)
 	float det = v1.x * v2.y - v1.y * v2.x;
-	if(det == 0) return Vector2::zero();
+	if(det == 0) return false;
 	Vector2 p = point - p1;
 	float a = (v2.y * p.x - v2.x * p.y) / det, b = (-v1.y * p.x + v1.x * p.y) / det;
-	coords.set(a, b);
+	coords->set(a, b);
 	return a >= 0 && b >= 0 && a + b <= 1;
 }
 
@@ -632,7 +632,7 @@ short MyNode::pt2Face(Vector3 point, Vector3 viewer) {
 }
 
 short MyNode::pix2Face(int x, int y, Vector3 *point) {
-	short i, j, k, nf = this->nf(), nt, face = -1;
+	short i, j, k, nf = this->nf(), nt, touchFace = -1;
 	Vector3 tri[3], vec, best(0, 0, 1e8);
 	Vector2 tri2[3], pt(x, y), coords;
 	for(i = 0; i < nf; i++) {
@@ -646,14 +646,14 @@ short MyNode::pix2Face(int x, int y, Vector3 *point) {
 			if(getBarycentric(pt, tri2[0], tri2[1], tri2[2], &coords)) {
 				vec = tri[0] + (tri[1] - tri[0]) * coords.x + (tri[2] - tri[0]) * coords.y;
 				if(vec.z < best.z) {
-					if(touchPoint) *touchPoint = vec;
-					face = i;
+					if(point) *point = vec;
+					touchFace = i;
 				}
 				break;
 			}
 		}
 	}
-	return face;
+	return touchFace;
 }
 
 Plane MyNode::facePlane(unsigned short f, bool modelSpace) {

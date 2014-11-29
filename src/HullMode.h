@@ -20,6 +20,7 @@ public:
 	};
 	Selection *_region, *_chain, *_currentSelection;
 	bool _shiftPressed, _ctrlPressed;
+	MyNode *_node;
 	
 	HullMode();
 	void setActive(bool active);
@@ -27,7 +28,7 @@ public:
 	void selectItem(const char *id);
 	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 	void controlEvent(Control *control, Control::Listener::EventType evt);
-	void keyEvent(Keyboard::KeyEvent evt, int key);
+	bool keyEvent(Keyboard::KeyEvent evt, int key);
 	void placeCamera();
 };
 

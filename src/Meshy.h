@@ -21,15 +21,15 @@ class Face {
 
 	Face();	
 	Face(Meshy *mesh);
-	unsigned short size();
-	unsigned short nv();
-	unsigned short nh();
-	unsigned short nt();
+	unsigned short size() const;
+	unsigned short nv() const;
+	unsigned short nh() const;
+	unsigned short nt() const;
 	boundary_iterator vbegin();
 	boundary_iterator vend();
-	unsigned short holeSize(unsigned short h);
-	unsigned short hole(unsigned short h, unsigned short ind);
-	unsigned short triangle(unsigned short t, unsigned short ind);
+	unsigned short holeSize(unsigned short h) const;
+	unsigned short hole(unsigned short h, unsigned short ind) const;
+	unsigned short triangle(unsigned short t, unsigned short ind) const;
 	bool hasHoles();
 	void clear();
 	void push_back(unsigned short vertex);
@@ -44,7 +44,7 @@ class Face {
 	void setTransform();
 	void updateTransform();
 	Plane getPlane(bool modelSpace = false);
-	Vector3 getNormal(bool modelSpace = false);
+	Vector3 getNormal(bool modelSpace = false) const;
 	float getDistance(bool modelSpace = false);
 
 	//triangulation of faces via GLU Tesselator
