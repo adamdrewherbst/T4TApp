@@ -65,7 +65,7 @@ public:
 	void updateEdges();
 	void setNormals();
 	void updateModel(bool doPhysics = true, bool doCenter = true);
-	void updateCamera();
+	void updateCamera(bool doPatches = true);
 	void calculateHulls();
 	void setColor(float r, float g, float b);
 

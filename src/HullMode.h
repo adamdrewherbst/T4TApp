@@ -20,7 +20,7 @@ public:
 	};
 	Selection *_region, *_chain, *_currentSelection;
 	bool _shiftPressed, _ctrlPressed;
-	MyNode *_node;
+	MyNode *_hullNode;
 	
 	HullMode();
 	void setActive(bool active);

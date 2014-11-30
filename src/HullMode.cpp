@@ -10,11 +10,13 @@ HullMode::HullMode() : Mode::Mode("hull") {
 	
 	_region = new Selection(this, "region", Vector3(0.0f, 0.0f, 1.0f));
 	_chain = new Selection(this, "chain", Vector3(1.0f, 0.0f, 0.0f));
-	_node = NULL;
+	_hullNode = NULL;
 }
 
 void HullMode::setActive(bool active) {
+	Mode::setActive(active);
 	if(active) {
+		app->setCameraEye(30, 0, M_PI/12);
 		app->promptItem();
 	}
 }
@@ -37,17 +39,27 @@ bool HullMode::setSubMode(short mode) {
 void HullMode::controlEvent(Control *control, EventType evt) {
 	Mode::controlEvent(control, evt);
 	const char *id = control->getId();
+	
+	if(strcmp(id, "reverseFace") == 0) {
+		//if(_currentSelection) _currentSelection->reverseFaces();
+	} else if(strcmp(id, "makeHull") == 0) {
+	}
 }
 
 void HullMode::selectItem(const char *id) {
 	Mode::selectItem(id);
-	if(_node) _scene->removeNode(_node);
-	_node = app->duplicateModelNode(id);
-	_node->setId(id);
-	_scene->addNode(_node);
+	if(_hullNode) _scene->removeNode(_hullNode);
+	_hullNode = app->duplicateModelNode(id);
+	_hullNode->setId(id);
+	_hullNode->_color.set(1.0f, 1.0f, 0.0f);
+	_hullNode->updateModel(false);
+	_scene->addNode(_hullNode);
+	_region->_node->set(_hullNode);
+	_chain->_node->set(_hullNode);
 }
 
 bool HullMode::keyEvent(Keyboard::KeyEvent evt, int key) {
+	Mode::keyEvent(evt, key);
 	if(evt == Keyboard::KEY_CHAR) return true;
 	switch(key) {
 		case Keyboard::KEY_SHIFT: {
@@ -64,9 +76,11 @@ bool HullMode::keyEvent(Keyboard::KeyEvent evt, int key) {
 bool HullMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
 	Mode::touchEvent(evt, x, y, contactIndex);
 	if(app->_navMode >= 0) return true;
-	if(_currentSelection && isTouching() && _touchPt._hit) {
-		short face = _node->pix2Face(_x, _y);
+	if(_currentSelection && isTouching()) {
+		short face = _hullNode->pix2Face(_x, _y);
 		if(face >= 0) {
+			cout << "selected face " << face << ":" << endl;
+			_hullNode->printFace(face);
 			if(evt == Touch::TOUCH_PRESS && !_ctrlPressed && !_shiftPressed) {
 				_currentSelection->clear();
 			}
@@ -82,13 +96,14 @@ bool HullMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int cont
 
 void HullMode::placeCamera() {
 	Mode::placeCamera();
-	_node->updateCamera();
+	_hullNode->updateCamera(false);
 }
 
 HullMode::Selection::Selection(HullMode *mode, const char *id, Vector3 color) : _mode(mode) {
 	_node = MyNode::create(id);
 	_node->_type = "red";
 	_node->_color = color;
+	_mode->_scene->addNode(_node);
 }
 
 void HullMode::Selection::addFace(short face) {
@@ -111,10 +126,11 @@ void HullMode::Selection::toggleFace(short face) {
 
 void HullMode::Selection::update() {
 	_node->clearMesh();
-	MyNode *node = _mode->_node;
+	MyNode *node = _mode->_hullNode;
 	short i, j, n = _faces.size(), f, nv;
 	Vector3 vec, normal;
 	std::vector<unsigned short> newFace;
+	std::vector<std::vector<unsigned short> > newTriangles;
 	for(i = 0; i < n; i++) {
 		Face &face = node->_faces[_faces[i]];
 		f = face.size();
@@ -126,7 +142,7 @@ void HullMode::Selection::update() {
 			_node->addVertex(vec);
 			newFace[j] = nv + j;
 		}
-		_node->addFace(newFace);
+		_node->addFace(newFace, face._triangles);
 	}
 	_node->update();
 	_node->updateModel(false, false);

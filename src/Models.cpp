@@ -313,7 +313,7 @@ void T4TApp::loadObj(const char *filename) {
 		str = stream->readLine(line, 2048);
 		std::istringstream in(str);
 		in >> label;
-		if(strcmp(label, "s") == 0) {
+		if(strcmp(label, "scale") == 0) {
 			in >> x >> y >> z;
 			scale.set(x, y, z);
 			cout << "Scale: " << x << ", " << y << ", " << z << endl;

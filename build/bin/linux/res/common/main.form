@@ -174,7 +174,7 @@ form mainMenu {
 			size = 180, 350
 			layout = LAYOUT_VERTICAL
 			consumeInputEvents = true
-			zIndex = 10
+			zIndex = 20
 
 			image eye {
 				style = imageWide
@@ -595,6 +595,12 @@ form mainMenu {
 						height = 40
 						text = Select Chain
 					}
+				}
+				button reverseFace {
+					style = buttonStyle
+					autoWidth = true
+					height = 40
+					text = Reverse Faces
 				}
 				button makeHull {
 					style = buttonStyle

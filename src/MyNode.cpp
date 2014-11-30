@@ -646,13 +646,14 @@ short MyNode::pix2Face(int x, int y, Vector3 *point) {
 			if(getBarycentric(pt, tri2[0], tri2[1], tri2[2], &coords)) {
 				vec = tri[0] + (tri[1] - tri[0]) * coords.x + (tri[2] - tri[0]) * coords.y;
 				if(vec.z < best.z) {
-					if(point) *point = vec;
+					best = vec;
 					touchFace = i;
 				}
 				break;
 			}
 		}
 	}
+	if(point && touchFace >= 0) *point = best;
 	return touchFace;
 }
 
@@ -1239,7 +1240,7 @@ void MyNode::updateModel(bool doPhysics, bool doCenter) {
 	}//*/
 }
 
-void MyNode::updateCamera() {
+void MyNode::updateCamera(bool doPatches) {
 	short nv = this->nv(), nf = this->nf(), i, j;
 	//transform my vertices and normals to camera space
 	_cameraVertices.resize(nv);
@@ -1255,6 +1256,7 @@ void MyNode::updateCamera() {
 		camNorm.transformVector(_faces[i].getNormal(), &_cameraNormals[i]);
 	}
 	//identify contiguous patches of the surface that face the camera
+	if(!doPatches) return;
 	_cameraPatches.clear();
 	short n, f, a, b;
 	std::set<unsigned short> faces, edges;
