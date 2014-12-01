@@ -123,6 +123,7 @@ append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "CGAL_Core" "CGAL-4.5")
 set(GAMEPLAY_LIBRARIES ${GAMEPLAY_LIBRARIES} "/usr/lib64/libboost_thread-mt.so.1.53.0")
 set(GAMEPLAY_LIBRARIES ${GAMEPLAY_LIBRARIES} "/usr/lib64/libGLU.so.1")
 set(GAMEPLAY_LIBRARIES ${GAMEPLAY_LIBRARIES} "/home/aherbst/Documents/Programming/GamePlay/projects/t4tapp/src/pugixml-1.5/scripts/build/libpugixml.a")
+#set(GAMEPLAY_LIBRARIES ${GAMEPLAY_LIBRARIES} "/usr/lib64/libassimp.so.2")
 
 IF (TARGET_OS STREQUAL "LINUX")
 	append_gameplay_ext_lib(GAMEPLAY_LIBRARIES "GL" "")

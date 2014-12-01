@@ -1026,6 +1026,7 @@ void MyNode::writeData(const char *file) {
 			os << endl;
 			for(j = 0; j < nh; j++) {
 				n = _faces[i].holeSize(j);
+				os << n << endl;
 				for(k = 0; k < n; k++) os << _faces[i].hole(j, k) << "\t";
 				os << endl;
 			}

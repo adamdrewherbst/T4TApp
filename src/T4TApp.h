@@ -10,6 +10,10 @@
 #include <vector>
 #include <map>
 #include <limits>
+#include "pugixml-1.5/src/pugixml.hpp"
+//#include <assimp/assimp.hpp>
+//#include <assimp/aiScene.h>
+//#include <assimp/aiPostProcess.h>
 #include "gameplay.h"
 
 using std::cout;
@@ -154,6 +158,8 @@ public:
 	void generateModels();
 	MyNode* generateModel(const char *id, const char *type, ...);
 	void loadObj(const char *filename);
+	//void loadAINode(const aiScene *scene, aiNode *aNode, MyNode *node);
+	void loadXMLNode(pugi::xml_document &doc, pugi::xml_node &xnode, Matrix world, MyNode *node, std::vector<Meshy*> &meshes);
 	void loadDAE(const char *filename);
 	void addItem(const char *type, short numTags = 0, ...);
 	void filterItemMenu(const char *tag = NULL);

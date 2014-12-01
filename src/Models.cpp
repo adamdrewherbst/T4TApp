@@ -1,6 +1,7 @@
 #include "T4TApp.h"
 #include "MyNode.h"
-#include "pugixml-1.5/src/pugixml.hpp"
+
+using namespace pugi;
 
 void T4TApp::generateModels() {
 	generateModel("box", "box", 4.0f, 2.0f, 6.0f);
@@ -366,8 +367,32 @@ void T4TApp::loadObj(const char *filename) {
 	stream->close();
 }
 
+/*void T4TApp::loadAINode(const aiScene *scene, aiNode *aNode, MyNode *node) {
+	short i, j, k, offset;
+	Vector3 vec;
+	Face face;
+	for(i = 0; i < aNode->mNumMeshes; i++) {
+		offset = node->nv();
+		aiMesh *mesh = scene->mMeshes[aNode->mMeshes[i]];
+		for(j = 0; j < mesh->mNumVertices; j++) {
+			vec.set(mesh->mVertices[j].x, mesh->mVertices[j].y, mesh->mVertices[j].z);
+			node->addVertex(vec);
+		}
+		for(j = 0; j < mesh->mNumFaces; j++) {
+			face.clear();
+			const aiFace &aFace = mesh->mFaces[j];
+			for(k = 0; k < aFace.mNumIndices; k++) {
+				face.push_back(aFace.mIndices[k] + offset);
+			}
+			node->addFace(face);
+		}
+	}
+	for(i = 0; i < aNode->mNumChildren; i++) {
+		loadAINode(scene, aNode->mChildren[i], node);
+	}
+}//*/
+
 void T4TApp::loadDAE(const char *filename) {
-	using namespace pugi;
 	std::string nodeId = filename;
 	size_t start = nodeId.find_last_of('/'), end = nodeId.find_first_of('.');
 	if(start == std::string::npos) start = -1;
@@ -375,14 +400,28 @@ void T4TApp::loadDAE(const char *filename) {
 	nodeId = nodeId.substr(start+1, end-start-1);
 	MyNode *node = MyNode::create(nodeId.c_str());
 	node->_type = nodeId;
+
+/*	using namespace Assimp;
+	Importer importer;
+	const aiScene *scene = importer.ReadFile(filename, aiProcess_JoinIdenticalVertices | aiProcess_PreTransformVertices
+		| aiProcess_FixInfacingNormals);
+	aiNode *root = scene->mRootNode;
+	Matrix world;
+	loadAINode(scene, root, node);//*/
+
 	xml_document doc;
 	xml_parse_result result = doc.load_file(filename);
-	xpath_node_set meshes = doc.select_nodes("//mesh");
+	//first store the vertices and faces of each mesh
+	xpath_node_set meshNodes = doc.select_nodes("//mesh");
 	std::map<std::string, std::vector<float> > sources;
 	std::map<std::string, short> voffset;
-	std::istringstream in;
-	for(xpath_node xnode : meshes) {
+	std::vector<Meshy*> meshes(meshNodes.size());
+	for(short i = 0; i < meshNodes.size(); i++) meshes[i] = new Meshy();
+	short meshInd = 0;
+	for(xpath_node xnode : meshNodes) {
 		xml_node mesh = xnode.node();
+		Meshy *meshy = meshes[meshInd++];
+		meshy->setVInfo(0, mesh.parent().attribute("id").value());
 		sources.clear();
 		voffset.clear();
 		for(xml_node source : mesh.children("source")) {
@@ -391,7 +430,7 @@ void T4TApp::loadDAE(const char *filename) {
 			short n = array.attribute("count").as_int();
 			sources[id].resize(n);
 			const char *arr = array.text().get();
-			in.str(arr);
+			std::istringstream in(arr);
 			float f;
 			for(short i = 0; i < n; i++) {
 				in >> f;
@@ -408,7 +447,7 @@ void T4TApp::loadDAE(const char *filename) {
 					voffset[id] = node->nv();
 					short n = sources[srcid].size()/3;
 					for(short i = 0; i < n; i++) {
-						node->addVertex(sources[srcid][i*3], sources[srcid][i*3+1], sources[srcid][i*3+2]);
+						meshy->addVertex(sources[srcid][i*3], sources[srcid][i*3+1], sources[srcid][i*3+2]);
 					}
 				}
 			}
@@ -416,24 +455,24 @@ void T4TApp::loadDAE(const char *filename) {
 		for(xml_node polylist : mesh.children("polylist")) {
 			short n = polylist.attribute("count").as_int(), size;
 			xml_node vcount = polylist.child("vcount");
-			in.str(vcount.text().get());
+			std::istringstream vin(vcount.text().get());
 			std::vector<unsigned short> sizes(n), face;
 			for(short i = 0; i < n; i++) {
-				in >> size;
+				vin >> size;
 				sizes[i] = size;
 			}
 			xml_node points = polylist.child("p");
-			in.str(points.text().get());
+			std::istringstream pin(points.text().get());
 			std::string vid = polylist.child("input").attribute("source").value();
 			vid = vid.substr(1);
 			short v, offset = voffset[vid];
 			for(short i = 0; i < n; i++) {
-				face.clear();
+				face.resize(sizes[i]);
 				for(short j = 0; j < sizes[i]; j++) {
-					in >> v;
+					pin >> v;
 					face[j] = v + offset;
 				}
-				node->addFace(face);
+				meshy->addFace(face);
 			}
 		}
 		for(xml_node polygons : mesh.children("polygons")) {
@@ -444,25 +483,97 @@ void T4TApp::loadDAE(const char *filename) {
 			for(xml_node polygon : polygons.children("ph")) {
 				Face face;
 				xml_node perimeter = polygon.child("p");
-				in.str(perimeter.text().get());
-				while(!in.eof()) {
-					in >> v;
+				const char *faceStr = perimeter.text().get(), *holeStr;
+				std::istringstream fin(faceStr);
+				do {
+					fin >> v;
+					if(fin.eof()) break;
 					face.push_back(v + offset);
-				}
+				} while(true);
 				for(xml_node hole : polygon.children("h")) {
 					holeList.clear();
-					in.str(hole.text().get());
-					while(!in.eof()) {
-						in >> v;
+					holeStr = hole.text().get();
+					std::istringstream hin(holeStr);
+					do {
+						hin >> v;
+						if(hin.eof()) break;
 						holeList.push_back(v + offset);
-					}
+					} while(true);
 					face.addHole(holeList);
 				}
-				node->addFace(face);
+				meshy->addFace(face);
 			}
 		}
 	}
+	
+	//traverse the node hierarchy using the known meshes to build the model
+	xml_node root = doc.select_node("//node[@name='SketchUp']").node();
+	Matrix world;
+	loadXMLNode(doc, root, world, node, meshes);
+	
 	node->writeData("res/common/");
+}
+
+void T4TApp::loadXMLNode(xml_document &doc, xml_node &xnode, Matrix world, MyNode *node, std::vector<Meshy*> &meshes) {
+	//get the node transformation
+	Matrix trans;
+	xml_node transNode = xnode.child("matrix");
+	if(transNode) {
+		const char *transStr = transNode.text().get();
+		std::istringstream in(transStr);
+		float f;
+		for(short i = 0; i < 16; i++) {
+			in >> f;
+			trans.m[(i%4)*4 + i/4] = f;
+		}
+	}
+	world *= trans;
+	Vector3 translation, scale;
+	Quaternion rotation;
+	world.decompose(&scale, &rotation, &translation);
+	cout << "node " << xnode.attribute("id").value() << " is at " << pv(translation) << " rotated " << pq(rotation) << endl;
+	//add each referenced mesh
+	for(xml_node geom : xnode.children("instance_geometry")) {
+		std::string id = geom.attribute("url").value();
+		id = id.substr(1);
+		//find the corresponding mesh
+		short n = meshes.size(), i, j, k, offset;
+		Vector3 vec;
+		for(i = 0; i < n && meshes[i]->_vInfo[0].compare(id) != 0; i++);
+		if(i == n) continue;
+		Meshy *meshy = meshes[i];
+		//transform it by our local transform and add it to the global node
+		n = meshy->nv();
+		offset = node->nv();
+		for(i = 0; i < n; i++) {
+			vec = meshy->_vertices[i];
+			world.transformPoint(&vec);
+			node->addVertex(vec);
+		}
+		n = meshy->nf();
+		for(i = 0; i < n; i++) {
+			Face face = meshy->_faces[i];
+			for(j = 0; j < face.size(); j++) face[j] += offset;
+			for(j = 0; j < face.nh(); j++) {
+				for(k = 0; k < face.holeSize(j); k++) face._holes[j][k] += offset;
+			}
+			node->addFace(face);
+		}
+	}
+	//and each referenced node
+	for(xml_node instance : xnode.children("instance_node")) {
+		std::string id = instance.attribute("url").value();
+		id = id.substr(1);
+		xpath_node ref = doc.select_node(("//node[@id='" + id + "']").c_str());
+		if(ref) {
+			xml_node refNode = ref.node();
+			loadXMLNode(doc, refNode, world, node, meshes);
+		}
+	}
+	//recur on all children
+	for(xml_node child : xnode.children("node")) {
+		loadXMLNode(doc, child, world, node, meshes);
+	}
 }
 
 
