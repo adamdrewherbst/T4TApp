@@ -1,5 +1,6 @@
 #include "T4TApp.h"
 #include "MyNode.h"
+#include "pugixml-1.5/src/pugixml.hpp"
 
 void T4TApp::generateModels() {
 	generateModel("box", "box", 4.0f, 2.0f, 6.0f);
@@ -65,7 +66,7 @@ void T4TApp::generateModels() {
 	loadObj("res/common/unnamed.obj");
 	loadObj("res/common/jar_with_cone.obj");
 	loadObj("res/common/green_flange_wheel.obj");
-	loadObj("res/common/pitri_wheel.obj");
+	loadDAE("res/common/pitri_wheel.dae");
 }
 
 MyNode* T4TApp::generateModel(const char *id, const char *type, ...) {
@@ -365,5 +366,103 @@ void T4TApp::loadObj(const char *filename) {
 	stream->close();
 }
 
+void T4TApp::loadDAE(const char *filename) {
+	using namespace pugi;
+	std::string nodeId = filename;
+	size_t start = nodeId.find_last_of('/'), end = nodeId.find_first_of('.');
+	if(start == std::string::npos) start = -1;
+	if(end == std::string::npos) end = nodeId.length()-1;
+	nodeId = nodeId.substr(start+1, end-start-1);
+	MyNode *node = MyNode::create(nodeId.c_str());
+	node->_type = nodeId;
+	xml_document doc;
+	xml_parse_result result = doc.load_file(filename);
+	xpath_node_set meshes = doc.select_nodes("//mesh");
+	std::map<std::string, std::vector<float> > sources;
+	std::map<std::string, short> voffset;
+	std::istringstream in;
+	for(xpath_node xnode : meshes) {
+		xml_node mesh = xnode.node();
+		sources.clear();
+		voffset.clear();
+		for(xml_node source : mesh.children("source")) {
+			std::string id = source.attribute("id").value();
+			xml_node array = source.child("float_array");
+			short n = array.attribute("count").as_int();
+			sources[id].resize(n);
+			const char *arr = array.text().get();
+			in.str(arr);
+			float f;
+			for(short i = 0; i < n; i++) {
+				in >> f;
+				sources[id][i] = f;
+			}
+		}
+		for(xml_node vertices : mesh.children("vertices")) {
+			std::string id = vertices.attribute("id").value();
+			for(xml_node input : vertices.children("input")) {
+				if(strcmp(input.attribute("semantic").value(), "POSITION") == 0) {
+					std::string srcid = input.attribute("source").value();
+					srcid = srcid.substr(1);
+					if(sources.find(srcid) == sources.end()) continue;
+					voffset[id] = node->nv();
+					short n = sources[srcid].size()/3;
+					for(short i = 0; i < n; i++) {
+						node->addVertex(sources[srcid][i*3], sources[srcid][i*3+1], sources[srcid][i*3+2]);
+					}
+				}
+			}
+		}
+		for(xml_node polylist : mesh.children("polylist")) {
+			short n = polylist.attribute("count").as_int(), size;
+			xml_node vcount = polylist.child("vcount");
+			in.str(vcount.text().get());
+			std::vector<unsigned short> sizes(n), face;
+			for(short i = 0; i < n; i++) {
+				in >> size;
+				sizes[i] = size;
+			}
+			xml_node points = polylist.child("p");
+			in.str(points.text().get());
+			std::string vid = polylist.child("input").attribute("source").value();
+			vid = vid.substr(1);
+			short v, offset = voffset[vid];
+			for(short i = 0; i < n; i++) {
+				face.clear();
+				for(short j = 0; j < sizes[i]; j++) {
+					in >> v;
+					face[j] = v + offset;
+				}
+				node->addFace(face);
+			}
+		}
+		for(xml_node polygons : mesh.children("polygons")) {
+			std::string vid = polygons.child("input").attribute("source").value();
+			vid = vid.substr(1);
+			short v, offset = voffset[vid];
+			std::vector<unsigned short> holeList;
+			for(xml_node polygon : polygons.children("ph")) {
+				Face face;
+				xml_node perimeter = polygon.child("p");
+				in.str(perimeter.text().get());
+				while(!in.eof()) {
+					in >> v;
+					face.push_back(v + offset);
+				}
+				for(xml_node hole : polygon.children("h")) {
+					holeList.clear();
+					in.str(hole.text().get());
+					while(!in.eof()) {
+						in >> v;
+						holeList.push_back(v + offset);
+					}
+					face.addHole(holeList);
+				}
+				node->addFace(face);
+			}
+		}
+	}
+	node->writeData("res/common/");
+}
 
 

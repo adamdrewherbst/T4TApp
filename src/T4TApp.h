@@ -154,6 +154,7 @@ public:
 	void generateModels();
 	MyNode* generateModel(const char *id, const char *type, ...);
 	void loadObj(const char *filename);
+	void loadDAE(const char *filename);
 	void addItem(const char *type, short numTags = 0, ...);
 	void filterItemMenu(const char *tag = NULL);
 	void promptItem(const char *tag = NULL);

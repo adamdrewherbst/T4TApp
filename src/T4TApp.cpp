@@ -372,7 +372,7 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 }
 
 void T4TApp::keyEvent(Keyboard::KeyEvent evt, int key) {
-	if(_activeMode >= 0) _modes[_activeMode]->keyEvent(evt, key);
+	if(_activeMode >= 0 && _modes.size() > _activeMode) _modes[_activeMode]->keyEvent(evt, key);
 }
 void T4TApp::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {}
 bool T4TApp::mouseEvent(Mouse::MouseEvent evt, int x, int y, int wheelDelta) {}
