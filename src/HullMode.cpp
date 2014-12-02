@@ -9,10 +9,15 @@ HullMode::HullMode() : Mode::Mode("hull") {
 	_shiftPressed = false;
 	
 	_region = new Selection(this, "region", Vector3(0.0f, 0.0f, 1.0f));
+	_ring = new Selection(this, "ring", Vector3(0.0f, 1.0f, 0.0f));
 	_chain = new Selection(this, "chain", Vector3(1.0f, 0.0f, 0.0f));
 	_hullNode = NULL;
 	
 	_axisContainer = (Container*) _controls->getControl("axisContainer");
+	
+	_subModes.push_back("selectRegion");
+	_subModes.push_back("selectRing");
+	_subModes.push_back("selectChain");
 }
 
 void HullMode::setActive(bool active) {
@@ -30,7 +35,10 @@ bool HullMode::setSubMode(short mode) {
 		case 0: { //select region
 			_currentSelection = _region;
 			break;
-		} case 1: { //select chain
+		} case 1: { //select ring
+			_currentSelection = _ring;
+			break;
+		} case 2: { //select chain
 			_currentSelection = _chain;
 			break;
 		}
@@ -61,15 +69,74 @@ void HullMode::controlEvent(Control *control, EventType evt) {
 
 void HullMode::makeHulls() {
 	std::vector<std::vector<short> > faces;
-	if(_chain->nf() == 0) {
-		faces.push_back(_region->_faces);
+	if(_ring->nf() > 0) {
+		short f = _ring->_faces[0], step = 1;
+		Face &face = _hullNode->_faces[f];
+		if(face.nh() != 1) return;
+		Vector3 center = face.getCenter(), normal = face.getNormal(), right, up, vec;
+		right = _hullNode->_worldVertices[face.hole(0, 0)] - center;
+		right.normalize();
+		Vector3::cross(normal, right, &up);
+		up.normalize();
+		short faceSize = face.size(), i, hole1, hole2, border1, border2;
+		float angle1 = 0, angle2, angle, best = 1e8;
+		for(i = 0; i < faceSize; i++) {
+			vec = _hullNode->_worldVertices[face[i]] - center;
+			angle = atan2(vec.dot(up), vec.dot(right));
+			if(fabs(angle) < fabs(best)) {
+				best = angle;
+				border1 = i;
+			}
+		}
+		//walk the hole using the step size
+		short n = face.holeSize(0), j, k, m, e[2];
+		hole1 = 0;
+		for(i = 1; i <= n; i++) {
+			if(i % step != 0 && i != n) continue;
+			hole2 = i % n;
+			vec = _hullNode->_worldVertices[face.hole(0, hole2)] - center;
+			angle2 = atan2(vec.dot(up), vec.dot(right));
+			//find the closest border vertex
+			best = 1e8;
+			for(j = 0; j < faceSize; j++) {
+				vec = _hullNode->_worldVertices[face[j]] - center;
+				angle = atan2(vec.dot(up), vec.dot(right)) - angle2;
+				if(angle < -M_PI) angle += 2*M_PI;
+				if(angle > M_PI) angle -= 2*M_PI;
+				angle = fabs(angle);
+				if(angle < best) {
+					best = angle;
+					border2 = j;
+				}
+			}
+			//make a hull from all faces bordering the edges between hole1 and hole2, border1 and border2
+			faces.resize(faces.size()+1);
+			for(j = hole1; j != hole2; j = (j+1)%n) {
+				for(k = 0; k < 2; k++) e[k] = face.hole(0, (j+k)%n);
+				for(k = 0; k < 2; k++) {
+					m = _hullNode->getEdgeFace(e[k], e[1-k]);
+					if(m >= 0 && m != f) faces.back().push_back(m);
+				}
+			}
+			for(j = border1; j != border2; j = (j-1+faceSize)%faceSize) {
+				for(k = 0; k < 2; k++) e[k] = face[(j-k+faceSize)%faceSize];
+				for(k = 0; k < 2; k++) {
+					m = _hullNode->getEdgeFace(e[k], e[1-k]);
+					if(m >= 0 && m != f) faces.back().push_back(m);
+				}
+			}
+			hole1 = hole2;
+			border1 = border2;
+		}
+	} else if(_chain->nf() > 0) {
 	} else {
-		
+		faces.push_back(_region->_faces);
 	}
 	std::set<short> hullSet;
 	std::set<short>::const_iterator it;
 	short nh = faces.size(), i;
 	_hullNode->_hulls.resize(nh);
+	cout << nh << " NEW HULLS:" << endl;
 	for(i = 0; i < nh; i++) {
 		hullSet.clear();
 		short n = faces[i].size(), j;
@@ -80,8 +147,11 @@ void HullMode::makeHulls() {
 		}
 		_hullNode->_hulls[i] = new MyNode::ConvexHull(_hullNode);
 		MyNode::ConvexHull *hull = _hullNode->_hulls[i];
-		for(it = hullSet.begin(); it != hullSet.end(); it++)
+		for(it = hullSet.begin(); it != hullSet.end(); it++) {
+			cout << *it << " ";
 			hull->addVertex(_hullNode->_vertices[*it]);
+		}
+		cout << endl;
 	}
 }
 
@@ -89,6 +159,7 @@ void HullMode::updateTransform() {
 	_hullNode->updateTransform();
 	_hullNode->updateCamera(false);
 	_region->_node->set(_hullNode);
+	_ring->_node->set(_hullNode);
 	_chain->_node->set(_hullNode);
 }
 
@@ -122,13 +193,13 @@ bool HullMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int cont
 	Mode::touchEvent(evt, x, y, contactIndex);
 	if(app->_navMode >= 0) return true;
 	if(_currentSelection && isTouching()) {
+		if(evt == Touch::TOUCH_PRESS && !_ctrlPressed && !_shiftPressed) {
+			_currentSelection->clear();
+		}
 		short face = _hullNode->pix2Face(_x, _y);
 		if(face >= 0) {
 			cout << "selected face " << face << ":" << endl;
-			_hullNode->printFace(face);
-			if(evt == Touch::TOUCH_PRESS && !_ctrlPressed && !_shiftPressed) {
-				_currentSelection->clear();
-			}
+			_hullNode->printFace(face, false);
 			if(_shiftPressed) {
 				_currentSelection->toggleFace(face);
 			} else {

@@ -133,6 +133,7 @@ public:
 	//general purpose
 	static Quaternion getVectorRotation(Vector3 v1, Vector3 v2);
 	static bool getBarycentric(Vector2 point, Vector2 p1, Vector2 p2, Vector2 p3, Vector2 *coords = NULL);
+	static void getRightUp(Vector3 normal, Vector3 *right, Vector3 *up);
 	static float gv(Vector3 &v, int dim);
 	static void sv(Vector3 &v, int dim, float val);
 	static void v3v2(const Vector3 &v, Vector2 *dst);

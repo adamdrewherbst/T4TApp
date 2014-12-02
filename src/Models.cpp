@@ -520,12 +520,13 @@ void T4TApp::loadDAE(const char *filename) {
 			}
 		}
 	}
-	
+
 	//traverse the node hierarchy using the known meshes to build the model
 	xml_node root = doc.select_node("//node[@name='SketchUp']").node();
 	Matrix world;
 	loadXMLNode(doc, root, world, node, meshes);
-	
+	node->mergeVertices(1e-5);
+
 	node->writeData("res/common/");
 }
 

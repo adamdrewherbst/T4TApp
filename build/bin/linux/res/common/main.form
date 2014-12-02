@@ -572,7 +572,7 @@ form mainMenu {
 			container controls {
 				style = basicContainer
 				position = 20, 10
-				size = 180, 250
+				size = 180, 350
 				layout = LAYOUT_VERTICAL
 				consumeInputEvents = true
 				zIndex = 5
@@ -580,7 +580,7 @@ form mainMenu {
 				container subMode {
 					style = hiddenContainer
 					autoWidth = true
-					height = 100
+					height = 150
 					layout = LAYOUT_VERTICAL
 					
 					button selectRegion {
@@ -588,6 +588,12 @@ form mainMenu {
 						autoWidth = true
 						height = 40
 						text = Select Region
+					}
+					button selectRing {
+						style = buttonStyle
+						autoWidth = true
+						height = 40
+						text = Select Ring
 					}
 					button selectChain {
 						style = buttonStyle

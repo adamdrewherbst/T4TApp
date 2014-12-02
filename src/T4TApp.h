@@ -10,6 +10,7 @@
 #include <vector>
 #include <map>
 #include <limits>
+#include <algorithm>
 #include "pugixml-1.5/src/pugixml.hpp"
 //#include <assimp/assimp.hpp>
 //#include <assimp/aiScene.h>

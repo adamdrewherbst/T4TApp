@@ -47,6 +47,7 @@ class Face {
 	Plane getPlane(bool modelSpace = false);
 	Vector3 getNormal(bool modelSpace = false) const;
 	float getDistance(bool modelSpace = false);
+	Vector3 getCenter(bool modelSpace = false);
 
 	//triangulation of faces via GLU Tesselator
 	void triangulate();
@@ -89,11 +90,13 @@ public:
 	void addFace(std::vector<unsigned short> &face, bool reverse = false);
 	void addFace(short n, ...);
 	void addFace(std::vector<unsigned short> &face, std::vector<std::vector<unsigned short> > &triangles);
-	void printFace(std::vector<unsigned short> &face);
-	void printFace(unsigned short n);
+	void printFace(std::vector<unsigned short> &face, bool shortFormat = false);
+	void printFace(unsigned short n, bool shortFormat = false);
 	void printFaces();
 	void printTriangles(short face = -1);
 	void addEdge(unsigned short e1, unsigned short e2, short faceInd = -1);
+	short getEdgeFace(unsigned short e1, unsigned short e2);
+	void mergeVertices(float threshold);
 	void update();
 	virtual void updateTransform();
 	virtual void updateEdges();

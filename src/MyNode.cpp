@@ -140,6 +140,15 @@ float Face::getDistance(bool modelSpace) {
 	return modelSpace ? _plane.getDistance() : _worldPlane.getDistance();
 }
 
+Vector3 Face::getCenter(bool modelSpace) {
+	Vector3 center(0, 0, 0);
+	short n = size(), i;
+	for(i = 0; i < n; i++) {
+		center += modelSpace ? _mesh->_vertices[_border[i]] : _mesh->_worldVertices[_border[i]];
+	}
+	return center / n;
+}
+
 void Face::triangulate() {
 	updateEdges();
 	
@@ -277,6 +286,56 @@ void Meshy::addEdge(unsigned short e1, unsigned short e2, short faceInd) {
 	}
 }
 
+short Meshy::getEdgeFace(unsigned short e1, unsigned short e2) {
+	if(_edgeInd.find(e1) != _edgeInd.end() && _edgeInd[e1].find(e2) != _edgeInd[e1].end()) return _edgeInd[e1][e2];
+	return -1;
+}
+
+void Meshy::mergeVertices(float threshold) {
+	short nv = this->nv(), i, j, k;
+	Vector3 v1, v2;
+	std::vector<bool> merged(nv);
+	std::vector<unsigned short> mergeInd(nv);
+	//determine which vertices should be merged
+	short vCount = 0;
+	for(i = 0; i < nv; i++) {
+		v1 = _vertices[i];
+		merged[i] = false;
+		for(j = 0; j < i; j++) {
+			v2 = _vertices[j];
+			if(v1.distance(v2) < threshold) {
+				mergeInd[i] = mergeInd[j];
+				merged[i] = true;
+				break;
+			}
+		}
+		if(!merged[i]) mergeInd[i] = vCount++;
+	}
+	//remove all merged vertices
+	std::vector<Vector3>::iterator it;
+	for(i = 0, it = _vertices.begin(); i < nv; i++) {
+		if(merged[i]) _vertices.erase(it);
+		else it++;
+	}
+	//update vertex indices in faces
+	short nf = this->nf(), n, nh, nt;
+	for(i = 0; i < nf; i++) {
+		Face &face = _faces[i];
+		n = face.size();
+		for(j = 0; j < n; j++) face[j] = mergeInd[face[j]];
+		nh = face.nh();
+		for(j = 0; j < nh; j++) {
+			n = face.holeSize(j);
+			for(k = 0; k < n; k++) face._holes[j][k] = mergeInd[face._holes[j][k]];
+		}
+		nt = face.nt();
+		for(j = 0; j < nt; j++) {
+			for(k = 0; k < 3; k++) face._triangles[j][k] = mergeInd[face._triangles[j][k]];
+		}
+	}
+	update();
+}
+
 void Meshy::addFace(Face &face) {
 	face._mesh = this;
 	face._index = _faces.size();
@@ -316,7 +375,7 @@ void Meshy::addFace(std::vector<unsigned short> &face, std::vector<std::vector<u
 	addFace(f);
 }
 
-void Meshy::printFace(std::vector<unsigned short> &face) {
+void Meshy::printFace(std::vector<unsigned short> &face, bool shortFormat) {
 	short i, n = face.size(), nInfo = _vInfo.size();
 	Vector3 v;
 	bool doWorld = _worldVertices.size() == _vertices.size();
@@ -328,21 +387,27 @@ void Meshy::printFace(std::vector<unsigned short> &face) {
 	}
 }
 
-void Meshy::printFace(unsigned short f) {
+void Meshy::printFace(unsigned short f, bool shortFormat) {
 	Face &face = _faces[f];
 	short i, j, n, nInfo = _vInfo.size(), nh = face.nh();
 	Vector3 v;
 	bool doWorld = _worldVertices.size() == _vertices.size();
 	for(i = 0; i < 1+nh; i++) {
 		std::vector<unsigned short> &cycle = i==0 ? face._border : face._holes[i-1];
-		if(i == 0) cout << "BORDER:" << endl;
-		else cout << "HOLE " << i-1 << ":" << endl;
 		n = cycle.size();
-		for(j = 0; j < n; j++) {
-			v = doWorld ? _worldVertices[cycle[j]] : _vertices[cycle[j]];
-			cout << cycle[j] << " <" << v.x << "," << v.y << "," << v.z << ">";
-			if(nInfo > cycle[j]) cout << ": " << _vInfo[cycle[j]];
+		if(shortFormat) {
+			if(i > 0) cout << "- ";
+			for(j = 0; j < n; j++) cout << cycle[j] << " ";
 			cout << endl;
+		} else {
+			if(i == 0) cout << "BORDER:" << endl;
+			else cout << "HOLE " << i-1 << ":" << endl;
+			for(j = 0; j < n; j++) {
+				v = doWorld ? _worldVertices[cycle[j]] : _vertices[cycle[j]];
+				cout << cycle[j] << " <" << v.x << "," << v.y << "," << v.z << ">";
+				if(nInfo > cycle[j]) cout << ": " << _vInfo[cycle[j]];
+				cout << endl;
+			}
 		}
 	}
 }
@@ -536,6 +601,14 @@ bool MyNode::getBarycentric(Vector2 point, Vector2 p1, Vector2 p2, Vector2 p3, V
 	float a = (v2.y * p.x - v2.x * p.y) / det, b = (-v1.y * p.x + v1.x * p.y) / det;
 	coords->set(a, b);
 	return a >= 0 && b >= 0 && a + b <= 1;
+}
+
+void MyNode::getRightUp(Vector3 normal, Vector3 *right, Vector3 *up) {
+	Vector3::cross(normal, Vector3::unitZ(), right);
+	if(right->length() < 1e-3) Vector3::cross(normal, Vector3::unitY(), right);
+	right->normalize();
+	Vector3::cross(normal, *right, up);
+	up->normalize();
 }
 
 Vector3 MyNode::unitV(short axis) {
@@ -887,6 +960,8 @@ void MyNode::loadData(const char *file, bool doPhysics)
 		//faces, along with their constituent triangles
 		str = stream->readLine(line, 2048);
 		short nf = atoi(str), faceSize, numHoles, holeSize, numTriangles;
+		std::vector<unsigned short> hole;
+		Vector3 faceNormal, holeNormal;
 		_faces.resize(nf);
 		for(i = 0; i < nf; i++) {
 			Face &face = _faces[i];
@@ -906,16 +981,20 @@ void MyNode::loadData(const char *file, bool doPhysics)
 				in >> n;
 				face._border[j] = n;
 			}
+			faceNormal = getNormal(face._border, true);
 			for(j = 0; j < numHoles; j++) {
 				str = stream->readLine(line, 2048);
 				holeSize = atoi(str);
-				face._holes[j].resize(holeSize);
+				hole.resize(holeSize);
 				str = stream->readLine(line, 2048);
 				in.str(str);
 				for(k = 0; k < holeSize; k++) {
 					in >> n;
-					face._holes[j][k] = n;
+					hole[k] = n;
 				}
+				holeNormal = getNormal(hole, true);
+				if(holeNormal.dot(faceNormal) > 0) std::reverse(hole.begin(), hole.end());
+				face._holes[j] = hole;
 			}
 			for(j = 0; j < numTriangles; j++) {
 				str = stream->readLine(line, 2048);
