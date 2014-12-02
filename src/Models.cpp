@@ -414,8 +414,9 @@ void T4TApp::loadDAE(const char *filename) {
 	//first store the vertices and faces of each mesh
 	xpath_node_set meshNodes = doc.select_nodes("//mesh");
 	std::map<std::string, std::vector<float> > sources;
-	std::map<std::string, short> voffset;
 	std::vector<Meshy*> meshes(meshNodes.size());
+	Vector3 vec;
+	std::map<unsigned short, unsigned short> mergeInd; //merge identical vertices
 	for(short i = 0; i < meshNodes.size(); i++) meshes[i] = new Meshy();
 	short meshInd = 0;
 	for(xpath_node xnode : meshNodes) {
@@ -423,7 +424,7 @@ void T4TApp::loadDAE(const char *filename) {
 		Meshy *meshy = meshes[meshInd++];
 		meshy->setVInfo(0, mesh.parent().attribute("id").value());
 		sources.clear();
-		voffset.clear();
+		mergeInd.clear();
 		for(xml_node source : mesh.children("source")) {
 			std::string id = source.attribute("id").value();
 			xml_node array = source.child("float_array");
@@ -437,6 +438,7 @@ void T4TApp::loadDAE(const char *filename) {
 				sources[id][i] = f;
 			}
 		}
+		short vCount = 0;
 		for(xml_node vertices : mesh.children("vertices")) {
 			std::string id = vertices.attribute("id").value();
 			for(xml_node input : vertices.children("input")) {
@@ -444,11 +446,24 @@ void T4TApp::loadDAE(const char *filename) {
 					std::string srcid = input.attribute("source").value();
 					srcid = srcid.substr(1);
 					if(sources.find(srcid) == sources.end()) continue;
-					voffset[id] = node->nv();
-					short n = sources[srcid].size()/3;
+					short n = sources[srcid].size()/3, offset = meshy->nv();
 					for(short i = 0; i < n; i++) {
-						meshy->addVertex(sources[srcid][i*3], sources[srcid][i*3+1], sources[srcid][i*3+2]);
+						vec.set(sources[srcid][i*3], sources[srcid][i*3+1], sources[srcid][i*3+2]);
+						short nv = meshy->nv();
+						bool merged = false;
+						for(short j = 0; j < nv; j++) {
+							if(vec.distance(meshy->_vertices[j]) < 1e-5) {
+								mergeInd[i + vCount] = j;
+								merged = true;
+								break;
+							}
+						}
+						if(!merged) {
+							meshy->addVertex(vec);
+							mergeInd[i + vCount] = nv;
+						}
 					}
+					vCount += n;
 				}
 			}
 		}
@@ -465,12 +480,12 @@ void T4TApp::loadDAE(const char *filename) {
 			std::istringstream pin(points.text().get());
 			std::string vid = polylist.child("input").attribute("source").value();
 			vid = vid.substr(1);
-			short v, offset = voffset[vid];
+			short v;
 			for(short i = 0; i < n; i++) {
 				face.resize(sizes[i]);
 				for(short j = 0; j < sizes[i]; j++) {
 					pin >> v;
-					face[j] = v + offset;
+					face[j] = mergeInd[v];
 				}
 				meshy->addFace(face);
 			}
@@ -478,7 +493,7 @@ void T4TApp::loadDAE(const char *filename) {
 		for(xml_node polygons : mesh.children("polygons")) {
 			std::string vid = polygons.child("input").attribute("source").value();
 			vid = vid.substr(1);
-			short v, offset = voffset[vid];
+			short v;
 			std::vector<unsigned short> holeList;
 			for(xml_node polygon : polygons.children("ph")) {
 				Face face;
@@ -488,7 +503,7 @@ void T4TApp::loadDAE(const char *filename) {
 				do {
 					fin >> v;
 					if(fin.eof()) break;
-					face.push_back(v + offset);
+					face.push_back(mergeInd[v]);
 				} while(true);
 				for(xml_node hole : polygon.children("h")) {
 					holeList.clear();
@@ -497,7 +512,7 @@ void T4TApp::loadDAE(const char *filename) {
 					do {
 						hin >> v;
 						if(hin.eof()) break;
-						holeList.push_back(v + offset);
+						holeList.push_back(mergeInd[v]);
 					} while(true);
 					face.addHole(holeList);
 				}

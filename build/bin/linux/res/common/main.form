@@ -596,6 +596,34 @@ form mainMenu {
 						text = Select Chain
 					}
 				}
+				container axisContainer {
+					style = hiddenContainer
+					autoWidth = true
+					height = 50
+					layout = LAYOUT_FLOW
+					
+					button X {
+						style = buttonStyle
+						size = 40,40
+						text = X
+					}
+					button Y {
+						style = buttonStyle
+						size = 40,40
+						text = Y
+					}
+					button Z {
+						style = buttonStyle
+						size = 40,40
+						text = Z
+					}
+				}
+				button flipAxis {
+					style = buttonStyle
+					autoWidth = true
+					height = 40
+					text = Flip
+				}
 				button reverseFace {
 					style = buttonStyle
 					autoWidth = true

@@ -17,15 +17,20 @@ public:
 		void toggleFace(short face);
 		void clear();
 		void update();
+		void reverseFaces();
+		short nf();
 	};
 	Selection *_region, *_chain, *_currentSelection;
 	bool _shiftPressed, _ctrlPressed;
 	MyNode *_hullNode;
+	Container *_axisContainer;
 	
 	HullMode();
 	void setActive(bool active);
 	bool setSubMode(short mode);
 	void selectItem(const char *id);
+	void updateTransform();
+	void makeHulls();
 	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 	void controlEvent(Control *control, Control::Listener::EventType evt);
 	bool keyEvent(Keyboard::KeyEvent evt, int key);

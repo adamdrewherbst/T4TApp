@@ -83,6 +83,7 @@ void Face::updateTransform() {
 
 void Face::updateEdges() {
 	short i, j, n, nh = _holes.size(), nt = _triangles.size();
+	_next.clear();
 	std::vector<unsigned short> cycle;
 	n = _border.size();
 	for(i = 0; i < n; i++) {
@@ -100,6 +101,30 @@ void Face::updateEdges() {
 		for(j = 0; j < 3; j++) {
 			addEdge(_triangles[i][j], _triangles[i][(j+1)%3]);
 		}
+	}
+}
+
+void Face::reverse() {
+	short n = size(), i, temp;
+	for(i = 0; i < n/2; i++) {
+		temp = _border[i];
+		_border[i] = _border[n-1-i];
+		_border[n-1-i] = temp;
+	}
+	short nh = this->nh(), j;
+	for(i = 0; i < nh; i++) {
+		n = holeSize(i);
+		for(j = 0; j < n/2; j++) {
+			temp = _holes[i][j];
+			_holes[i][j] = _holes[i][n-1-j];
+			_holes[i][n-1-j] = temp;
+		}
+	}
+	short nt = this->nt();
+	for(i = 0; i < nt; i++) {
+		temp = _triangles[i][0];
+		_triangles[i][0] = _triangles[i][2];
+		_triangles[i][2] = temp;
 	}
 }
 
@@ -255,7 +280,7 @@ void Meshy::addEdge(unsigned short e1, unsigned short e2, short faceInd) {
 void Meshy::addFace(Face &face) {
 	face._mesh = this;
 	face._index = _faces.size();
-	if(dynamic_cast<MyNode*>(this) != NULL) face.triangulate();
+	if(dynamic_cast<MyNode*>(this) != NULL && face._triangles.empty()) face.triangulate();
 	else face.updateEdges();
 	_faces.push_back(face);
 }

@@ -43,6 +43,7 @@ class Face {
 	void updateEdges();
 	void setTransform();
 	void updateTransform();
+	void reverse();
 	Plane getPlane(bool modelSpace = false);
 	Vector3 getNormal(bool modelSpace = false) const;
 	float getDistance(bool modelSpace = false);
