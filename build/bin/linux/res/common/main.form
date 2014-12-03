@@ -572,7 +572,7 @@ form mainMenu {
 			container controls {
 				style = basicContainer
 				position = 20, 10
-				size = 180, 400
+				size = 180, 450
 				layout = LAYOUT_VERTICAL
 				consumeInputEvents = true
 				zIndex = 5
@@ -623,6 +623,16 @@ form mainMenu {
 						size = 40,40
 						text = Z
 					}
+				}
+				slider scale {
+					style = buttonStyle
+					autoWidth = true
+					height = 50
+					text = Scale
+					min = 0.01
+					max = 2.0
+					step = 0.01
+					value = 1.0
 				}
 				button flipAxis {
 					style = buttonStyle

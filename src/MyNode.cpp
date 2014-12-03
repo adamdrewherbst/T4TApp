@@ -1069,7 +1069,7 @@ void MyNode::loadData(const char *file, bool doPhysics)
 	if(getCollisionObject() != NULL) getCollisionObject()->setEnabled(false);
 }
 
-void MyNode::writeData(const char *file) {
+void MyNode::writeData(const char *file, bool modelSpace) {
 	std::string filename = resolveFilename(file);
 	std::unique_ptr<Stream> stream(FileSystem::open(filename.c_str(), FileSystem::WRITE));
 	if (stream.get() == NULL)
@@ -1080,6 +1080,7 @@ void MyNode::writeData(const char *file) {
 	short i, j, k;
 	std::string line;
 	std::ostringstream os;
+	Vector3 vec;
 	os << _type << endl;
 	line = os.str();
 	stream->write(line.c_str(), sizeof(char), line.length());
@@ -1091,10 +1092,14 @@ void MyNode::writeData(const char *file) {
 			Matrix m = getWorldMatrix();
 			//Matrix::multiply(getParent()->getWorldMatrix(), getWorldMatrix(), &m);
 			m.decompose(&scale, &rotation, &translation);
-		} else {
+		} else if(modelSpace) {
 			scale = getScale();
 			rotation = getRotation();
 			translation = getTranslation();
+		} else {
+			scale = Vector3::one();
+			rotation = Quaternion::identity();
+			translation = Vector3::zero();
 		}
 		float angle = rotation.toAxisAngle(&axis) * 180.0f/M_PI;
 		os << axis.x << "\t" << axis.y << "\t" << axis.z << "\t" << angle << endl;
@@ -1102,7 +1107,8 @@ void MyNode::writeData(const char *file) {
 		os << scale.x << "\t" << scale.y << "\t" << scale.z << endl;
 		os << _vertices.size() << endl;
 		for(i = 0; i < _vertices.size(); i++) {
-			for(j = 0; j < 3; j++) os << gv(_vertices[i],j) << "\t";
+			vec = modelSpace ? _vertices[i] : _worldVertices[i];
+			for(j = 0; j < 3; j++) os << gv(vec, j) << "\t";
 			os << endl;
 		}
 		line = os.str();
@@ -1148,7 +1154,7 @@ void MyNode::writeData(const char *file) {
 			ConvexHull *hull = _hulls[i];
 			os << hull->_vertices.size() << endl;
 			for(j = 0; j < hull->_vertices.size(); j++) {
-				vec = hull->_vertices[j];
+				vec = modelSpace ? hull->_vertices[j] : hull->_worldVertices[j];
 				os << vec.x << "\t" << vec.y << "\t" << vec.z << endl;
 			}
 			os << hull->_faces.size() << endl;

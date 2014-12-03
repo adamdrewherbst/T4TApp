@@ -24,6 +24,7 @@ public:
 	bool _shiftPressed, _ctrlPressed;
 	MyNode *_hullNode;
 	Container *_axisContainer;
+	Slider *_scaleSlider;
 	
 	HullMode();
 	void setActive(bool active);

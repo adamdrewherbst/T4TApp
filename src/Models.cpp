@@ -64,10 +64,29 @@ void T4TApp::generateModels() {
 	_robot->addChild(robot[0]);
 	_robot->writeData("res/common/");
 	
-	loadObj("res/common/unnamed.obj");
-	loadObj("res/common/jar_with_cone.obj");
-	loadObj("res/common/green_flange_wheel.obj");
-	//loadDAE("res/common/pitri_wheel.dae");
+	loadModels("res/common/models.list");
+}
+
+void T4TApp::loadModels(const char *filename) {
+	std::unique_ptr<Stream> stream(FileSystem::open(filename));
+	stream->rewind();
+
+	char *str, line[2048], *modelFile = (char*)malloc(300*sizeof(char));
+	while(!stream->eof()) {
+		strcpy(modelFile, "");
+		str = stream->readLine(line, 2048);
+		std::istringstream in(str);
+		in >> modelFile;
+		if(modelFile[0] == '#') continue;
+		if(strstr(modelFile, ".obj") != NULL) {
+			cout << "loading OBJ: " << modelFile << endl;
+			loadObj(modelFile);
+		} else if(strstr(modelFile, ".dae") != NULL) {
+			cout << "loading DAE: " << modelFile << endl;
+			loadDAE(modelFile);
+		}
+	}
+	stream->close();
 }
 
 MyNode* T4TApp::generateModel(const char *id, const char *type, ...) {

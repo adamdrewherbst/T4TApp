@@ -241,6 +241,11 @@ void T4TApp::render(float elapsedTime)
 	_mainMenu->draw();
 }
 
+void T4TApp::redraw() {
+	render(0);
+	Platform::swapBuffers();
+}
+
 void T4TApp::setMode(short mode) {
 	mode %= _modes.size();
 	if(_activeMode == mode) return;

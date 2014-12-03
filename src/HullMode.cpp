@@ -14,6 +14,8 @@ HullMode::HullMode() : Mode::Mode("hull") {
 	_hullNode = NULL;
 	
 	_axisContainer = (Container*) _controls->getControl("axisContainer");
+	_scaleSlider = (Slider*) _controls->getControl("scale");
+	app->addListener(_scaleSlider, this, Control::Listener::PRESS | Control::Listener::RELEASE);
 	
 	_subModes.push_back("selectRegion");
 	_subModes.push_back("selectRing");
@@ -23,8 +25,13 @@ HullMode::HullMode() : Mode::Mode("hull") {
 void HullMode::setActive(bool active) {
 	Mode::setActive(active);
 	if(active) {
+		app->_ground->setVisible(false);
+		app->getPhysicsController()->setGravity(Vector3::zero());
 		app->setCameraEye(30, 0, M_PI/12);
 		app->promptItem();
+	} else {
+		app->_ground->setVisible(true);
+		app->getPhysicsController()->setGravity(app->_gravity);
 	}
 }
 
@@ -52,6 +59,12 @@ void HullMode::controlEvent(Control *control, EventType evt) {
 	
 	if(strcmp(id, "reverseFace") == 0) {
 		if(_currentSelection) _currentSelection->reverseFaces();
+	} else if(control == _scaleSlider) {
+		float scale = _scaleSlider->getValue();
+		if(evt == Control::Listener::PRESS) _hullNode->removePhysics();
+		_hullNode->setScale(scale);
+		updateTransform();
+		if(evt == Control::Listener::RELEASE) _hullNode->addPhysics();
 	} else if(strcmp(id, "makeHull") == 0) {
 		makeHulls();
 	} else if(_axisContainer->getControl(id) == control) {
@@ -75,9 +88,7 @@ void HullMode::controlEvent(Control *control, EventType evt) {
 			n = hull->nv();
 			for(j = 0; j < n; j++) world.transformPoint(&hull->_vertices[j]);
 		}
-		_hullNode->_objType = "mesh";
-		_hullNode->_mass = 10;
-		_hullNode->writeData("res/common/");
+		_hullNode->writeData("res/common/", false);
 	}
 }
 
@@ -217,7 +228,8 @@ void HullMode::makeHulls() {
 	_region->clear();
 	_ring->clear();
 	_chain->clear();
-	update();
+	_hullNode->removePhysics();
+	_hullNode->addPhysics();
 }
 
 void HullMode::updateTransform() {
@@ -232,6 +244,8 @@ bool HullMode::selectItem(const char *id) {
 	Mode::selectItem(id);
 	if(_hullNode) _scene->removeNode(_hullNode);
 	_hullNode = app->duplicateModelNode(id);
+	_hullNode->_objType = "mesh";
+	_hullNode->_mass = 10;
 	_hullNode->setId(id);
 	_hullNode->_color.set(1.0f, 1.0f, 0.0f);
 	_hullNode->updateModel(false);

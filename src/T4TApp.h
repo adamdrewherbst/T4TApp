@@ -158,6 +158,7 @@ public:
     T4TApp* getInstance();
 	void generateModels();
 	MyNode* generateModel(const char *id, const char *type, ...);
+	void loadModels(const char *filename);
 	void loadObj(const char *filename);
 	//void loadAINode(const aiScene *scene, aiNode *aNode, MyNode *node);
 	void loadXMLNode(pugi::xml_document &doc, pugi::xml_node &xnode, Matrix world, MyNode *node, std::vector<Meshy*> &meshes);
@@ -252,6 +253,7 @@ public:
     void finalize();
     void update(float elapsedTime);
     void render(float elapsedTime);
+    void redraw();
     bool drawNode(Node* node);
     void placeNode(MyNode *node, float x, float y);
     void setMode(short mode);

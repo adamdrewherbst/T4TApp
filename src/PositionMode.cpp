@@ -31,10 +31,12 @@ void PositionMode::setActive(bool active) {
 
 bool PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex)
 {
+	MyNode *touchNode = getTouchNode();
 	Mode::touchEvent(evt, x, y, contactIndex);
+	if(touchNode == NULL) touchNode = getTouchNode();
 	switch(evt) {
 		case Touch::TOUCH_PRESS: {
-			if(getTouchNode() == NULL) break;
+			if(touchNode == NULL) break;
 			_groundFace = -1;
 			_dragOffset.set(_x, _y);
 			if(_subMode == 0) { //translate
@@ -53,7 +55,7 @@ bool PositionMode::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int 
 			break;
 		}
 		case Touch::TOUCH_MOVE: case Touch::TOUCH_RELEASE: {
-			if(getTouchNode() == NULL) break;
+			if(touchNode == NULL) break;
 			bool finalize = evt == Touch::TOUCH_RELEASE;
 			if((!finalize && !isTouching()) || _selectedNode == NULL) break;
 			Ray ray;
@@ -147,7 +149,8 @@ bool PositionMode::setSelectedNode(MyNode *node, Vector3 point) {
 			distance = 0;
 		}
 		_plane.set(_normal, -distance);
-		_selectedNode->enablePhysics(false);
+		//_selectedNode->enablePhysics(false);
+		_selectedNode->removePhysics();
 	} else {
 		_positionValue = 0.0f;
 	}
@@ -213,7 +216,8 @@ void PositionMode::setPosition(float value, bool finalize) {
 		if(constraint != NULL) {
 			app->reloadConstraint(_parentNode, constraint);
 		}
-		_selectedNode->enablePhysics(true);
+		//_selectedNode->enablePhysics(true);
+		_selectedNode->addPhysics();
 		_selectedNode->updateTransform();
 		cout << "re-enabled physics on " << _selectedNode->getId() << endl;
 		app->commitAction();

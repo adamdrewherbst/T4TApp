@@ -63,7 +63,7 @@ public:
 	
 	std::string resolveFilename(const char *filename = NULL);
 	void loadData(const char *filename = NULL, bool doPhysics = true);
-	void writeData(const char *filename = NULL);
+	void writeData(const char *filename = NULL, bool modelSpace = true);
 	void loadAnimation(const char *filename, const char *id);
 	void playAnimation(const char *id, bool repeat = false, float speed = 1.0f);
 	void stopAnimation();
