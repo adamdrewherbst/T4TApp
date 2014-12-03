@@ -28,7 +28,7 @@ public:
 	HullMode();
 	void setActive(bool active);
 	bool setSubMode(short mode);
-	void selectItem(const char *id);
+	bool selectItem(const char *id);
 	void updateTransform();
 	void makeHulls();
 	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);

@@ -338,9 +338,9 @@ void T4TApp::controlEvent(Control* control, Control::Listener::EventType evt)
 		}
 	}
 	else if(_componentMenu->getControl(id) == control && strncmp(id, "comp_", 5) == 0) {
-		if(_activeMode >= 0) {
-			_modes[_activeMode]->selectItem(id+5);
-		} else {
+		bool consumed = false;
+		if(_activeMode >= 0) consumed = _modes[_activeMode]->selectItem(id+5);
+		if(!consumed) {
 			MyNode *node = addModelNode(id+5);
 			setAction("addNode", node);
 			commitAction();

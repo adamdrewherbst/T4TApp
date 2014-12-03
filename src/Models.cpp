@@ -67,7 +67,7 @@ void T4TApp::generateModels() {
 	loadObj("res/common/unnamed.obj");
 	loadObj("res/common/jar_with_cone.obj");
 	loadObj("res/common/green_flange_wheel.obj");
-	loadDAE("res/common/pitri_wheel.dae");
+	//loadDAE("res/common/pitri_wheel.dae");
 }
 
 MyNode* T4TApp::generateModel(const char *id, const char *type, ...) {

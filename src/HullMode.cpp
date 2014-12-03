@@ -64,6 +64,20 @@ void HullMode::controlEvent(Control *control, EventType evt) {
 		Quaternion rot(Vector3::unitY(), M_PI);
 		_hullNode->myRotate(rot);
 		updateTransform();
+	} else if(strcmp(id, "save") == 0) {
+		_hullNode->updateTransform();
+		short n = _hullNode->nv(), i;
+		Matrix world = _hullNode->getWorldMatrix();
+		for(i = 0; i < n; i++) world.transformPoint(&_hullNode->_vertices[i]);
+		short nh = _hullNode->_hulls.size(), j;
+		for(i = 0; i < nh; i++) {
+			MyNode::ConvexHull *hull = _hullNode->_hulls[i];
+			n = hull->nv();
+			for(j = 0; j < n; j++) world.transformPoint(&hull->_vertices[j]);
+		}
+		_hullNode->_objType = "mesh";
+		_hullNode->_mass = 10;
+		_hullNode->writeData("res/common/");
 	}
 }
 
@@ -134,8 +148,8 @@ void HullMode::makeHulls() {
 	}
 	std::set<short> hullSet;
 	std::set<short>::const_iterator it;
-	short nh = faces.size(), i;
-	_hullNode->_hulls.resize(nh);
+	short nh = faces.size(), i, offset = _hullNode->_hulls.size();
+	_hullNode->_hulls.resize(offset + nh);
 	cout << nh << " NEW HULLS:" << endl;
 	for(i = 0; i < nh; i++) {
 		hullSet.clear();
@@ -145,14 +159,18 @@ void HullMode::makeHulls() {
 			short m = f.size(), k;
 			for(k = 0; k < m; k++) hullSet.insert(f[k]);
 		}
-		_hullNode->_hulls[i] = new MyNode::ConvexHull(_hullNode);
-		MyNode::ConvexHull *hull = _hullNode->_hulls[i];
+		_hullNode->_hulls[offset + i] = new MyNode::ConvexHull(_hullNode);
+		MyNode::ConvexHull *hull = _hullNode->_hulls[offset + i];
 		for(it = hullSet.begin(); it != hullSet.end(); it++) {
 			cout << *it << " ";
 			hull->addVertex(_hullNode->_vertices[*it]);
 		}
 		cout << endl;
 	}
+	_region->clear();
+	_ring->clear();
+	_chain->clear();
+	update();
 }
 
 void HullMode::updateTransform() {
@@ -163,7 +181,7 @@ void HullMode::updateTransform() {
 	_chain->_node->set(_hullNode);
 }
 
-void HullMode::selectItem(const char *id) {
+bool HullMode::selectItem(const char *id) {
 	Mode::selectItem(id);
 	if(_hullNode) _scene->removeNode(_hullNode);
 	_hullNode = app->duplicateModelNode(id);
@@ -172,6 +190,7 @@ void HullMode::selectItem(const char *id) {
 	_hullNode->updateModel(false);
 	_scene->addNode(_hullNode);
 	updateTransform();
+	return true;
 }
 
 bool HullMode::keyEvent(Keyboard::KeyEvent evt, int key) {

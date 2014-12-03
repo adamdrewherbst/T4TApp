@@ -41,7 +41,9 @@ Mode::Mode(const char* id) : _selectedNode(NULL), _doSelect(true) {
 	_container->setVisible(false);
 }
 
-void Mode::selectItem(const char *id) {}
+bool Mode::selectItem(const char *id) {
+	return false;
+}
 
 void Mode::update() {}
 

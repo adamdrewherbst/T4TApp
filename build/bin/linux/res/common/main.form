@@ -572,7 +572,7 @@ form mainMenu {
 			container controls {
 				style = basicContainer
 				position = 20, 10
-				size = 180, 350
+				size = 180, 400
 				layout = LAYOUT_VERTICAL
 				consumeInputEvents = true
 				zIndex = 5
@@ -641,6 +641,12 @@ form mainMenu {
 					autoWidth = true
 					height = 40
 					text = Make Hulls
+				}
+				button save {
+					style = buttonStyle
+					autoWidth = true
+					height = 40
+					text = Save
 				}
 			}
 		}

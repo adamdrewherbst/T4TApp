@@ -40,7 +40,7 @@ public:
 	virtual bool setSubMode(short mode);
 	virtual bool setSelectedNode(MyNode *node, Vector3 point = Vector3::zero());
 	virtual bool isSelecting();
-	virtual void selectItem(const char *id);
+	virtual bool selectItem(const char *id);
 	virtual void placeCamera();
 	virtual void update();
 	virtual void draw();
