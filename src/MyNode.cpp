@@ -291,51 +291,6 @@ short Meshy::getEdgeFace(unsigned short e1, unsigned short e2) {
 	return -1;
 }
 
-void Meshy::mergeVertices(float threshold) {
-	short nv = this->nv(), i, j, k;
-	Vector3 v1, v2;
-	std::vector<bool> merged(nv);
-	std::vector<unsigned short> mergeInd(nv);
-	//determine which vertices should be merged
-	short vCount = 0;
-	for(i = 0; i < nv; i++) {
-		v1 = _vertices[i];
-		merged[i] = false;
-		for(j = 0; j < i; j++) {
-			v2 = _vertices[j];
-			if(v1.distance(v2) < threshold) {
-				mergeInd[i] = mergeInd[j];
-				merged[i] = true;
-				break;
-			}
-		}
-		if(!merged[i]) mergeInd[i] = vCount++;
-	}
-	//remove all merged vertices
-	std::vector<Vector3>::iterator it;
-	for(i = 0, it = _vertices.begin(); i < nv; i++) {
-		if(merged[i]) _vertices.erase(it);
-		else it++;
-	}
-	//update vertex indices in faces
-	short nf = this->nf(), n, nh, nt;
-	for(i = 0; i < nf; i++) {
-		Face &face = _faces[i];
-		n = face.size();
-		for(j = 0; j < n; j++) face[j] = mergeInd[face[j]];
-		nh = face.nh();
-		for(j = 0; j < nh; j++) {
-			n = face.holeSize(j);
-			for(k = 0; k < n; k++) face._holes[j][k] = mergeInd[face._holes[j][k]];
-		}
-		nt = face.nt();
-		for(j = 0; j < nt; j++) {
-			for(k = 0; k < 3; k++) face._triangles[j][k] = mergeInd[face._triangles[j][k]];
-		}
-	}
-	update();
-}
-
 void Meshy::addFace(Face &face) {
 	face._mesh = this;
 	face._index = _faces.size();
@@ -552,6 +507,8 @@ MyNode* MyNode::cloneNode(Node *node) {
 	MyNode *myNode = dynamic_cast<MyNode*>(node);
 	if(myNode) {
 		copy->copyMesh(myNode);
+		copy->_components = myNode->_components;
+		copy->_componentInd = myNode->_componentInd;
 		copy->_type = myNode->_type;
 		copy->_mass = myNode->_mass;
 		copy->_chain = myNode->_chain;
@@ -893,6 +850,15 @@ std::vector<MyNode*> MyNode::getAllNodes() {
 	return nodes;
 }
 
+void MyNode::addComponentInstance(std::string id, const std::vector<unsigned short> &instance) {
+	_components[id].push_back(instance);
+	_componentInd.resize(nv());
+	unsigned short n = instance.size(), i, instanceNum = _components[id].size()-1;
+	for(i = 0; i < n; i++) {
+		_componentInd[instance[i]].push_back(std::tuple<std::string, unsigned short, unsigned short>(id, instanceNum, i));
+	}
+}
+
 void MyNode::addHullFace(MyNode::ConvexHull *hull, short f) {
 	hull->addFace(_faces[f]);
 }
@@ -1006,6 +972,27 @@ void MyNode::loadData(const char *file, bool doPhysics)
 				}
 			}
 		}
+		//COLLADA components
+		_componentInd.resize(nv);
+		str = stream->readLine(line, 2048);
+		short nc = atoi(str), size;
+		std::string id;
+		for(i = 0; i < nc; i++) {
+			str = stream->readLine(line, 2048);
+			in.str(str);
+			in >> id >> size >> n;
+			_components[id].resize(n);
+			for(j = 0; j < n; j++) {
+				_components[id][j].resize(size);
+				str = stream->readLine(line, 2048);
+				in.str(str);
+				for(k = 0; k < size; k++) {
+					in >> m;
+					_components[id][j][k] = m;
+					_componentInd[m].push_back(std::tuple<std::string, unsigned short, unsigned short>(id, j, k));
+				}
+			}
+		}
 		//physics
 		str = stream->readLine(line, 2048);
 		in.str(str);
@@ -1043,7 +1030,7 @@ void MyNode::loadData(const char *file, bool doPhysics)
 			}
 		}
 		str = stream->readLine(line, 2048);
-		short nc = atoi(str);
+		nc = atoi(str);
 		_constraints.resize(nc);
 		std::string word;
 		for(i = 0; i < nc; i++) {
@@ -1136,6 +1123,19 @@ void MyNode::writeData(const char *file) {
 			}
 			for(j = 0; j < nt; j++) {
 				for(k = 0; k < 3; k++) os << _faces[i].triangle(j, k) << "\t";
+				os << endl;
+			}
+		}
+		line = os.str();
+		stream->write(line.c_str(), sizeof(char), line.length());
+		os.str("");
+		os << _components.size() << endl;
+		std::map<std::string, std::vector<std::vector<unsigned short> > >::iterator it;
+		for(it = _components.begin(); it != _components.end(); it++) {
+			short n = it->second.size(), size = it->second[0].size();
+			os << it->first << "\t" << size << "\t" << n << endl;
+			for(i = 0; i < n; i++) {
+				for(j = 0; j < size; j++) os << it->second[i][j] << "\t";
 				os << endl;
 			}
 		}
@@ -1411,6 +1411,67 @@ void MyNode::updateCamera(bool doPatches) {
 			i = next[i];
 		} while(i != patch[0]);
 	}
+}
+
+void MyNode::mergeVertices(float threshold) {
+	short nv = this->nv(), i, j, k;
+	Vector3 v1, v2;
+	std::vector<bool> merged(nv);
+	std::vector<unsigned short> mergeInd(nv);
+	//determine which vertices should be merged
+	short vCount = 0;
+	for(i = 0; i < nv; i++) {
+		v1 = _vertices[i];
+		merged[i] = false;
+		for(j = 0; j < i; j++) {
+			v2 = _vertices[j];
+			if(v1.distance(v2) < threshold) {
+				mergeInd[i] = mergeInd[j];
+				merged[i] = true;
+				break;
+			}
+		}
+		if(!merged[i]) mergeInd[i] = vCount++;
+	}
+	//remove all merged vertices
+	std::vector<Vector3>::iterator it;
+	for(i = 0, it = _vertices.begin(); i < nv; i++) {
+		if(merged[i]) _vertices.erase(it);
+		else it++;
+	}
+	//update vertex indices in faces
+	short nf = this->nf(), n, nh, nt;
+	for(i = 0; i < nf; i++) {
+		Face &face = _faces[i];
+		n = face.size();
+		for(j = 0; j < n; j++) face[j] = mergeInd[face[j]];
+		nh = face.nh();
+		for(j = 0; j < nh; j++) {
+			n = face.holeSize(j);
+			for(k = 0; k < n; k++) face._holes[j][k] = mergeInd[face._holes[j][k]];
+		}
+		nt = face.nt();
+		for(j = 0; j < nt; j++) {
+			for(k = 0; k < 3; k++) face._triangles[j][k] = mergeInd[face._triangles[j][k]];
+		}
+	}
+	//update components
+	short size, v;
+	std::map<std::string, std::vector<std::vector<unsigned short> > >::iterator cit;
+	_componentInd.clear();
+	_componentInd.resize(this->nv());
+	for(cit = _components.begin(); cit != _components.end(); cit++) {
+		n = cit->second.size();
+		size = cit->second[0].size();
+		for(j = 0; j < n; j++) {
+			for(k = 0; k < size; k++) {
+				v = mergeInd[cit->second[j][k]];
+				cit->second[j][k] = v;
+				_componentInd[v].push_back(std::tuple<std::string, unsigned short, unsigned short>(cit->first, j, k));
+			}
+		}
+	}
+	update();
 }
 
 bool MyNode::getTouchPoint(int x, int y, Vector3 *point, Vector3 *normal) {

@@ -582,8 +582,13 @@ void T4TApp::loadXMLNode(xml_document &doc, xml_node &xnode, Matrix world, MyNod
 		id = id.substr(1);
 		xpath_node ref = doc.select_node(("//node[@id='" + id + "']").c_str());
 		if(ref) {
+			short n = node->nv();
 			xml_node refNode = ref.node();
 			loadXMLNode(doc, refNode, world, node, meshes);
+			short size = node->nv() - n, i;
+			std::vector<unsigned short> instance(size);
+			for(i = 0; i < size; i++) instance[i] = n + i;
+			node->addComponentInstance(id, instance);
 		}
 	}
 	//recur on all children

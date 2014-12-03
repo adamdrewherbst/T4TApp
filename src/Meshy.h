@@ -96,7 +96,6 @@ public:
 	void printTriangles(short face = -1);
 	void addEdge(unsigned short e1, unsigned short e2, short faceInd = -1);
 	short getEdgeFace(unsigned short e1, unsigned short e2);
-	void mergeVertices(float threshold);
 	void update();
 	virtual void updateTransform();
 	virtual void updateEdges();

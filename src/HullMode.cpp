@@ -146,10 +146,11 @@ void HullMode::makeHulls() {
 	} else {
 		faces.push_back(_region->_faces);
 	}
+	
+	short nh = faces.size(), i, offset = _hullNode->_hulls.size();
 	std::set<short> hullSet;
 	std::set<short>::const_iterator it;
-	short nh = faces.size(), i, offset = _hullNode->_hulls.size();
-	_hullNode->_hulls.resize(offset + nh);
+	std::vector<std::set<short> > hullSets;
 	cout << nh << " NEW HULLS:" << endl;
 	for(i = 0; i < nh; i++) {
 		hullSet.clear();
@@ -159,13 +160,59 @@ void HullMode::makeHulls() {
 			short m = f.size(), k;
 			for(k = 0; k < m; k++) hullSet.insert(f[k]);
 		}
-		_hullNode->_hulls[offset + i] = new MyNode::ConvexHull(_hullNode);
-		MyNode::ConvexHull *hull = _hullNode->_hulls[offset + i];
-		for(it = hullSet.begin(); it != hullSet.end(); it++) {
-			cout << *it << " ";
-			hull->addVertex(_hullNode->_vertices[*it]);
+
+		//if this hull is contained in a component instance, copy it to all instances of that component
+		it = hullSet.begin();
+		std::vector<std::tuple<std::string, unsigned short, unsigned short> > instances = _hullNode->_componentInd[*it];
+		if(!instances.empty()) for(it++; it != hullSet.end(); it++) {
+			std::vector<std::tuple<std::string, unsigned short, unsigned short> > &curInstances = _hullNode->_componentInd[*it];
+			for(short j = 0; j < instances.size(); j++) {
+				bool found = false;
+				for(short k = 0; k < curInstances.size(); k++) {
+					if(std::get<0>(instances[j]).compare(std::get<0>(curInstances[k])) == 0
+						&& std::get<1>(instances[j]) == std::get<1>(curInstances[k])) found = true;
+				}
+				if(!found) instances.erase(instances.begin() + j);
+			}
 		}
-		cout << endl;
+		
+		hullSets.clear();
+		if(instances.empty()) {
+			hullSets.push_back(hullSet);
+		} else {
+			std::string id = std::get<0>(instances[0]);
+			short instance = std::get<1>(instances[0]);
+			std::vector<unsigned short> inds;
+			for(it = hullSet.begin(); it != hullSet.end(); it++) {
+				std::vector<std::tuple<std::string, unsigned short, unsigned short> > &curInstances
+					= _hullNode->_componentInd[*it];
+				for(short j = 0; j < curInstances.size(); j++) {
+					if(id.compare(std::get<0>(curInstances[j])) == 0 && instance == std::get<1>(curInstances[j])) {
+						inds.push_back(std::get<2>(curInstances[j]));
+						break;
+					}
+				}
+			}
+			n = _hullNode->_components[id].size();
+			hullSets.resize(n);
+			for(short j = 0; j < n; j++) {
+				for(short k = 0; k < inds.size(); k++) {
+					hullSets[j].insert(_hullNode->_components[id][j][inds[k]]);
+				}
+			}
+		}
+		
+		n = hullSets.size();
+		for(j = 0; j < n; j++) {
+			_hullNode->_hulls.push_back(new MyNode::ConvexHull(_hullNode));
+			MyNode::ConvexHull *hull = _hullNode->_hulls.back();
+			hullSet = hullSets[j];
+			for(it = hullSet.begin(); it != hullSet.end(); it++) {
+				cout << *it << " ";
+				hull->addVertex(_hullNode->_vertices[*it]);
+			}
+			cout << endl;
+		}
 	}
 	_region->clear();
 	_ring->clear();

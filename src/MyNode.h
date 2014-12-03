@@ -26,6 +26,12 @@ public:
 	//the outlines of the contiguous regions of my surface that face the camera
 	std::vector<std::vector<unsigned short> > _cameraPatches;
 
+	//COLLADA component info, for making hulls en masse
+	//-for each component, stores the ID and the list of instances as vertex sets
+	std::map<std::string, std::vector<std::vector<unsigned short> > > _components;
+	//-for each vertex, stores the ID, instance #, and intra-instance index for each component it is in
+	std::vector<std::vector<std::tuple<std::string, unsigned short, unsigned short> > > _componentInd;
+
 	//physics
 	std::string _objType; //mesh, box, sphere, capsule
 	float _mass, _radius;
@@ -66,6 +72,7 @@ public:
 	void setNormals();
 	void updateModel(bool doPhysics = true, bool doCenter = true);
 	void updateCamera(bool doPatches = true);
+	void mergeVertices(float threshold);
 	void calculateHulls();
 	void setColor(float r, float g, float b);
 
@@ -110,6 +117,7 @@ public:
 	void copyMesh(Meshy *mesh);
 	void clearMesh();
 	std::vector<MyNode*> getAllNodes();
+	void addComponentInstance(std::string id, const std::vector<unsigned short> &instance);
 
 	//physics
 	void addHullFace(ConvexHull *hull, short f);
