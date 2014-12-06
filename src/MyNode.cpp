@@ -251,6 +251,14 @@ short Meshy::nf() {
 	return _faces.size();
 }
 
+short Meshy::nt() {
+	short n = this->nf(), i, sum = 0;
+	for(i = 0; i < n; i++) {
+		sum += _faces[i].nt();
+	}
+	return sum;
+}
+
 short Meshy::ne() {
 	return _edges.size();
 }
@@ -1312,7 +1320,7 @@ void MyNode::updateModel(bool doPhysics, bool doCenter) {
 				normal = _faces[i].getNormal(true);
 				for(j = 0; j < n; j++) {
 					for(k = 0; k < 3; k++) {
-						vec = _vertices[_faces[i].triangle(j, k)];
+						vec = _vertices[_faces[i].triangle(j, /*_reverseFaces ? 2-k :*/ k)];
 						for(m = 0; m < 3; m++) vertices[v++] = gv(vec, m);
 						for(m = 0; m < 3; m++) vertices[v++] = gv(normal, m);
 					}
@@ -1324,7 +1332,7 @@ void MyNode::updateModel(bool doPhysics, bool doCenter) {
 		mesh->setBoundingBox(box);
 		mesh->setBoundingSphere(sphere);
 		if(_color.x >= 0) setColor(_color.x, _color.y, _color.z); //updates the model's color
-		
+
 		//update convex hulls and constraints to reflect shift in node origin
 		short nh = _hulls.size(), nc = _constraints.size();
 		for(i = 0; i < nh; i++) {

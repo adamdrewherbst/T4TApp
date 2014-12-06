@@ -30,6 +30,7 @@ public:
 	void setActive(bool active);
 	bool setSubMode(short mode);
 	bool selectItem(const char *id);
+	void updateModel();
 	void updateTransform();
 	void makeHulls();
 	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);

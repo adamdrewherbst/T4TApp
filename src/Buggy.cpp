@@ -53,7 +53,7 @@ bool Buggy::setSubMode(short mode) {
 }
 
 void Buggy::setRampHeight(float scale) {
-	cout << "scaling ramp to " << scale << endl;
+	//cout << "scaling ramp to " << scale << endl;
 	_rampSlope = scale * 5.0f / 15.0f;
 	_ramp->removePhysics();
 	_ramp->setScaleY(scale);

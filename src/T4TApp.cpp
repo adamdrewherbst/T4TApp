@@ -843,6 +843,7 @@ Model* T4TApp::createModel(std::vector<float> &vertices, bool wireframe, const c
 	mesh->release();
 	model->setMaterial(MyNode::concat(2, "res/common/models.material#", material));
 	if(node) {
+		if(node->getModel()) node->setModel(NULL);
 		node->setModel(model);
 		model->release();
 	}

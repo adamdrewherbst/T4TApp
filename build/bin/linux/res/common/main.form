@@ -640,6 +640,12 @@ form mainMenu {
 					height = 40
 					text = Flip
 				}
+				button selectAll {
+					style = buttonStyle
+					autoWidth = true
+					height = 40
+					text = Select All
+				}
 				button reverseFace {
 					style = buttonStyle
 					autoWidth = true

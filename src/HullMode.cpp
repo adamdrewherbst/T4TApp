@@ -57,7 +57,15 @@ void HullMode::controlEvent(Control *control, EventType evt) {
 	Mode::controlEvent(control, evt);
 	const char *id = control->getId();
 	
-	if(strcmp(id, "reverseFace") == 0) {
+	if(strcmp(id, "selectAll") == 0) {
+		_region->clear();
+		_ring->clear();
+		_chain->clear();
+		short nf = _hullNode->nf(), i;
+		_region->_faces.resize(nf);
+		for(i = 0; i < nf; i++) _region->_faces[i] = i;
+		_region->update();
+	} else if(strcmp(id, "reverseFace") == 0) {
 		if(_currentSelection) _currentSelection->reverseFaces();
 	} else if(control == _scaleSlider) {
 		float scale = _scaleSlider->getValue();
@@ -247,11 +255,36 @@ bool HullMode::selectItem(const char *id) {
 	_hullNode->_objType = "mesh";
 	_hullNode->_mass = 10;
 	_hullNode->setId(id);
-	_hullNode->_color.set(1.0f, 1.0f, 0.0f);
-	_hullNode->updateModel(false);
+	updateModel();
 	_scene->addNode(_hullNode);
 	updateTransform();
 	return true;
+}
+
+void HullMode::updateModel() {
+	_hullNode->updateModel(false);
+	//add all the triangles again, but with opposite orientation, so the user can click on the backwards ones to reverse them
+	short nt = _hullNode->nt();
+	std::vector<short> forward(3 * nt), reverse(3 * nt);
+	short nf = _hullNode->nf(), i, j, k, t, v = 0;
+	for(i = 0; i < nf; i++) {
+		Face &face = _hullNode->_faces[i];
+		t = face.nt();
+		for(j = 0; j < t; j++) {
+			for(k = 0; k < 3; k++) {
+				forward[v] = v;
+				reverse[v] = 3*(v/3) + (2-k);
+				v++;
+			}
+		}
+	}
+	Model *model = _hullNode->getModel();
+	MeshPart *part = model->getMesh()->addPart(Mesh::TRIANGLES, Mesh::INDEX16, nt * 3);
+	part->setIndexData(&forward[0], 0, nt * 3);
+	part = model->getMesh()->addPart(Mesh::TRIANGLES, Mesh::INDEX16, nt * 3);
+	part->setIndexData(&reverse[0], 0, nt * 3);
+	model->setMaterial("res/common/models.material#halfpipe", 0);
+	model->setMaterial("res/common/models.material#box", 1);
 }
 
 bool HullMode::keyEvent(Keyboard::KeyEvent evt, int key) {
@@ -327,33 +360,39 @@ void HullMode::Selection::toggleFace(short face) {
 void HullMode::Selection::update() {
 	_node->clearMesh();
 	MyNode *node = _mode->_hullNode;
-	short i, j, n = _faces.size(), f, nv;
+	short i, j, k, m, n = _faces.size(), f, nv, nh, nt;
 	Vector3 vec, normal;
 	std::vector<unsigned short> newFace;
 	std::vector<std::vector<unsigned short> > newTriangles;
 	std::map<unsigned short, unsigned short> newInd;
 	Face::boundary_iterator it;
 	for(i = 0; i < n; i++) {
-		Face face = node->_faces[_faces[i]];
+		Face &face = node->_faces[_faces[i]];
 		normal = face.getNormal(true);
-		newInd.clear();
-		for(it = face.vbegin(); it != face.vend(); it++) {
-			vec = node->_vertices[it->first] + normal * 0.001f;
-			newInd[it->first] = _node->nv();
-			_node->addVertex(vec);
-		}
 		f = face.size();
-		for(j = 0; j < f; j++) face[j] = newInd[face[j]];
-		short nh = face.nh(), k;
-		for(j = 0; j < nh; j++) {
-			short h = face.holeSize(j);
-			for(k = 0; k < h; k++) face._holes[j][k] = newInd[face._holes[j][k]];
+		nh = face.nh();
+		nt = face.nt();
+		//add with both orientations to make sure user will see it
+		for(m = 0; m < 2; m++) {
+			newInd.clear();
+			for(it = face.vbegin(); it != face.vend(); it++) {
+				vec = node->_vertices[it->first] + (m == 0 ? 1.0f : -1.0f) * normal * 0.001f;
+				newInd[it->first] = _node->nv();
+				_node->addVertex(vec);
+			}
+			Face newFace = node->_faces[_faces[i]];
+			for(j = 0; j < f; j++) newFace[j] = newInd[face[m == 0 ? j : f-1-j]];
+			for(j = 0; j < nh; j++) {
+				short h = face.holeSize(j);
+				for(k = 0; k < h; k++) newFace._holes[j][k] = newInd[face._holes[j][m == 0 ? k : h-1-k]];
+			}
+			for(j = 0; j < nt; j++) {
+				for(k = 0; k < 3; k++) newFace._triangles[j][k] = newInd[face._triangles[j][m == 0 ? k : 2-k]];
+			}
+			_node->addFace(newFace);
+			cout << "ADDING FACE:" << endl;
+			_node->printFace(_node->nf()-1);
 		}
-		short nt = face.nt();
-		for(j = 0; j < nt; j++) {
-			for(k = 0; k < 3; k++) face._triangles[j][k] = newInd[face._triangles[j][k]];
-		}
-		_node->addFace(face);
 	}
 	_node->update();
 	_node->updateModel(false, false);
@@ -370,7 +409,7 @@ void HullMode::Selection::reverseFaces() {
 	for(i = 0; i < n; i++) {
 		node->_faces[_faces[i]].reverse();
 	}
-	node->updateModel(false, false);
+	_mode->updateModel();
 	update();
 }
 

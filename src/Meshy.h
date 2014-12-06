@@ -81,6 +81,7 @@ public:
 	Meshy();
 	short nv();
 	short nf();
+	short nt();
 	short ne();
 	void addVertex(const Vector3 &v);
 	void addVertex(float x, float y, float z);

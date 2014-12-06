@@ -75,8 +75,8 @@ material halfpipe : colored
     {
         pass
         {
-	    u_ambientColor = 1.0, 0.0, 1.0
-	    u_diffuseColor = 1.0, 1.0, 1.0, 1.0
+		    u_ambientColor = 1.0, 0.0, 1.0
+		    u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
 }
@@ -200,7 +200,7 @@ material red : colored
     {
         pass
         {
-	    u_ambientColor = 1.0, 0.0, 0.0
+		    u_ambientColor = 1.0, 0.0, 0.0
             u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
@@ -212,7 +212,8 @@ material torus : colored
     {
         pass
         {
-            u_diffuseColor = 1, 0.5, 0.0, 1
+            u_ambientColor = 1, 0.5, 0.0
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
 }
@@ -223,7 +224,8 @@ material sphere : colored
     {
         pass
         {
-            u_diffuseColor = 0.7, 0.7, 0.7, 1
+            u_ambientColor = 0.7, 0.7, 0.7
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
 }
@@ -234,7 +236,8 @@ material cone : colored
     {
         pass
         {
-            u_diffuseColor = 0.5, 0.25, 0.5, 1
+            u_ambientColor = 0.5, 0.25, 0.5
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
 }
@@ -245,7 +248,8 @@ material pitri_wheel : colored
     {
         pass
         {
-            u_diffuseColor = 0.5, 0.25, 0.5, 1
+            u_ambientColor = 0.5, 0.25, 0.5
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
 }
@@ -256,7 +260,8 @@ material green_flange_wheel : colored
     {
         pass
         {
-            u_diffuseColor = 0.5, 0.25, 0.5, 1
+            u_ambientColor = 0.5, 0.25, 0.5
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
 }
@@ -267,7 +272,8 @@ material jar_with_cone : colored
     {
         pass
         {
-            u_diffuseColor = 0.5, 0.25, 0.5, 1
+            u_ambientColor = 0.5, 0.25, 0.5
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
 }
@@ -278,7 +284,8 @@ material cap_with_hole_1 : colored
     {
         pass
         {
-            u_diffuseColor = 0.5, 0.25, 0.5, 1
+            u_ambientColor = 0.5, 0.25, 0.5
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
 }
@@ -289,7 +296,8 @@ material cap_with_hole_2 : colored
     {
         pass
         {
-            u_diffuseColor = 0.5, 0.25, 0.5, 1
+            u_ambientColor = 0.5, 0.25, 0.5
+            u_diffuseColor = 1.0, 1.0, 1.0, 1.0
         }
     }
 }
