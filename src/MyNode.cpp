@@ -1918,6 +1918,8 @@ void MyNode::removePhysics(bool recur) {
 void MyNode::enablePhysics(bool enable, bool recur) {
 	PhysicsCollisionObject *obj = getCollisionObject();
 	if(obj != NULL && obj->isEnabled() == enable) return;
+	PhysicsRigidBody *body = NULL;
+	if(obj) body = obj->asRigidBody();
 	if(recur) {
 		//first enable/disable physics on all child nodes
 		for(MyNode *node = dynamic_cast<MyNode*>(getFirstChild()); node; node = dynamic_cast<MyNode*>(node->getNextSibling())) {
@@ -1929,9 +1931,11 @@ void MyNode::enablePhysics(bool enable, bool recur) {
 		if(obj == NULL) {
 			addPhysics(false);
 		} else {
-			obj->setEnabled(true);
-			PhysicsRigidBody *body = obj->asRigidBody();
-			if(body) body->setActivation(ACTIVE_TAG);
+			//for some reason calling obj->setEnabled does not use the RigidBody override => must do that separately - why?
+			if(body) {
+				body->setEnabled(true);
+				body->setActivation(ACTIVE_TAG);
+			} else obj->setEnabled(true);
 			app->enableConstraints(this, true);
 		}
 	} else if(obj != NULL) {
@@ -1939,7 +1943,9 @@ void MyNode::enablePhysics(bool enable, bool recur) {
 			removePhysics(false);
 		} else {
 			app->enableConstraints(this, false);
-			obj->setEnabled(false);
+			if(body) {
+				body->setEnabled(false);
+			} else obj->setEnabled(false);
 		}
 	}
 }

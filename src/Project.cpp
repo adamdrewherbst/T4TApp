@@ -263,7 +263,8 @@ void Project::launch() {
 }
 
 Project::Element::Element(Project *project, Element *parent, const char *id, const char *name, bool multiple)
-  : _project(project), _id(id), _name(name), _numNodes(1), _currentNodeId(NULL), _multiple(multiple), _touchInd(-1) {
+  : _project(project), _id(id), _name(name), _numNodes(1), _currentNodeId(NULL), _multiple(multiple), _touchInd(-1),
+    _isOther(false) {
 	app = (T4TApp*) Game::getInstance();
   	if(name == NULL) _name = _id;
 	setParent(parent);
@@ -397,7 +398,10 @@ void Project::Element::placeNode(short n) {
 		node->setTranslation(0, 0, 0);
 	} else {
 		MyNode *parent = _isOther ? _project->getTouchNode(_project->getLastTouchEvent()) : _parent->getNode();
-		if(parent && parent != node) node->attachTo(parent, point, normal);
+		if(parent && parent != node) {
+			cout << "attaching to " << parent->getId() << " at " << app->pv(point) << endl;
+			node->attachTo(parent, point, normal);
+		}
 	}
 }
 
@@ -443,10 +447,12 @@ bool Project::Element::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 						parent->updateCamera();
 						Vector3 point = node->getAnchorPoint();
 						_project->_touchPt.set(evt, x, y, point);
+						cout << "touched " << node->getId() << ", currently at " << app->pv(point) << endl;
 						node->enablePhysics(false);
 						break;
 					} case Touch::TOUCH_MOVE: {
 						_project->_touchPt.set(evt, x, y, parent);
+						cout << "moving to " << app->pv(_project->_touchPt.getPoint(evt)) << endl;
 						placeNode(_touchInd);
 						break;
 					} case Touch::TOUCH_RELEASE: {
