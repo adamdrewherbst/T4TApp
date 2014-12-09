@@ -10,7 +10,7 @@ Mode::Mode(const char* id) : _selectedNode(NULL), _doSelect(true) {
 	
 	_id = id;
 	_style = app->_theme->getStyle("hidden");
-	setAutoWidth(true);	
+	setAutoWidth(true);
 	setAutoHeight(true);
 	setConsumeInputEvents(true);
 
@@ -59,6 +59,7 @@ void Mode::setActive(bool active) {
 		setSubMode(0);
 		app->setNavMode(-1);
 	} else {
+		app->message(NULL);
 		app->cameraPop();
 		app->showScene();
 	}
@@ -244,6 +245,7 @@ void TouchPoint::set(Touch::TouchEvent evt, int x, int y, MyNode *node) {
 	_hit = node->getTouchPoint(x, y, &point, &normal);
 	_point[evt] = point;
 	_normal[evt] = normal;
+	_node[evt] = node;
 }
 
 void TouchPoint::set(Touch::TouchEvent evt, int x, int y, const Plane &plane) {

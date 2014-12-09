@@ -44,6 +44,23 @@ void Project::setupMenu() {
 	
 	//add a button for attaching general items
 	//Button *button = app->addButton <Button> (_controls, "other", "Other");
+	
+	_moveContainer = Container::create("moveMode", app->_theme->getStyle("hiddenContainer"), Layout::LAYOUT_FLOW);
+	_moveModes.push_back("translate");
+	_moveModes.push_back("rotate");
+	_moveModes.push_back("rotateFree");
+	_moveModes.push_back("groundFace");
+	n = _moveModes.size();
+	for(i = 0; i < n; i++) {
+		ImageControl *button = app->addButton <ImageControl> (_moveContainer, _moveModes[i].c_str(), _moveModes[i].c_str(),
+			"imageSquare");
+		button->setImage(MyNode::concat(3, "res/png/", _moveModes[i].c_str(), ".png"));
+		button->setSize(50.0f, 50.0f);
+	}
+	_moveContainer->setAutoWidth(true);
+	_moveContainer->setHeight(ceil(n / 3.0f) * 60.0f);
+	_controls->addControl(_moveContainer);
+	app->addListener(_moveContainer, this);
 
 	//add a button for each action that any element has - we will enable them on the fly for the selected element
 	_actionContainer = Container::create("actions", app->_theme->getStyle("hiddenContainer"), Layout::LAYOUT_FLOW);
@@ -65,7 +82,8 @@ void Project::setupMenu() {
 	_controls->addControl(_actionContainer);
 	app->addListener(_actionContainer, this);
 
-	_controls->setHeight(_controls->getHeight() + _elementContainer->getHeight() + _actionContainer->getHeight() + 150.0f);
+	_controls->setHeight(_controls->getHeight() + _elementContainer->getHeight() + _actionContainer->getHeight()
+		+ _moveContainer->getHeight() + 150.0f);
 }
 
 void Project::controlEvent(Control *control, EventType evt) {
@@ -87,11 +105,14 @@ void Project::controlEvent(Control *control, EventType evt) {
 		app->_componentMenu->setVisible(false);
 		if(element) element->setNode(id+5);
 		else _currentNodeId = id+5;
+	} else if(_moveContainer->getControl(id) == control) {
+		short n = _moveModes.size(), i;
+		for(i = 0; i < n; i++) {
+			if(_moveModes[i].compare(id) == 0) _moveMode = i;
+		}
 	} else if(_numActions > 0 && _actionContainer->getControl(id) == control) {
 		if(element) element->doAction(id);
-		if(strcmp(id, "translate") == 0) _moveMode = 0;
-		else if(strcmp(id, "rotate") == 0) _moveMode = 1;
-		else if(strcmp(id, "rotateFree") == 0) _moveMode = 2;
+		if(strcmp(id, "delete") == 0) deleteSelected();
 	} else if(control == _launchButton) {
 		launch();
 	} else if(strcmp(id, "translate") == 0) {
@@ -117,12 +138,27 @@ bool Project::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int conta
 		  && (current->_isOther || current->_parent == touchNode->_element)) {
 			current->addNode();
 		}
-		//or attaching a general item
-		//else if(evt == Touch::TOUCH_PRESS && _currentElement == -1 && _currentNodeId) {
-		//	addNode();
-		//}
 		//otherwise just trigger whatever node we clicked
-		else touchNode->_element->touchEvent(evt, x, y, contactIndex);
+		else {
+			if(evt == Touch::TOUCH_PRESS) {
+				short n = _elements.size(), i;
+				for(i = 0; i < n; i++) if(_elements[i].get() == touchNode->_element) setCurrentElement(i);
+			}
+			getEl()->touchEvent(evt, x, y, contactIndex);
+		}
+	}
+}
+
+void Project::deleteSelected() {
+	if(_selectedNode == NULL) return;
+	Element *el = _selectedNode->_element;
+	if(el == NULL) return;
+	short n = el->_nodes.size(), i;
+	for(i = 0; i < n; i++) {
+		if(el->_nodes[i].get() == _selectedNode) {
+			el->deleteNode(i);
+			break;
+		}
 	}
 }
 
@@ -246,7 +282,6 @@ void Project::setCurrentElement(short n) {
 		for(short i = 0; i < actions.size(); i++) {
 			_actionFilter->filter(actions[i].c_str(), false);
 		}
-		element->_moveMode = -1;
 	}
 }
 
@@ -272,13 +307,9 @@ Project::Element::Element(Project *project, Element *parent, const char *id, con
 	setMovable(false, false, false, -1);
 	setRotable(false, false, false);
 	for(short i = 0; i < 3; i++) setLimits(i, -MyNode::inf(), MyNode::inf());
-	if(_parent || _id.compare("other") == 0) {
-		addAction("translate");
-		addAction("rotate");
-		addAction("rotateFree");
-	}
 	if(_multiple) {
 		addAction("add");
+		addAction("delete");
 	}
 }
 
@@ -347,15 +378,8 @@ void Project::Element::removeAction(const char *action) {
 }
 
 void Project::Element::doAction(const char *action) {
-	_moveMode = -1;
 	if(strcmp(action, "add") == 0) {
 		app->promptItem(_filter);
-	} else if(strcmp(action, "translate") == 0) {
-		_moveMode = 0;
-	} else if(strcmp(action, "rotate") == 0) {
-		_moveMode = 1;
-	} else if(strcmp(action, "rotateFree") == 0) {
-		_moveMode = 2;
 	}
 }
 
@@ -415,6 +439,12 @@ void Project::Element::addPhysics(short n) {
 	}
 }
 
+void Project::Element::deleteNode(short n) {
+	MyNode *node = _nodes[n].get();
+	node->removeMe();
+	_nodes.erase(_nodes.begin() + n);
+}
+
 short Project::Element::getNodeCount() {
 	return _nodes.size();
 }
@@ -425,8 +455,8 @@ MyNode* Project::Element::getNode(short n) {
 
 bool Project::Element::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
 	_planeTouch.set(evt, x, y, _plane);
-	//identify which of my nodes was touched
 	if(evt == Touch::TOUCH_PRESS) {
+		//identify which of my nodes was touched
 		_touchInd = -1;
 		for(short i = 0; i < _nodes.size(); i++) {
 			_nodes[i]->setBase();
@@ -437,7 +467,7 @@ bool Project::Element::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 	if(_touchInd >= 0) node = _nodes[_touchInd].get();
 	if(node) parent = dynamic_cast<MyNode*>(node->getParent());
 	//move the node as needed
-	if(node && parent && _moveMode >= 0) {
+	if(node && parent && _project->_moveMode >= 0) {
 		switch(_project->_moveMode) {
 			case 0: { //translate
 				switch(evt) {
@@ -515,6 +545,26 @@ bool Project::Element::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned 
 						node->baseRotate(rot, &origin);
 						break;
 					} case Touch::TOUCH_RELEASE: {
+						addPhysics(_touchInd);
+						node->enablePhysics(true);
+						break;
+					}
+				}
+				break;
+			} case 3: { //ground face
+				switch(evt) {
+					case Touch::TOUCH_PRESS: {
+						break;
+					} case Touch::TOUCH_MOVE: {
+						break;
+					} case Touch::TOUCH_RELEASE: {
+						if(node->getChildCount() > 0) break;
+						short f = node->pt2Face(_project->_touchPt.getPoint(evt));
+						if(f < 0) break;
+						node->enablePhysics(false);
+						Vector3 joint = node->getAnchorPoint(), normal = node->getJointNormal();
+						Plane plane(normal, -joint.dot(normal));
+						node->rotateFaceToPlane(f, plane);
 						addPhysics(_touchInd);
 						node->enablePhysics(true);
 						break;

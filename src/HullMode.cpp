@@ -72,6 +72,10 @@ void HullMode::controlEvent(Control *control, EventType evt) {
 		if(evt == Control::Listener::PRESS) _hullNode->removePhysics();
 		_hullNode->setScale(scale);
 		updateTransform();
+		BoundingBox box = _hullNode->getBoundingBox();
+		os.str("");
+		os << "Bounding box: " << box.max.x - box.min.x << " x " << box.max.y - box.min.y << " x " << box.max.z - box.min.z << endl;
+		app->message(os.str().c_str());
 		if(evt == Control::Listener::RELEASE) _hullNode->addPhysics();
 	} else if(strcmp(id, "makeHull") == 0) {
 		makeHulls();

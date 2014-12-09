@@ -45,6 +45,8 @@ public:
 	int _constraintId;
 	Vector3 _parentOffset, _parentAxis; //location and axis of constraint joint with parent in parent's model space
 	Vector3 _parentNormal; //normal to parent's surface at joint location
+	//if the node has been adjusted so a particular face is on the ground
+	Quaternion _groundRotation;
 	//when moving the node by dragging
 	Vector3 _baseTranslation, _baseScale;
 	Quaternion _baseRotation;
@@ -131,6 +133,7 @@ public:
 	bool physicsEnabled();
 	void setVisible(bool visible);
 	void setActivation(int state);
+	void removeMe();
 	nodeConstraint* getNodeConstraint(MyNode *other);
 	MyNode *getConstraintNode(nodeConstraint *constraint);
 	//get the world space joint attributes

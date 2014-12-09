@@ -494,6 +494,7 @@ void MyNode::init() {
 	_element = NULL;
     app = (T4TApp*) Game::getInstance();
     _staticObj = false;
+    _groundRotation = Quaternion::identity();
     _constraintParent = NULL;
     _constraintId = -1;
     _chain = false;
@@ -633,7 +634,12 @@ BoundingBox MyNode::getBoundingBox(bool modelSpace, bool recur) {
 	else nodes.push_back(this);
 	short n = nodes.size(), i, j, k;
 	Matrix m;
-	if(modelSpace) getWorldMatrix().invert(&m);
+	if(modelSpace) {
+		getWorldMatrix().invert(&m);
+		Matrix rot;
+		Matrix::createRotation(_groundRotation, &rot);
+		m = rot * m;
+	}
 	for(i = 0; i < n; i++) {
 		MyNode *node = nodes[i];
 		short nv = node->nv();
@@ -739,15 +745,16 @@ void MyNode::rotateFaceToPlane(unsigned short f, Plane p) {
 	float angle;
 	Vector3 axis, face, plane;
 	//get model space face normal
-	face = getScaleNormal(f);
+	face = _faces[f].getNormal(true);
 	//get axis/angle rotation required to align face normal with plane normal
 	plane.set(-p.getNormal());
-	setRotation(getVectorRotation(face, plane));
+	_groundRotation = getVectorRotation(face, -Vector3::unitZ());
+	setMyRotation(getVectorRotation(-Vector3::unitZ(), plane));
 	//translate node so it is flush with the plane
 	Vector3 vertex(_vertices[_faces[f][0]]);
 	getWorldMatrix().transformPoint(&vertex);
 	float distance = vertex.dot(plane) - p.getDistance();
-	translate(-plane * distance);
+	myTranslate(-plane * distance);
 	updateTransform();
 }
 
@@ -1774,7 +1781,7 @@ void MyNode::myRotate(const Quaternion& delta, Vector3 *center) {
 void MyNode::setMyRotation(const Quaternion& rotation, Vector3 *center) {
 	Quaternion rotInv, delta;
 	getRotation().inverse(&rotInv);
-	delta = rotation * rotInv;
+	delta = rotation * _groundRotation * rotInv;
 	Vector3 axis;
 	float angle = delta.toAxisAngle(&axis);
 	//cout << "rotating by " << angle << " about " << app->pv(axis) << " [" << delta.x << "," << delta.y << "," << delta.z << "," << delta.w << "]" << endl;
@@ -1967,6 +1974,12 @@ void MyNode::setActivation(int state) {
 		MyNode *node = dynamic_cast<MyNode*>(n);
 		if(node) node->setActivation(state);
 	}
+}
+
+void MyNode::removeMe() {
+	removePhysics();
+	if(_parent) _parent->removeChild(this);
+	else if(_scene) _scene->removeNode(this);
 }
 
 nodeConstraint* MyNode::getNodeConstraint(MyNode *other) {

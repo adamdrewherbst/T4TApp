@@ -14,7 +14,7 @@ public:
 		std::string _id, _name;
 		bool _static, _multiple, _isOther, _movable[3], _rotable[3];
 		float _limits[3][2];
-		short _moveRef, _numNodes, _moveMode, _touchInd;
+		short _moveRef, _numNodes, _touchInd;
 		std::vector<std::shared_ptr<MyNode> > _nodes;
 		const char *_currentNodeId, *_filter;
 		Element *_parent;
@@ -41,6 +41,7 @@ public:
 		virtual void addNode();
 		virtual void placeNode(short n = 0);
 		virtual void addPhysics(short n = 0);
+		virtual void deleteNode(short n = 0);
 	};
 	
 	//represents all items that are not specifically part of this project
@@ -52,6 +53,9 @@ public:
 	
 	std::vector<std::shared_ptr<Element> > _elements;
 	Other *_other;
+	
+	std::vector<std::string> _moveModes;
+	Container *_moveContainer;
 
 	short _numElements, _numActions, _currentElement, _typeCount, _moveMode, _moveAxis;
 	Quaternion _baseRotation;
@@ -87,6 +91,7 @@ public:
 	virtual void addNode();
 	virtual void finish();
 	virtual void addPhysics();
+	virtual void deleteSelected();
 	virtual void launch();
 };
 
