@@ -1,9 +1,9 @@
-#ifndef LANDINGPOD_H_
-#define LANDINGPOD_H_
+#ifndef CEV_H_
+#define CEV_H_
 
 #include "Project.h"
 
-class LandingPod : public Project {
+class CEV : public Project {
 public:
 	class Body : public Project::Element {
 		public:
@@ -24,11 +24,13 @@ public:
 	Body *_body;
 	Hatch *_hatch;
 	
-	MyNode *_buggy; //use the lunar buggy as the payload
+	MyNode *_astronauts[2];
+	
+	float _maxRadius, _maxLength, _maxMass;
 	
 	Button *_hatchButton;
 
-	LandingPod();
+	CEV();
 	bool touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex);
 	void controlEvent(Control *control, EventType evt);
 	void setupMenu();

@@ -874,6 +874,17 @@ void MyNode::addComponentInstance(std::string id, const std::vector<unsigned sho
 	}
 }
 
+float MyNode::getMass(bool recur) {
+	std::vector<MyNode*> nodes = getAllNodes();
+	short n = nodes.size(), i;
+	float mass = 0;
+	for(i = 0; i < n; i++) {
+		MyNode *node = nodes[i];
+		mass += node->_mass;
+	}
+	return mass;
+}
+
 void MyNode::addHullFace(MyNode::ConvexHull *hull, short f) {
 	hull->addFace(_faces[f]);
 }

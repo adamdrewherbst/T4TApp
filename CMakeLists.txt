@@ -154,6 +154,7 @@ set(GAME_SRC
 	src/Rocket.cpp
 	src/Robot.cpp
 	src/LandingPod.cpp
+	src/CEV.cpp
 	src/Launcher.cpp
 	src/HullMode.cpp
 	#src/Lever.cpp

@@ -1,8 +1,8 @@
 #include "T4TApp.h"
-#include "LandingPod.h"
+#include "CEV.h"
 #include "MyNode.h"
 
-LandingPod::LandingPod() : Project::Project("landingPod") {
+CEV::CEV() : Project::Project("CEV") {
 
 	app->addItem("podBase", 2, "general", "body");
 	app->addItem("hatch1", 2, "general", "hatch");
@@ -11,9 +11,13 @@ LandingPod::LandingPod() : Project::Project("landingPod") {
 	_body = (Body*) addElement(new Body(this));
 	_hatch = (Hatch*) addElement(new Hatch(this, _body));
 	setupMenu();
+	
+	_maxRadius = 10.0f;
+	_maxLength = 20.0f;
+	_maxMass = 100.0f;
 }
 
-void LandingPod::setupMenu() {
+void CEV::setupMenu() {
 	Project::setupMenu();
 	_hatchButton = app->addButton <Button> (NULL, "openHatch", "Open Hatch");
 	_controls->insertControl(_hatchButton, 2);
@@ -22,12 +26,12 @@ void LandingPod::setupMenu() {
 	_controls->setHeight(_controls->getHeight() + 70.0f);	
 }
 
-bool LandingPod::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
+bool CEV::touchEvent(Touch::TouchEvent evt, int x, int y, unsigned int contactIndex) {
 	Project::touchEvent(evt, x, y, contactIndex);
 	return true;
 }
 
-void LandingPod::controlEvent(Control *control, EventType evt) {
+void CEV::controlEvent(Control *control, EventType evt) {
 	Project::controlEvent(control, evt);
 	const char *id = control->getId();
 	
@@ -37,44 +41,48 @@ void LandingPod::controlEvent(Control *control, EventType evt) {
 	}
 }
 
-void LandingPod::setActive(bool active) {
+void CEV::setActive(bool active) {
 	Project::setActive(active);
 }
 
-bool LandingPod::setSubMode(short mode) {
+bool CEV::setSubMode(short mode) {
 	bool changed = Project::setSubMode(mode);
 	switch(_subMode) {
 		case 0: { //build
 			break;
 		} case 1: { //test
-			//place the pod at a fixed height
-			_rootNode->enablePhysics(false);
-			_rootNode->placeRest();
-			Vector3 trans(0, 10, 0);
-			_rootNode->setMyTranslation(trans);
-			//attempt to place the lunar buggy right behind the hatch
-			_buggy = app->getProjectNode("buggy");
-			if(_buggy && _buggy->getChildCount() > 0) {
-				_buggy->enablePhysics(false);
-				_buggy->placeRest();
-				_buggy->updateTransform();
-				_scene->addNode(_buggy);
-				MyNode *hatch = _hatch->getNode(), *base = _body->getNode();
-				hatch->updateTransform();
-				base->updateTransform();
-				BoundingBox buggyBox = _buggy->getBoundingBox(true), baseBox = base->getBoundingBox(false, false),
-				  hatchBox = hatch->getBoundingBox(false);
-				Vector3 normal = -hatch->getJointNormal();
-				float backZ = hatch->getMaxValue(normal);
-				Vector3 pos = hatch->getTranslationWorld() + (backZ + buggyBox.max.z) * normal;
-				pos.y = baseBox.max.y - buggyBox.min.y;
-				Quaternion rot = MyNode::getVectorRotation(Vector3::unitZ(), -normal);
-				_buggy->setMyTranslation(pos);
-				_buggy->setMyRotation(rot);
+			//just check the size constraint - launching will be done by the Launcher project
+			std::vector<MyNode*> nodes = _rootNode->getAllNodes();
+			short i, j, n = nodes.size(), nv;
+			float radius, maxRadius = 0, minZ = 1e6, maxZ = -1e6;
+			Matrix m;
+			_rootNode->getWorldMatrix().invert(&m);
+			Vector3 vec;
+			for(i = 0; i < n; i++) {
+				MyNode *node = nodes[i];
+				nv = node->nv();
+				for(j = 0; j < nv; j++) {
+					vec = node->_worldVertices[j];
+					m.transformPoint(&vec);
+					radius = sqrt(vec.x*vec.x + vec.z*vec.z);
+					if(vec.y < minZ) minZ = vec.y;
+					if(vec.y > maxZ) maxZ = vec.y;
+					if(radius > maxRadius) {
+						maxRadius = radius;
+					}
+				}
 			}
-			//TODO: if not enough space, alert the user
-			app->getPhysicsController()->setGravity(Vector3::zero());
-			app->_ground->setVisible(true);
+			if(maxRadius > _maxRadius || (maxZ - minZ) > _maxLength) {
+				app->message("Vehicle does not fit in tube");
+				_launchButton->setEnabled(false);
+				break;
+			}
+			//check that the mass is within the limit
+			if(_rootNode->getMass() > _maxMass) {
+				app->message("Your vehicle is more than 100g");
+				_launchButton->setEnabled(false);
+				break;
+			}
 			break;
 		}
 	}
@@ -83,16 +91,11 @@ bool LandingPod::setSubMode(short mode) {
 	return changed;
 }
 
-void LandingPod::launch() {
+void CEV::launch() {
 	Project::launch();
-	_rootNode->enablePhysics(true);
-	_buggy->enablePhysics(true);
-	app->getPhysicsController()->setGravity(app->_gravity);
-	_rootNode->setActivation(DISABLE_DEACTIVATION);
-	_hatchButton->setEnabled(true);
 }
 
-void LandingPod::openHatch() {
+void CEV::openHatch() {
 	//release the lock and give the hatch an outward kick
 	if(_hatch->_lock.get() != nullptr) _hatch->_lock->setEnabled(false);
 	//the torque is about the hinge axis
@@ -101,24 +104,19 @@ void LandingPod::openHatch() {
 	//anchor the pod to the ground
 	_body->_groundAnchor = ConstraintPtr(app->getPhysicsController()->createFixedConstraint(
 	  _body->getNode()->getCollisionObject()->asRigidBody(), app->_ground->getCollisionObject()->asRigidBody()));
-	//push the buggy out through the hatch
-	if(_buggy->getScene() == _scene) {
-		MyNode *body = dynamic_cast<MyNode*>(_buggy->getFirstChild());
-		Vector3 impulse = -_buggy->getForwardVector() * 1000.0f;
-		body->getCollisionObject()->asRigidBody()->applyImpulse(impulse);
-	}
+	//TODO: push the astronauts out through the hatch
 }
 
-LandingPod::Body::Body(Project *project) : Project::Element::Element(project, NULL, "body", "Body") {
+CEV::Body::Body(Project *project) : Project::Element::Element(project, NULL, "body", "Body") {
 	_filter = "body";
 }
 
-LandingPod::Hatch::Hatch(Project *project, Element *parent)
+CEV::Hatch::Hatch(Project *project, Element *parent)
   : Project::Element::Element(project, parent, "hatch", "Hatch") {
 	_filter = "hatch";
 }
 
-void LandingPod::Hatch::placeNode(short n) {
+void CEV::Hatch::placeNode(short n) {
 	//put the bottom center of the bounding box where the user clicked
 	MyNode *node = _nodes[n].get(), *parent = _parent->getNode();
 	node->updateTransform();
@@ -134,7 +132,7 @@ void LandingPod::Hatch::placeNode(short n) {
 	node->_parentAxis = axis.normalize();
 }
 
-void LandingPod::Hatch::addPhysics(short n) {
+void CEV::Hatch::addPhysics(short n) {
 	Project::Element::addPhysics(n);
 	//the hinge should always be on the bottom edge so the buggy can roll out
 	MyNode *node = _nodes[n].get(), *parent = _parent->getNode();

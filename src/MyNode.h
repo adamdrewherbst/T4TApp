@@ -122,6 +122,7 @@ public:
 	void addComponentInstance(std::string id, const std::vector<unsigned short> &instance);
 
 	//physics
+	float getMass(bool recur = true);
 	void addHullFace(ConvexHull *hull, short f);
 	void setOneHull();
 	bool isStatic();
